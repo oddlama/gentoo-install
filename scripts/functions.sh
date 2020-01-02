@@ -263,7 +263,10 @@ extract_stage3() {
 
 disable_logging() {
 	# Disables logging which is needed before exec-ing
+	# Restore stdion
 	exec 1>&3
+	# Close fd 3
+	exec 3<&-
 }
 
 gentoo_umount() {
@@ -272,6 +275,9 @@ gentoo_umount() {
 		umount -R -l "$ROOT_MOUNTPOINT" \
 			|| die "Could not unmount filesystems"
 	fi
+}
+
+interactive_bash() {
 }
 
 gentoo_chroot() {

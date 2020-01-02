@@ -81,24 +81,19 @@ main_install_gentoo_in_chroot() {
 	#install_ansible
 
 	einfo "Gentoo installation complete"
-	einfo "Dropping into chrooted shell"
-	su
+	einfo "To chroot into the new system, simply execute the provided 'chroot' wrapper"
 }
 
 main_install() {
 	[[ $# == 0 ]] || die "Too many arguments"
 
 	gentoo_umount
-	install_stage3 \
-		|| die "Failed to install stage3"
-
-	gentoo_chroot "$GENTOO_BOOTSTRAP_BIND/scripts/main.sh" install_gentoo_in_chroot \
-		|| die "Failed to install gentoo in chroot"
+	install_stage3
+	gentoo_chroot "$GENTOO_BOOTSTRAP_BIND/scripts/main.sh" install_gentoo_in_chroot
 }
 
 main_chroot() {
-	gentoo_chroot "$@" \
-		|| die "Failed to execute script in chroot"
+	gentoo_chroot "$@"
 }
 
 main_umount() {
