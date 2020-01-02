@@ -257,6 +257,11 @@ extract_stage3() {
 		|| die "Could not cd into '$TMP_DIR'"
 }
 
+disable_logging() {
+	# Disables logging which is needed before exec-ing
+	exec 1>&3
+}
+
 gentoo_umount() {
 	einfo "Unmounting root filesystem"
 	if mountpoint -q -- "$ROOT_MOUNTPOINT"; then
@@ -293,6 +298,7 @@ gentoo_chroot() {
 
 	# Execute command
 	einfo "Chrooting..."
+	disable_logging
 	EXECUTED_IN_CHROOT=true \
 		TMP_DIR=$TMP_DIR \
 		exec chroot "$ROOT_MOUNTPOINT" "$GENTOO_BOOTSTRAP_DIR/scripts/main_chroot.sh" "$@" \

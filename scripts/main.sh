@@ -108,12 +108,15 @@ main_umount() {
 ################################################
 # Main dispatch
 
-# Redirect output to logfiles
+einfo "Verbose script output will be logged to: '$GENTOO_BOOTSTRAP_DIR/log-$LOGDATE.out'"
+# Save old stdout
 exec 3>&1
-trap 'exec 1>&3' 0 1 2 3
+# Restore old filedescriptor on certain signals
+trap 'exec 1>&3' 0 1 2 3 RETURN
+# Replace stdout with logfole
 exec 1>"$GENTOO_BOOTSTRAP_DIR/log-$LOGDATE.out"
+# Link to latest log file
 ln -sf "$GENTOO_BOOTSTRAP_DIR/log-$LOGDATE.out" "$GENTOO_BOOTSTRAP_DIR/log.out"
-einfo "Verbose script output is logged to: '$GENTOO_BOOTSTRAP_DIR/log-$LOGDATE.out'"
 
 SCRIPT_ALIAS="$(basename "$0")"
 if [[ "$SCRIPT_ALIAS" == "main.sh" ]]; then
