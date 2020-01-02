@@ -92,7 +92,7 @@ main_install() {
 	install_stage3 \
 		|| die "Failed to install stage3"
 
-	gentoo_chroot "$GENTOO_BOOTSTRAP_DIR/scripts/main.sh" install_gentoo_in_chroot \
+	gentoo_chroot "$GENTOO_BOOTSTRAP_BIND/scripts/main.sh" install_gentoo_in_chroot \
 		|| die "Failed to install gentoo in chroot"
 }
 
