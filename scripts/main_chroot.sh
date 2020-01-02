@@ -6,6 +6,9 @@
 # Source the systems profile
 source /etc/profile
 
+# Set safe umask
+umask 0077
+
 # Export nproc variables
 export NPROC="$(nproc || echo 2)"
 export NPROC_ONE="$(($NPROC + 1))"

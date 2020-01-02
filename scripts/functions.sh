@@ -13,12 +13,12 @@ check_has_program() {
 
 sync_time() {
 	einfo "Syncing time"
-	ntpd -g -q >/dev/null \
+	ntpd -g -q \
 		|| die "Could not sync time with remote server"
 
 	einfo "Current date: $(LANG=C date)"
 	einfo "Writing time to hardware clock"
-	hwclock --systohc --utc >/dev/null \
+	hwclock --systohc --utc \
 		|| die "Could not save time to hardware clock"
 }
 
@@ -40,22 +40,21 @@ prepare_installation_environment() {
 }
 
 partition_device_print_config_summary() {
-	echo "-------- Partition configuration --------"
-	echo "Device: [1;33m$PARTITION_DEVICE[m"
+	elog "-------- Partition configuration --------"
+	elog "Device: [1;33m$PARTITION_DEVICE[m"
 	elog "Existing partition table:"
-	lsblk -n "$PARTITION_DEVICE" \
-		|| die "Error in lsblk"
+	for_line_in <(lsblk -n "$PARTITION_DEVICE" \
+		|| die "Error in lsblk") elog
 	elog "New partition table:"
-	echo "[1;33m$PARTITION_DEVICE[m"
-	echo "├─efi   size=[1;32m$PARTITION_EFI_SIZE[m"
+	elog "[1;33m$PARTITION_DEVICE[m"
+	elog "├─efi   size=[1;32m$PARTITION_EFI_SIZE[m"
 	if [[ "$ENABLE_SWAP" == true ]]; then
-	echo "├─swap  size=[1;32m$PARTITION_SWAP_SIZE[m"
+	elog "├─swap  size=[1;32m$PARTITION_SWAP_SIZE[m"
 	fi
-	echo "└─linux size=[1;32m[remaining][m"
+	elog "└─linux size=[1;32m[remaining][m"
 	if [[ "$ENABLE_SWAP" != true ]]; then
-	echo "swap: [1;31mdisabled[m"
+	elog "swap: [1;31mdisabled[m"
 	fi
-	echo
 }
 
 partition_device() {
@@ -93,7 +92,7 @@ partition_device() {
 		|| die "Could not create linux partition"
 
 	# Print partition table
-	einfo "Applied partition table:"
+	einfo "Applied partition table"
 	sgdisk -p "$PARTITION_DEVICE" \
 		|| die "Could not print partition table"
 
@@ -172,7 +171,7 @@ mount_root() {
 
 bind_bootstrap_dir() {
 	# Use new location by default
-	GENTOO_BOOTSTRAP_DIR="$GENTOO_BOOTSTRAP_BIND"
+	export GENTOO_BOOTSTRAP_DIR="$GENTOO_BOOTSTRAP_BIND"
 
 	# Bind the bootstrap dir to a location in /tmp,
 	# so it can be accessed from within the chroot
@@ -204,33 +203,38 @@ download_stage3() {
 		|| die "Could not parse list of tarballs"
 	# Strip quotes
 	CURRENT_STAGE3="${CURRENT_STAGE3:1:-1}"
+	# File to indiciate successful verification
+	CURRENT_STAGE3_VERIFIED="${CURRENT_STAGE3}.verified"
 
 	# Download file if not already downloaded
-	if [[ -e "$CURRENT_STAGE3" ]] ; then
-		einfo "$STAGE3_BASENAME tarball already exists"
+	if [[ -e "$CURRENT_STAGE3_VERIFIED" ]]; then
+		einfo "$STAGE3_BASENAME tarball already downloaded and verified"
 	else
 		einfo "Downloading $STAGE3_BASENAME tarball"
 		download "$STAGE3_RELEASES/${CURRENT_STAGE3}" "${CURRENT_STAGE3}"
 		download "$STAGE3_RELEASES/${CURRENT_STAGE3}.DIGESTS.asc" "${CURRENT_STAGE3}.DIGESTS.asc"
+
+		# Import gentoo keys
+		einfo "Importing gentoo gpg key"
+		local GENTOO_GPG_KEY="$TMP_DIR/gentoo-keys.gpg"
+		download "https://gentoo.org/.well-known/openpgpkey/hu/wtktzo4gyuhzu8a4z5fdj3fgmr1u6tob?l=releng" "$GENTOO_GPG_KEY" \
+			|| die "Could not retrieve gentoo gpg key"
+		gpg --quiet --import < "$GENTOO_GPG_KEY" \
+			|| die "Could not import gentoo gpg key"
+
+		# Verify DIGESTS signature
+		einfo "Verifying DIGEST.asc signature"
+		gpg --quiet --verify "${CURRENT_STAGE3}.DIGESTS.asc" \
+			|| die "Signature of '${CURRENT_STAGE3}.DIGESTS.asc' invalid!"
+
+		# Check hashes
+		einfo "Verifying tarball integrity"
+		rhash -P --check <(grep -B 1 'tar.xz$' "${CURRENT_STAGE3}.DIGESTS.asc") \
+			|| die "Checksum mismatch!"
+
+		# Create verification file in case the script is restarted
+		touch "$CURRENT_STAGE3_VERIFIED"
 	fi
-
-	# Import gentoo keys
-	einfo "Importing gentoo gpg key"
-	local GENTOO_GPG_KEY="$TMP_DIR/gentoo-keys.gpg"
-	download "https://gentoo.org/.well-known/openpgpkey/hu/wtktzo4gyuhzu8a4z5fdj3fgmr1u6tob?l=releng" "$GENTOO_GPG_KEY" \
-		|| die "Could not retrieve gentoo gpg key"
-	gpg --import < "$GENTOO_GPG_KEY" \
-		|| die "Could not import gentoo gpg key"
-
-	# Verify DIGESTS signature
-	einfo "Verifying DIGEST.asc signature"
-	gpg --verify "${CURRENT_STAGE3}.DIGESTS.asc" \
-		|| die "Signature of '${CURRENT_STAGE3}.DIGESTS.asc' invalid!"
-
-	# Check hashes
-	einfo "Verifying tarball integrity"
-	rhash -P --check <(grep -B 1 'tar.xz$' "${CURRENT_STAGE3}.DIGESTS.asc") \
-		|| die "Checksum mismatch!"
 }
 
 extract_stage3() {
@@ -263,9 +267,9 @@ disable_logging() {
 }
 
 gentoo_umount() {
-	einfo "Unmounting root filesystem"
 	if mountpoint -q -- "$ROOT_MOUNTPOINT"; then
-		umount -R "$ROOT_MOUNTPOINT" \
+		einfo "Unmounting root filesystem"
+		umount -R -l "$ROOT_MOUNTPOINT" \
 			|| die "Could not unmount filesystems"
 	fi
 }

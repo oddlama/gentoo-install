@@ -36,7 +36,18 @@ die() {
 	exit 1
 }
 
+for_line_in() {
+	while IFS="" read -r line || [[ -n "$line" ]]; do
+		"$2" "$line"
+	done <"$1"
+}
+
 ask() {
+	# Empty stdin
+	local empty_stdin
+	while read -r -t 0.01 empty_stdin; do true; done
+	unset empty_stdin
+
 	while true; do
 		read -r -p "$* (Y/n) " response
 		case "${response,,}" in
@@ -49,15 +60,15 @@ ask() {
 }
 
 countdown() {
-	echo -n "$1"
+	echo -n "$1" >&3
 
 	local i="$2"
 	while [[ $i -gt 0 ]]; do
-		echo -n "[1;31m$i[m "
+		echo -n "[1;31m$i[m " >&3
 		i=$((i - 1))
 		sleep 1
 	done
-	echo
+	echo >&3
 }
 
 download_stdout() {
