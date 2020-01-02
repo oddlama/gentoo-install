@@ -2,20 +2,32 @@
 
 source "$GENTOO_BOOTSTRAP_DIR/scripts/protection.sh" || exit 1
 
+log_stdout() {
+	echo "$*"
+	if { >&3; } 2<> /dev/null; then
+		echo "$*" >&3
+	fi
+}
+
+log_stderr() {
+	echo "$*" >&2
+	echo "$*"
+}
+
 elog() {
-	echo "[1m *[m $*"
+	log_stdout "[1m *[m $*"
 }
 
 einfo() {
-	echo "[1;32m *[m $*"
+	log_stdout "[1;32m *[m $*"
 }
 
 ewarn() {
-	echo "[1;33m *[m $*" >&2
+	log_stderr "[1;33m *[m $*"
 }
 
 eerror() {
-	echo "[1;31m * ERROR:[m $*" >&2
+	log_stderr "[1;31m * ERROR:[m $*"
 }
 
 die() {

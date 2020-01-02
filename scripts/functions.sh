@@ -143,27 +143,37 @@ format_partitions() {
 	dev="$(get_device_by_partuuid "$PARTITION_UUID_LINUX")" \
 		|| die "Could not resolve partition UUID '$PARTITION_UUID_LINUX'"
 	einfo "  $dev (linux)"
-	mkfs.ext4 -L "linux" "$dev" \
+	mkfs.ext4 -q -L "linux" "$dev" \
 		|| die "Could not create ext4 filesystem"
 }
 
-mount_root() {
-	# Skip if root is already mounted
-	mountpoint -q -- "$ROOT_MOUNTPOINT" \
+mount_by_partuuid() {
+	local dev
+	local partuuid="$1"
+	local mountpoint="$2"
+
+	# Skip if already mounted
+	mountpoint -q -- "$mountpoint" \
 		&& return
 
-	# Mount root device
-	einfo "Mounting root device"
-	mkdir -p "$ROOT_MOUNTPOINT" \
-		|| die "Could not create mountpoint directory $ROOT_MOUNTPOINT"
-	local dev
-	dev="$(get_device_by_partuuid "$PARTITION_UUID_LINUX")" \
+	# Mount device
+	einfo "Mounting device partuuid=$partuuid to '$mountpoint'"
+	mkdir -p "$mountpoint" \
+		|| die "Could not create mountpoint directory '$mountpoint'"
+	dev="$(get_device_by_partuuid "$partuuid")" \
 		|| die "Could not resolve partition UUID '$PARTITION_UUID_LINUX'"
-	mount "$dev" "$ROOT_MOUNTPOINT" \
-		|| die "Could not mount root device '$dev'"
+	mount "$dev" "$mountpoint" \
+		|| die "Could not mount device '$dev'"
+}
+
+mount_root() {
+	mount_by_partuuid "$PARTITION_UUID_LINUX" "$ROOT_MOUNTPOINT"
 }
 
 bind_bootstrap_dir() {
+	# Use new location by default
+	GENTOO_BOOTSTRAP_DIR="$GENTOO_BOOTSTRAP_BIND"
+
 	# Bind the bootstrap dir to a location in /tmp,
 	# so it can be accessed from within the chroot
 	mountpoint -q -- "$GENTOO_BOOTSTRAP_BIND" \
@@ -173,8 +183,8 @@ bind_bootstrap_dir() {
 	einfo "Bind mounting bootstrap directory"
 	mkdir -p "$GENTOO_BOOTSTRAP_BIND" \
 		|| die "Could not create mountpoint directory '$GENTOO_BOOTSTRAP_BIND'"
-	mount --bind "$GENTOO_BOOTSTRAP_DIR" "$GENTOO_BOOTSTRAP_BIND" \
-		|| die "Could not bind mount '$GENTOO_BOOTSTRAP_DIR' to '$GENTOO_BOOTSTRAP_BIND'"
+	mount --bind "$GENTOO_BOOTSTRAP_DIR_ORIGINAL" "$GENTOO_BOOTSTRAP_BIND" \
+		|| die "Could not bind mount '$GENTOO_BOOTSTRAP_DIR_ORIGINAL' to '$GENTOO_BOOTSTRAP_BIND'"
 }
 
 download_stage3() {
@@ -247,9 +257,21 @@ extract_stage3() {
 		|| die "Could not cd into '$TMP_DIR'"
 }
 
+gentoo_umount() {
+	einfo "Unmounting root filesystem"
+	if mountpoint -q -- "$ROOT_MOUNTPOINT"; then
+		umount -R "$ROOT_MOUNTPOINT" \
+			|| die "Could not unmount filesystems"
+	fi
+}
+
 gentoo_chroot() {
 	[[ $# -gt 0 ]] || die "Missing command argument"
 
+	[[ $EXECUTED_IN_CHROOT != true ]] \
+		|| die "Already in chroot"
+
+	gentoo_umount
 	mount_root
 	bind_bootstrap_dir
 
@@ -273,6 +295,6 @@ gentoo_chroot() {
 	einfo "Chrooting..."
 	EXECUTED_IN_CHROOT=true \
 		TMP_DIR=$TMP_DIR \
-		exec chroot "$ROOT_MOUNTPOINT" "$GENTOO_BOOTSTRAP_BIND/scripts/main_chroot.sh" "$@" \
+		exec chroot "$ROOT_MOUNTPOINT" "$GENTOO_BOOTSTRAP_DIR/scripts/main_chroot.sh" "$@" \
 		|| die "Failed to chroot into '$ROOT_MOUNTPOINT'"
 }

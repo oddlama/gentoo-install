@@ -14,9 +14,11 @@ get_source_dir() {
 	echo -n "$(realpath "$(dirname "${source}")")"
 }
 
-export GENTOO_BOOTSTRAP_DIR="$(dirname "$(get_source_dir)")"
+export GENTOO_BOOTSTRAP_DIR_ORIGINAL="$(dirname "$(get_source_dir)")"
+export GENTOO_BOOTSTRAP_DIR="$GENTOO_BOOTSTRAP_DIR_ORIGINAL"
 export GENTOO_BOOTSTRAP_SCRIPT_ACTIVE=true
 export GENTOO_BOOTSTRAP_SCRIPT_PID=$$
+LOGDATE="$(date +%Y%m%d-%H%M%S)"
 
 umask 0077
 
@@ -32,7 +34,7 @@ mkdir -p "$TMP_DIR"
 ################################################
 # Functions
 
-main_install_stage3() {
+install_stage3() {
 	[[ $# == 0 ]] || die "Too many arguments"
 
 	prepare_installation_environment
@@ -42,15 +44,27 @@ main_install_stage3() {
 	extract_stage3
 }
 
-main_chroot() {
-	gentoo_chroot "$@"
-}
-
-main_install_gentoo() {
+main_install_gentoo_in_chroot() {
 	[[ $# == 0 ]] || die "Too many arguments"
 
-	#remove root password
-	passwd -d root
+	# Lock the root password, making the account unaccessible for the
+	# period of installation, except by chrooting
+	einfo "Locking root account"
+	passwd -l root
+
+	einfo "Selecting portage mirrors"
+	# TODO mirrorselect
+	# TODO gpg portage sync
+	# TODO additional binary repos
+	# TODO safe dns settings (claranet)
+
+	einfo "Mounting efi"
+	mount_by_partuuid "$PARTITION_UUID_EFI" "/boot/efi"
+
+	einfo "Syncing portage tree"
+	emerge-webrsync
+
+	einfo "Selecting portage profile '$'"
 
 	#get kernel
 
@@ -71,24 +85,46 @@ main_install_gentoo() {
 	su
 }
 
-main_install_full() {
+main_install() {
 	[[ $# == 0 ]] || die "Too many arguments"
 
-	"$GENTOO_BOOTSTRAP_DIR/install_stage3" \
+	install_stage3 \
 		|| die "Failed to install stage3"
-	"$GENTOO_BOOTSTRAP_DIR/chroot" "$GENTOO_BOOTSTRAP_DIR/install_gentoo" \
-		|| die "Failed to prepare gentoo in chroot"
+
+	gentoo_chroot "$GENTOO_BOOTSTRAP_DIR/scripts/main.sh" install_gentoo_in_chroot \
+		|| die "Failed to install gentoo in chroot"
+}
+
+main_chroot() {
+	gentoo_chroot "$@" \
+		|| die "Failed to execute script in chroot"
+}
+
+main_umount() {
+	gentoo_umount
 }
 
 
 ################################################
 # Main dispatch
 
+# Redirect output to logfiles
+exec 3>&1
+trap 'exec 1>&3' 0 1 2 3
+exec 1>"$GENTOO_BOOTSTRAP_DIR/log-$LOGDATE.out"
+ln -sf "$GENTOO_BOOTSTRAP_DIR/log-$LOGDATE.out" "$GENTOO_BOOTSTRAP_DIR/log.out"
+einfo "Verbose script output is logged to: '$GENTOO_BOOTSTRAP_DIR/log-$LOGDATE.out'"
+
 SCRIPT_ALIAS="$(basename "$0")"
+if [[ "$SCRIPT_ALIAS" == "main.sh" ]]; then
+	SCRIPT_ALIAS="$1"
+	shift
+fi
+
 case "$SCRIPT_ALIAS" in
-	"chroot")          main_chroot "$@" ;;
-	"install")         main_install_full "$@" ;;
-	"install_gentoo")  main_install_gentoo "$@" ;;
-	"install_stage3")  main_install_stage3 "$@" ;;
+	"chroot") main_chroot "$@" ;;
+	"install") main_install "$@" ;;
+	"install_gentoo_in_chroot") main_install_gentoo_in_chroot "$@" ;;
+	"umount") main_umount "$@" ;;
 	*) die "Invalid alias '$SCRIPT_ALIAS' was used to execute this script" ;;
 esac

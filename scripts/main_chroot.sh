@@ -3,9 +3,19 @@
 [[ "${EXECUTED_IN_CHROOT}" != true ]] \
 	&& { echo "This script must not be executed directly!" >&2; exit 1; }
 
+# Source the systems profile
 source /etc/profile
-export NPROC="$(($(nproc || echo 2) + 1))"
 
-hostname 'gentoo'
+# Export nproc variables
+export NPROC="$(nproc || echo 2)"
+export NPROC_ONE="$(($NPROC + 1))"
 
+# Set default makeflags and emerge flags for parallel emerges
+export MAKEFLAGS="-j$NPROC"
+export EMERGE_DEFAULT_OPTS="--jobs=$NPROC_ONE --load-average=$NPROC"
+
+# Set the PS1 to a recognizable value
+export PS1="(chroot) $PS1"
+
+# Execute the requested command
 exec "$@"
