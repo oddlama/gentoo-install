@@ -14,8 +14,5 @@ export NPROC_ONE="$(($NPROC + 1))"
 export MAKEFLAGS="-j$NPROC"
 export EMERGE_DEFAULT_OPTS="--jobs=$NPROC_ONE --load-average=$NPROC"
 
-# Set the PS1 to a recognizable value
-export PS1="(chroot) $PS1"
-
 # Execute the requested command
 exec "$@"

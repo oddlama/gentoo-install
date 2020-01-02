@@ -271,7 +271,13 @@ gentoo_umount() {
 }
 
 gentoo_chroot() {
-	[[ $# -gt 0 ]] || die "Missing command argument"
+	if [[ $# -eq 0 ]]; then
+		cat > "$TMP_DIR/.bashrc" <<EOF
+# Set the PS1 to a recognizable value
+export PS1="(chroot) \$PS1"
+EOF
+		gentoo_chroot /bin/bash --init-file "$TMP_DIR/.bashrc"
+	fi
 
 	[[ $EXECUTED_IN_CHROOT != true ]] \
 		|| die "Already in chroot"
@@ -301,6 +307,6 @@ gentoo_chroot() {
 	disable_logging
 	EXECUTED_IN_CHROOT=true \
 		TMP_DIR=$TMP_DIR \
-		exec chroot "$ROOT_MOUNTPOINT" "$GENTOO_BOOTSTRAP_DIR/scripts/main_chroot.sh" "$@" \
+		exec chroot -- "$ROOT_MOUNTPOINT" "$GENTOO_BOOTSTRAP_DIR/scripts/main_chroot.sh" "$@" \
 		|| die "Failed to chroot into '$ROOT_MOUNTPOINT'"
 }
