@@ -42,3 +42,25 @@ GENTOO_MIRROR="https://mirror.eu.oneandone.net/linux/distributions/gentoo/gentoo
 # The stage3 tarball to install
 STAGE3_BASENAME="stage3-amd64-hardened+nomultilib"
 #STAGE3_BASENAME="stage3-amd64-hardened-selinux+nomultilib"
+
+# The timezone for the new system
+TIMEZONE="Europe/Berlin"
+
+# A list of additional locales to generate. You should only
+# add locales here if you really need them and want to localize
+# your system. Otherwise, leave this list empty, and use C.utf8.
+LOCALES=""
+# The locale to set for the system. Be careful, this setting differs
+# from the LOCALES list entries. (e.g. .UTF-8 vs .utf8)
+LOCALE="C.utf8"
+# For a german system you could use:
+# LOCALES="
+# de_DE.UTF-8 UTF-8
+# de_DE ISO-8859-1
+# de_DE@euro ISO-8859-15
+# " # End of LOCALES
+# LOCALE="de_DE.utf8"
+
+# The default keymap for the system
+KEYMAP="de-latin1-nodeadkeys"
+#KEYMAP="us"

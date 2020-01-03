@@ -54,17 +54,37 @@ main_install_gentoo_in_chroot() {
 
 	einfo "Selecting portage mirrors"
 	# TODO mirrorselect
+	# TODO custom gentoo.conf for /var/db/repos ???
 	# TODO gpg portage sync
 	# TODO additional binary repos
 	# TODO safe dns settings (claranet)
 
+	# Mount efi partition
 	einfo "Mounting efi"
 	mount_by_partuuid "$PARTITION_UUID_EFI" "/boot/efi"
 
+	# Sync portage
 	einfo "Syncing portage tree"
-	emerge-webrsync
+	emerge-webrsync\
+		|| die "Failed to sync portage tree"
 
-	einfo "Selecting portage profile '$'"
+	# Set timezone
+	einfo "Selecting timezone"
+	echo "$TIMEZONE" > /etc/timezone \
+		|| die "Could not write /etc/timezone"
+	emerge -v --config sys-libs/timezone-data
+
+	# Set locale
+	einfo "Selecting locale"
+	echo "$LOCALES" > /etc/locale.gen \
+		|| die "Could not write /etc/locale.gen"
+	locale-gen \
+		|| die "Could not generate locales"
+	eselect locale set "$LOCALE" \
+		|| die "Could not select locale"
+
+	# Update environment
+	env_update
 
 	#get kernel
 

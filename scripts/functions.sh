@@ -277,7 +277,12 @@ gentoo_umount() {
 	fi
 }
 
-interactive_bash() {
+env_update() {
+	env-update \
+		|| die "Error in env-update"
+	source /etc/profile \
+		|| die "Could not source /etc/profile"
+	export PS1="(chroot) \$PS1"
 }
 
 gentoo_chroot() {

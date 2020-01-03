@@ -51,3 +51,8 @@ It will do the following steps for you:
 * Generate an ssh keypair (type configurable)
 * Setup a secure sshd (safe ciphers, login only with keypair)
 * Install ansible
+
+# References
+
+* [Sakaki's EFI Install Guide](https://wiki.gentoo.org/wiki/Sakaki%27s_EFI_Install_Guide)
+* [Gentoo AMD64 Handbook](https://wiki.gentoo.org/wiki/Handbook:AMD64)
