@@ -50,7 +50,8 @@ main_install_gentoo_in_chroot() {
 	# Lock the root password, making the account unaccessible for the
 	# period of installation, except by chrooting
 	einfo "Locking root account"
-	passwd -l root
+	passwd -l root \
+		|| die "Could not change root password"
 
 	einfo "Selecting portage mirrors"
 	# TODO mirrorselect
@@ -65,8 +66,7 @@ main_install_gentoo_in_chroot() {
 
 	# Sync portage
 	einfo "Syncing portage tree"
-	try emerge-webrsync \
-		|| die "Failed to sync portage tree"
+	try emerge-webrsync
 
 	# Set timezone
 	einfo "Selecting timezone"
@@ -82,6 +82,11 @@ main_install_gentoo_in_chroot() {
 		|| die "Could not generate locales"
 	try eselect locale set "$LOCALE"
 
+	# Set keymap
+	einfo "Selecting keymap"
+	sed -i "/keymap=/c\\$KEYMAP" /etc/conf.d/keymaps \
+		|| die "Could not sed replace in /etc/conf.d/keymaps"
+
 	# Update environment
 	env_update
 
@@ -93,8 +98,7 @@ main_install_gentoo_in_chroot() {
 
 	# Install git (for git portage overlays)
 	einfo "Installing git"
-	try emerge --verbose dev-vcs/git \
-		|| die "Error while installing git"
+	try emerge --verbose dev-vcs/git
 
 	#get kernel
 

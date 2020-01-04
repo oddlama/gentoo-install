@@ -59,7 +59,8 @@ ask() {
 	local response
 	while true; do
 		flush_stdin
-		read -r -p "$* (Y/n) " response
+		read -r -p "$* (Y/n) " response \
+			|| die "Error in read"
 		case "${response,,}" in
 			'') return 0 ;;
 			y|yes) return 0 ;;
@@ -72,7 +73,7 @@ ask() {
 try() {
 	local response
 	local cmd_status
-	local prompt_parens="([1mS[mhell/[1mr[metry/[1mc[mancel/[1mp[mrint)"
+	local prompt_parens="([1mS[mhell/[1mr[metry/[1ma[mbort/[1mc[montinue/[1mp[mrint)"
 
 	# Outer loop, allows us to retry the command
 	while true; do
@@ -87,7 +88,8 @@ try() {
 			# Prompt until input is valid
 			while true; do
 				flush_stdin
-				read -r response
+				read -r response \
+					|| die "Error in read"
 				case "${response,,}" in
 					''|s|shell)
 						echo_console "Hint: The script log is at '$GENTOO_BOOTSTRAP_DIR/log.out'"
@@ -95,7 +97,8 @@ try() {
 						/bin/bash --init-file <(echo "disable_logging; source $TMP_DIR/.bashrc")
 						;;
 					r|retry) continue 2 ;;
-					c|cancel) die "Installation cancelled" ;;
+					a|abort) die "Installation aborted" ;;
+					c|continue) return 0 ;;
 					p|print) echo_console "[1;33m\$[m $*" ;;
 					*) echo_console -n "Response not understood $prompt_parens " ;;
 				esac

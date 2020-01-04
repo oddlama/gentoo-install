@@ -22,8 +22,15 @@ sync_time() {
 		|| die "Could not save time to hardware clock"
 }
 
+check_config() {
+	[[ "$KEYMAP" =~ ^[0-9A-Za-z-]*$ ]] \
+		|| die "KEYMAP contains invalid characters"
+}
+
 prepare_installation_environment() {
 	einfo "Preparing installation environment"
+
+	check_config
 
 	check_has_program gpg
 	check_has_program hwclock
