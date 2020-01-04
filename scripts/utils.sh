@@ -2,40 +2,20 @@
 
 source "$GENTOO_BOOTSTRAP_DIR/scripts/protection.sh" || exit 1
 
-echo_console() {
-	if { true >&3; } 2<> /dev/null; then
-		echo "$@" >&3
-	else
-		echo "$@"
-	fi
-}
-
-log_stdout() {
-	echo "$*"
-	if { true >&3; } 2<> /dev/null; then
-		echo "$*" >&3
-	fi
-}
-
-log_stderr() {
-	echo "$*" >&2
-	echo "$*"
-}
-
 elog() {
-	log_stdout "[1m *[m $*"
+	echo "[1m *[m $*"
 }
 
 einfo() {
-	log_stdout "[1;32m *[m $*"
+	echo "[1;32m *[m $*"
 }
 
 ewarn() {
-	log_stderr "[1;33m *[m $*"
+	echo "[1;33m *[m $*" >&2
 }
 
 eerror() {
-	log_stderr "[1;31m * ERROR:[m $*"
+	echo "[1;31m * ERROR:[m $*" >&2
 }
 
 die() {
@@ -82,25 +62,24 @@ try() {
 		cmd_status="$?"
 
 		if [[ "$cmd_status" != 0 ]]; then
-			echo_console "[1;31m * Command failed: [1;33m\$[m $*"
-			echo_console "Last command failed with exit code $cmd_status"
+			echo "[1;31m * Command failed: [1;33m\$[m $*"
+			echo "Last command failed with exit code $cmd_status"
 
 			# Prompt until input is valid
 			while true; do
-				echo_console -n "Specify next action $prompt_parens "
+				echo -n "Specify next action $prompt_parens "
 				flush_stdin
 				read -r response \
 					|| die "Error in read"
 				case "${response,,}" in
 					''|s|shell)
-						echo_console "Hint: The script log is at '$GENTOO_BOOTSTRAP_DIR/log.out'"
-						echo_console "You will be prompted for action again after exiting this shell."
-						/bin/bash --init-file <(echo "disable_logging; source $TMP_DIR/.bashrc")
+						echo "You will be prompted for action again after exiting this shell."
+						/bin/bash --init-file <(echo "init_bash")
 						;;
 					r|retry) continue 2 ;;
 					a|abort) die "Installation aborted" ;;
 					c|continue) return 0 ;;
-					p|print) echo_console "[1;33m\$[m $*" ;;
+					p|print) echo "[1;33m\$[m $*" ;;
 					*) ;;
 				esac
 			done

@@ -18,7 +18,6 @@ export GENTOO_BOOTSTRAP_DIR_ORIGINAL="$(dirname "$(get_source_dir)")"
 export GENTOO_BOOTSTRAP_DIR="$GENTOO_BOOTSTRAP_DIR_ORIGINAL"
 export GENTOO_BOOTSTRAP_SCRIPT_ACTIVE=true
 export GENTOO_BOOTSTRAP_SCRIPT_PID=$$
-LOGDATE="$(date +%Y%m%d-%H%M%S)"
 
 umask 0077
 
@@ -139,16 +138,6 @@ main_umount() {
 
 # Instantly kill when pressing ctrl-c
 trap 'kill "$GENTOO_BOOTSTRAP_SCRIPT_PID"' INT
-
-einfo "Verbose script output will be logged to: '$GENTOO_BOOTSTRAP_DIR/log-$LOGDATE.out'"
-# Save old stdout
-exec 3>&1
-# Restore old filedescriptor on certain signals
-trap 'exec 1>&3; exit 1' 0 1 2 3 RETURN
-# Replace stdout with logfole
-exec 1>"$GENTOO_BOOTSTRAP_DIR/log-$LOGDATE.out"
-# Link to latest log file
-ln -sf "$GENTOO_BOOTSTRAP_DIR/log-$LOGDATE.out" "$GENTOO_BOOTSTRAP_DIR/log.out"
 
 SCRIPT_ALIAS="$(basename "$0")"
 if [[ "$SCRIPT_ALIAS" == "main.sh" ]]; then

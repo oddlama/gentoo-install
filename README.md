@@ -1,5 +1,9 @@
 # Gentoo installation script
 
+**TL;DR:** Installs gentoo on a new system, suited for both servers and desktops.
+Optionally prepares ansible for automatic system configuration.
+See [Install](#Install) for usage instructions.
+
 This script will install a minimal bootable gentoo system.
 If you need advanced features such as an initramfs or a different
 partitioning scheme, you can definitely use this script but will

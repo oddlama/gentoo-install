@@ -268,14 +268,6 @@ extract_stage3() {
 		|| die "Could not cd into '$TMP_DIR'"
 }
 
-disable_logging() {
-	# Disables logging which is needed before exec-ing
-	# Restore stdion
-	exec 1>&3
-	# Close fd 3
-	exec 3<&-
-}; export -f disable_logging
-
 gentoo_umount() {
 	if mountpoint -q -- "$ROOT_MOUNTPOINT"; then
 		einfo "Unmounting root filesystem"
@@ -284,12 +276,17 @@ gentoo_umount() {
 	fi
 }
 
+init_bash() {
+	source /etc/profile
+	umask 0077
+	export PS1="(chroot) \$PS1"
+}; export -f init_bash
+
 env_update() {
 	env-update \
 		|| die "Error in env-update"
 	source /etc/profile \
 		|| die "Could not source /etc/profile"
-	export PS1="(chroot) \$PS1"
 }
 
 mkdir_or_die() {
@@ -304,11 +301,8 @@ touch_or_die() {
 
 gentoo_chroot() {
 	if [[ $# -eq 0 ]]; then
-		cat > "$TMP_DIR/.bashrc" <<EOF
-# Set the PS1 to a recognizable value
-export PS1="(chroot) \$PS1"
-EOF
-		gentoo_chroot /bin/bash --init-file "$TMP_DIR/.bashrc"
+		# Set the PS1 to a recognizable value
+		gentoo_chroot /bin/bash --init-file <(echo 'init_bash')
 	fi
 
 	[[ $EXECUTED_IN_CHROOT != true ]] \
@@ -336,7 +330,6 @@ EOF
 
 	# Execute command
 	einfo "Chrooting..."
-	disable_logging
 	EXECUTED_IN_CHROOT=true \
 		TMP_DIR=$TMP_DIR \
 		exec chroot -- "$ROOT_MOUNTPOINT" "$GENTOO_BOOTSTRAP_DIR/scripts/main_chroot.sh" "$@" \
