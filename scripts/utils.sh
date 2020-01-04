@@ -90,15 +90,15 @@ try() {
 }
 
 countdown() {
-	echo -n "$1" >&3
+	echo -n "$1" >&2
 
 	local i="$2"
 	while [[ $i -gt 0 ]]; do
-		echo -n "[1;31m$i[m " >&3
+		echo -n "[1;31m$i[m " >&2
 		i=$((i - 1))
 		sleep 1
 	done
-	echo >&3
+	echo >&2
 }
 
 download_stdout() {
