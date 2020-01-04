@@ -104,6 +104,8 @@ try() {
 				esac
 			done
 		fi
+
+		return
 	done
 }
 

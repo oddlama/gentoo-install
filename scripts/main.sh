@@ -55,7 +55,6 @@ main_install_gentoo_in_chroot() {
 
 	einfo "Selecting portage mirrors"
 	# TODO mirrorselect
-	# TODO custom gentoo.conf for /var/db/repos ???
 	# TODO gpg portage sync
 	# TODO additional binary repos
 	# TODO safe dns settings (claranet)
