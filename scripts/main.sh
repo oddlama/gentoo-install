@@ -65,14 +65,14 @@ main_install_gentoo_in_chroot() {
 
 	# Sync portage
 	einfo "Syncing portage tree"
-	emerge-webrsync\
+	try emerge-webrsync \
 		|| die "Failed to sync portage tree"
 
 	# Set timezone
 	einfo "Selecting timezone"
 	echo "$TIMEZONE" > /etc/timezone \
 		|| die "Could not write /etc/timezone"
-	emerge -v --config sys-libs/timezone-data
+	try emerge -v --config sys-libs/timezone-data
 
 	# Set locale
 	einfo "Selecting locale"
@@ -80,11 +80,21 @@ main_install_gentoo_in_chroot() {
 		|| die "Could not write /etc/locale.gen"
 	locale-gen \
 		|| die "Could not generate locales"
-	eselect locale set "$LOCALE" \
-		|| die "Could not select locale"
+	try eselect locale set "$LOCALE"
 
 	# Update environment
 	env_update
+
+	# Prepare /etc/portage for autounmask
+	mkdir_or_die "/etc/portage/package.use"
+	touch_or_die "/etc/portage/package.use/zz-autounmask"
+	mkdir_or_die "/etc/portage/package.keywords"
+	touch_or_die "/etc/portage/package.keywords/zz-autounmask"
+
+	# Install git (for git portage overlays)
+	einfo "Installing git"
+	try emerge --verbose dev-vcs/git \
+		|| die "Error while installing git"
 
 	#get kernel
 
@@ -125,7 +135,7 @@ main_umount() {
 # Main dispatch
 
 # Instantly kill when pressing ctrl-c
-trap "kill $GENTOO_BOOTSTRAP_SCRIPT_PID" INT
+trap 'kill "$GENTOO_BOOTSTRAP_SCRIPT_PID"' INT
 
 einfo "Verbose script output will be logged to: '$GENTOO_BOOTSTRAP_DIR/log-$LOGDATE.out'"
 # Save old stdout

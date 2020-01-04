@@ -233,7 +233,7 @@ download_stage3() {
 			|| die "Checksum mismatch!"
 
 		# Create verification file in case the script is restarted
-		touch "$CURRENT_STAGE3_VERIFIED"
+		touch_or_die "$CURRENT_STAGE3_VERIFIED"
 	fi
 }
 
@@ -267,7 +267,7 @@ disable_logging() {
 	exec 1>&3
 	# Close fd 3
 	exec 3<&-
-}
+}; export -f disable_logging
 
 gentoo_umount() {
 	if mountpoint -q -- "$ROOT_MOUNTPOINT"; then
@@ -283,6 +283,16 @@ env_update() {
 	source /etc/profile \
 		|| die "Could not source /etc/profile"
 	export PS1="(chroot) \$PS1"
+}
+
+mkdir_or_die() {
+	mkdir -p "$1" \
+		|| die "Could not create directory '$1'"
+}
+
+touch_or_die() {
+	touch "$1" \
+		|| die "Could not touch '$1'"
 }
 
 gentoo_chroot() {

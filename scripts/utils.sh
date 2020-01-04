@@ -2,9 +2,17 @@
 
 source "$GENTOO_BOOTSTRAP_DIR/scripts/protection.sh" || exit 1
 
+echo_console() {
+	if { true >&3; } 2<> /dev/null; then
+		echo "$@" >&3
+	else
+		echo "$@"
+	fi
+}
+
 log_stdout() {
 	echo "$*"
-	if { >&3; } 2<> /dev/null; then
+	if { true >&3; } 2<> /dev/null; then
 		echo "$*" >&3
 	fi
 }
@@ -42,13 +50,15 @@ for_line_in() {
 	done <"$1"
 }
 
-ask() {
-	# Empty stdin
+flush_stdin() {
 	local empty_stdin
 	while read -r -t 0.01 empty_stdin; do true; done
-	unset empty_stdin
+}
 
+ask() {
+	local response
 	while true; do
+		flush_stdin
 		read -r -p "$* (Y/n) " response
 		case "${response,,}" in
 			'') return 0 ;;
@@ -56,6 +66,41 @@ ask() {
 			n|no) return 1 ;;
 			*) continue ;;
 		esac
+	done
+}
+
+try() {
+	local response
+	local cmd_status
+	local prompt_parens="([1mS[mhell/[1mr[metry/[1mc[mancel/[1mp[mrint)"
+
+	# Outer loop, allows us to retry the command
+	while true; do
+		# Try command
+		"$@"
+		cmd_status="$?"
+
+		if [[ "$cmd_status" != 0 ]]; then
+			echo_console "[1;31m * Command failed: [1;33m\$[m $*"
+			echo_console -n "Last command failed (code $cmd_status), specify next action $prompt_parens "
+
+			# Prompt until input is valid
+			while true; do
+				flush_stdin
+				read -r response
+				case "${response,,}" in
+					''|s|shell)
+						echo_console "Hint: The script log is at '$GENTOO_BOOTSTRAP_DIR/log.out'"
+						echo_console "You will be prompted for action again after exiting this shell."
+						/bin/bash --init-file <(echo "disable_logging; source $TMP_DIR/.bashrc")
+						;;
+					r|retry) continue 2 ;;
+					c|cancel) die "Installation cancelled" ;;
+					p|print) echo_console "[1;33m\$[m $*" ;;
+					*) echo_console -n "Response not understood $prompt_parens " ;;
+				esac
+			done
+		fi
 	done
 }
 
