@@ -6,7 +6,30 @@ See [Install](#Install) for usage instructions.
 
 ---
 
-This script will install a minimal bootable gentoo system.
+This script will install a minimal (no-bloat) EFI bootable gentoo system.
+It will stick closely to the [Gentoo AMD64 Handbook](https://wiki.gentoo.org/wiki/Handbook:AMD64)
+and [Sakaki's EFI Install Guide](https://wiki.gentoo.org/wiki/Sakaki%27s_EFI_Install_Guide).
+
+What you will get:
+
+* EFIstub kernel
+* Minimal system configuration
+
+What you can get optionally:
+
+* LUKS
+* EFI secure boot
+* Initramfs (compiled into the kernel for EFIstub)
+
+What you will **NOT** get: (i.e. you will have to do it yourself)
+
+* X11 desktop environment
+* A user (except root)
+* Any form of RAID
+* A specialized kernel (TODO insert links)
+
+
+Only necessary configuration is applied to provide a common baseline system.
 If you need advanced features such as an initramfs or a different
 partitioning scheme, you can definitely use this script but will
 have to make some adjustments to it.
