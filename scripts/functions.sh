@@ -240,7 +240,7 @@ download_stage3() {
 			|| die "Checksum mismatch!"
 
 		# Create verification file in case the script is restarted
-		touch_or_die "$CURRENT_STAGE3_VERIFIED"
+		touch_or_die 0644 "$CURRENT_STAGE3_VERIFIED"
 	fi
 }
 
@@ -287,16 +287,18 @@ env_update() {
 		|| die "Error in env-update"
 	source /etc/profile \
 		|| die "Could not source /etc/profile"
+	umask 0077
 }
 
 mkdir_or_die() {
-	mkdir -p "$1" \
-		|| die "Could not create directory '$1'"
+	mkdir -m "$1" -p "$2" \
+		|| die "Could not create directory '$2'"
 }
 
 touch_or_die() {
-	touch "$1" \
-		|| die "Could not touch '$1'"
+	touch "$2" \
+		|| die "Could not touch '$2'"
+	chmod "$1" "$2"
 }
 
 gentoo_chroot() {
@@ -321,10 +323,12 @@ gentoo_chroot() {
 	(
 		mountpoint -q -- "$ROOT_MOUNTPOINT/proc" || mount -t proc /proc "$ROOT_MOUNTPOINT/proc" || exit 1
 		mountpoint -q -- "$ROOT_MOUNTPOINT/tmp"  || mount --rbind /tmp  "$ROOT_MOUNTPOINT/tmp"  || exit 1
-		mountpoint -q -- "$ROOT_MOUNTPOINT/sys"  || mount --rbind /sys  "$ROOT_MOUNTPOINT/sys"  || exit 1
-		mountpoint -q -- "$ROOT_MOUNTPOINT/sys"  || mount --make-rslave "$ROOT_MOUNTPOINT/sys"  || exit 1
-		mountpoint -q -- "$ROOT_MOUNTPOINT/dev"  || mount --rbind /dev  "$ROOT_MOUNTPOINT/dev"  || exit 1
-		mountpoint -q -- "$ROOT_MOUNTPOINT/dev"  || mount --make-rslave "$ROOT_MOUNTPOINT/dev"  || exit 1
+		mountpoint -q -- "$ROOT_MOUNTPOINT/sys"  || {
+			mount --rbind /sys  "$ROOT_MOUNTPOINT/sys" &&
+			mount --make-rslave "$ROOT_MOUNTPOINT/sys"; } || exit 1
+		mountpoint -q -- "$ROOT_MOUNTPOINT/dev"  || {
+			mount --rbind /dev  "$ROOT_MOUNTPOINT/dev" &&
+			mount --make-rslave "$ROOT_MOUNTPOINT/dev"; } || exit 1
 	) || die "Could not mount virtual filesystems"
 
 	# Execute command

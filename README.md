@@ -20,6 +20,8 @@ What you can get optionally:
 * LUKS
 * EFI secure boot
 * Initramfs (compiled into the kernel for EFIstub)
+* Preconfigured sshd
+* Ansible (packages, user, ssh)
 
 What you will **NOT** get: (i.e. you will have to do it yourself)
 

@@ -89,10 +89,10 @@ main_install_gentoo_in_chroot() {
 	env_update
 
 	# Prepare /etc/portage for autounmask
-	mkdir_or_die "/etc/portage/package.use"
-	touch_or_die "/etc/portage/package.use/zz-autounmask"
-	mkdir_or_die "/etc/portage/package.keywords"
-	touch_or_die "/etc/portage/package.keywords/zz-autounmask"
+	mkdir_or_die 0755 "/etc/portage/package.use"
+	touch_or_die 0644 "/etc/portage/package.use/zz-autounmask"
+	mkdir_or_die 0755 "/etc/portage/package.keywords"
+	touch_or_die 0644 "/etc/portage/package.keywords/zz-autounmask"
 
 	# Install git (for git portage overlays)
 	einfo "Installing git"
