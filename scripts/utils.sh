@@ -83,10 +83,11 @@ try() {
 
 		if [[ "$cmd_status" != 0 ]]; then
 			echo_console "[1;31m * Command failed: [1;33m\$[m $*"
-			echo_console -n "Last command failed (code $cmd_status), specify next action $prompt_parens "
+			echo_console "Last command failed with exit code $cmd_status"
 
 			# Prompt until input is valid
 			while true; do
+				echo_console -n "Specify next action $prompt_parens "
 				flush_stdin
 				read -r response \
 					|| die "Error in read"
@@ -100,7 +101,7 @@ try() {
 					a|abort) die "Installation aborted" ;;
 					c|continue) return 0 ;;
 					p|print) echo_console "[1;33m\$[m $*" ;;
-					*) echo_console -n "Response not understood $prompt_parens " ;;
+					*) ;;
 				esac
 			done
 		fi
