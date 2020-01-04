@@ -98,22 +98,31 @@ main_install_gentoo_in_chroot() {
 	einfo "Installing git"
 	try emerge --verbose dev-vcs/git
 
-	#get kernel
+	# Install vanilla kernel, to be able to boot the system.
+	einfo "Installing vanilla kernel"
+	try emerge --verbose sys-kernel/vanilla-kernel
 
-	#compile minimal kernel to boot system
-
-	#reboot?
-
-	#mount boot partition
-
-	#create kernel
+	# Install additional packages, if any.
+	if [[ -n "$ADDITIONAL_PACKAGES" ]]; then
+		einfo "Installing additional packages"
+		emerge --autounmask-continue=y -- $ADDITIONAL_PACKAGES
+	fi
 
 	#create_ansible_user
 	#generate_fresh keys to become mgmnt ansible user
 	#install_ansible
 
-	einfo "Gentoo installation complete"
-	einfo "To chroot into the new system, simply execute the provided 'chroot' wrapper"
+	if ask "Do you want to assign a root password now?"; then
+		passwd root
+		einfo "Root password assigned"
+	else
+		passwd -d root
+		ewarn "Root password cleared, set one as soon as possible!"
+	fi
+
+	einfo "Gentoo installation complete."
+	einfo "To chroot into the new system, simply execute the provided 'chroot' wrapper."
+	einfo "Otherwise, you may now reboot your system."
 }
 
 main_install() {

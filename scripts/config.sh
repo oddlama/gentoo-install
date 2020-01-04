@@ -33,15 +33,7 @@ ENABLE_FORMATTING=true
 
 
 ################################################
-# Gentoo configuration
-
-# The selected gentoo mirror
-GENTOO_MIRROR="https://mirror.eu.oneandone.net/linux/distributions/gentoo/gentoo"
-#GENTOO_MIRROR="https://distfiles.gentoo.org"
-
-# The stage3 tarball to install
-STAGE3_BASENAME="stage3-amd64-hardened+nomultilib"
-#STAGE3_BASENAME="stage3-amd64-hardened-selinux+nomultilib"
+# System configuration
 
 # The timezone for the new system
 TIMEZONE="Europe/Berlin"
@@ -64,3 +56,22 @@ LOCALE="C.utf8"
 # The default keymap for the system
 KEYMAP="de-latin1-nodeadkeys"
 #KEYMAP="us"
+
+
+################################################
+# Gentoo configuration
+
+# The selected gentoo mirror
+GENTOO_MIRROR="https://mirror.eu.oneandone.net/linux/distributions/gentoo/gentoo"
+#GENTOO_MIRROR="https://distfiles.gentoo.org"
+
+# The stage3 tarball to install
+STAGE3_BASENAME="stage3-amd64-hardened+nomultilib"
+#STAGE3_BASENAME="stage3-amd64-hardened-selinux+nomultilib"
+
+# Default accept keywords (enable testing by default)
+#ACCEPT_KEYWORDS=""
+ACCEPT_KEYWORDS="~amd64"
+
+# List of additional packages to install (will be directly passed to emerge)
+ADDITIONAL_PACKAGES="app-editors/neovim"

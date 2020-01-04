@@ -12,8 +12,10 @@ and [Sakaki's EFI Install Guide](https://wiki.gentoo.org/wiki/Sakaki%27s_EFI_Ins
 
 What you will get:
 
-* EFIstub kernel
 * Minimal system configuration
+* Temporary vanilla kernel (precompiled by gentoo), in my opinion you
+  should replace this kernel with a custom made kernel for your system.
+  See [Kernel](#Kernel) for details on how to achieve that with low effort.
 
 What you can get optionally:
 
@@ -21,15 +23,15 @@ What you can get optionally:
 * EFI secure boot
 * Initramfs (compiled into the kernel for EFIstub)
 * Preconfigured sshd
-* Ansible (packages, user, ssh)
+* Ansible ready (packages, user, ssh)
+* Additional packages of your choice (only trivial installations without use flag changes)
 
 What you will **NOT** get: (i.e. you will have to do it yourself)
 
 * X11 desktop environment
-* A user (except root)
+* A user for yourself (except `root` obviously)
 * Any form of RAID
-* A specialized kernel (TODO insert links)
-
+* A specialized kernel, see [Kernel](#Kernel) for details on how to get one.
 
 Only necessary configuration is applied to provide a common baseline system.
 If you need advanced features such as an initramfs or a different

@@ -315,7 +315,7 @@ gentoo_chroot() {
 
 	# Copy resolv.conf
 	einfo "Preparing chroot environment"
-	cp /etc/resolv.conf "$ROOT_MOUNTPOINT/etc/resolv.conf" \
+	install --mode=0644 /etc/resolv.conf "$ROOT_MOUNTPOINT/etc/resolv.conf" \
 		|| die "Could not copy resolv.conf"
 
 	# Mount virtual filesystems
