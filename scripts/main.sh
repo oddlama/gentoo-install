@@ -107,7 +107,7 @@ main_install_gentoo_in_chroot() {
 
 	# Copy kernel to EFI
 	local kernel_version
-	kernel_version="$(ls "/boot/vmlinuz-"* | sort -V | tail -1)" \
+	kernel_version="$(find "/boot" -name "vmlinuz-*" | sort -V | tail -1)" \
 		|| die "Could not list newest kernel file"
 	kernel_version="${kernel_version#vmlinuz-}" \
 		|| die "Could not find kernel version"

@@ -279,7 +279,7 @@ gentoo_umount() {
 init_bash() {
 	source /etc/profile
 	umask 0077
-	export PS1='(chroot) [0;31m\u[1;31m@\h [1;34m\w [m\$ [m'
+	export PS1='(chroot) \[[0;31m\]\u\[[1;31m\]@\h \[[1;34m\]\w \[[m\]\$ \[[m\]'
 }; export -f init_bash
 
 env_update() {
