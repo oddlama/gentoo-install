@@ -25,7 +25,10 @@ source "$GENTOO_BOOTSTRAP_DIR/scripts/utils.sh"
 source "$GENTOO_BOOTSTRAP_DIR/scripts/config.sh"
 source "$GENTOO_BOOTSTRAP_DIR/scripts/functions.sh"
 
-mkdir -p "$TMP_DIR"
+[[ $I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY == true ]] \
+	|| die "You have not properly read the config. Set I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY=true to continue."
+
+mkdir_or_die 0755 "$TMP_DIR"
 [[ $EUID == 0 ]] \
 	|| die "Must be root"
 
@@ -51,12 +54,6 @@ main_install_gentoo_in_chroot() {
 	einfo "Locking root account"
 	passwd -l root \
 		|| die "Could not change root password"
-
-	einfo "Selecting portage mirrors"
-	# TODO mirrorselect
-	# TODO gpg portage sync
-	# TODO additional binary repos
-	# TODO safe dns settings (claranet)
 
 	# Mount efi partition
 	einfo "Mounting efi"
@@ -94,23 +91,98 @@ main_install_gentoo_in_chroot() {
 	mkdir_or_die 0755 "/etc/portage/package.keywords"
 	touch_or_die 0644 "/etc/portage/package.keywords/zz-autounmask"
 
+	einfo "Temporarily installing mirrorselect"
+	try emerge --verbose --oneshot app-portage/mirrorselect
+
+	einfo "Selecting fastest portage mirrors"
+	try mirrorselect -s 4 -b 10 -D
+
 	# Install git (for git portage overlays)
 	einfo "Installing git"
 	try emerge --verbose dev-vcs/git
 
-	# Install vanilla kernel, to be able to boot the system.
+	# Install vanilla kernel and efibootmgr, to be able to boot the system.
 	einfo "Installing vanilla kernel"
-	try emerge --verbose sys-kernel/vanilla-kernel
+	try emerge --verbose sys-kernel/vanilla-kernel sys-boot/efibootmgr
+
+	# Copy kernel to EFI
+	local kernel_version
+	kernel_version="$(ls "/boot/vmlinuz-"* | sort -V | tail -1)" \
+		|| die "Could not list newest kernel file"
+	kernel_version="${kernel_version#vmlinuz-}" \
+		|| die "Could not find kernel version"
+
+	mkdir_or_die 0755 "/boot/efi/EFI"
+	cp "/boot/initramfs-$kernel_version"* "/boot/efi/EFI/initramfs.img" \
+		|| die "Could not copy initramfs to EFI partition"
+	cp "/boot/vmlinuz-$kernel_version"* "/boot/efi/EFI/vmlinuz.efi" \
+		|| die "Could not copy kernel to EFI partition"
+
+	# Create boot entry
+	einfo "Creating efi boot entry"
+	local linuxdev
+	linuxdev="$(get_device_by_partuuid "$PARTITION_UUID_LINUX")" \
+		|| die "Could not resolve partition UUID '$PARTITION_UUID_LINUX'"
+	local efidev
+	efidev="$(get_device_by_partuuid "$PARTITION_UUID_EFI")" \
+		|| die "Could not resolve partition UUID '$PARTITION_UUID_EFI'"
+	local efipartnum="${efidev: -1}"
+	efibootmgr --verbose --create --disk "$PARTITION_DEVICE" --part "$efipartnum" --label "gentoo" --loader '\EFI\vmlinuz.efi' --unicode "root=$linuxdev initrd=initramfs.img" \
+		|| die "Could not add efi boot entry"
 
 	# Install additional packages, if any.
 	if [[ -n "$ADDITIONAL_PACKAGES" ]]; then
 		einfo "Installing additional packages"
-		emerge --autounmask-continue=y -- $ADDITIONAL_PACKAGES
+		try emerge --verbose --autounmask-continue=y -- $ADDITIONAL_PACKAGES
 	fi
 
-	#create_ansible_user
-	#generate_fresh keys to become mgmnt ansible user
-	#install_ansible
+	# Generate a valid fstab file
+	einfo "Generating fstab"
+	install -m0644 -o root -g root "$GENTOO_BOOTSTRAP_DIR/configs/fstab" /etc/fstab \
+		|| die "Could not overwrite /etc/fstab"
+	echo "PARTUUID=$PARTITION_UUID_LINUX    /            ext4    defaults,noatime,errors=remount-ro,discard                            0 1" >> /etc/fstab \
+		|| die "Could not append entry to fstab"
+	echo "PARTUUID=$PARTITION_UUID_EFI    /boot/efi    vfat    defaults,noatime,fmask=0022,dmask=0022,noexec,nodev,nosuid,discard    0 2" >> /etc/fstab \
+		|| die "Could not append entry to fstab"
+	if [[ "$ENABLE_SWAP" == true ]]; then
+		echo "PARTUUID=$PARTITION_UUID_SWAP    none         swap    defaults,discard                                                      0 0" >> /etc/fstab \
+			|| die "Could not append entry to fstab"
+	fi
+
+	# Install and enable sshd
+	einfo "Installing sshd"
+	install -m0600 -o root -g root "$GENTOO_BOOTSTRAP_DIR/configs/sshd_config" /etc/ssh/sshd_config \
+		|| die "Could not install /etc/ssh/sshd_config"
+	rc-update add sshd default \
+		|| die "Could not add sshd to default services"
+
+	# Install and enable dhcpcd
+	einfo "Installing dhcpcd"
+	try emerge --verbose net-misc/dhcpcd sys-apps/iproute2
+	rc-update add dhcpcd default \
+		|| die "Could not add dhcpcd to default services"
+
+	# Install ansible
+	if [[ "$INSTALL_ANSIBLE" == true ]]; then
+		einfo "Installing ansible"
+		try emerge --verbose app-admin/ansible
+
+		einfo "Creating ansible user"
+		useradd -r -d "$ANSIBLE_HOME" -s /bin/bash ansible
+		mkdir_or_die 0700 "$ANSIBLE_HOME"
+		mkdir_or_die 0700 "$ANSIBLE_HOME/.ssh"
+
+		if [[ -n "$ANSIBLE_SSH_PUBKEY" ]]; then
+			einfo "Adding ssh key for ansible"
+			touch_or_die 0600 "$ANSIBLE_HOME/.ssh/authorized_keys"
+			echo "$ANSIBLE_SSH_PUBKEY" >> "$ANSIBLE_HOME/.ssh/authorized_keys" \
+				|| die "Could not add ssh key to authorized_keys"
+		fi
+
+		einfo "Allowing ansible for ssh"
+		echo "AllowUsers ansible" >> "/etc/ssh/sshd_config" \
+			|| die "Could not append to /etc/ssh/sshd_config"
+	fi
 
 	if ask "Do you want to assign a root password now?"; then
 		passwd root

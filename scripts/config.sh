@@ -13,6 +13,11 @@ ENABLE_SWAP=false
 # Enable partitioning (will still ask before doing anything critical)
 ENABLE_PARTITIONING=true
 
+# Format the partitions with the correct filesystems,
+# if you didn't chose automatic partitioning, you will be asked
+# before any formatting is done.
+ENABLE_FORMATTING=true
+
 # The device to partition
 PARTITION_DEVICE="/dev/sda"
 # Size of swap partition (if enabled)
@@ -25,11 +30,6 @@ PARTITION_EFI_SIZE="128MiB"
 PARTITION_UUID_EFI="$(load_or_generate_uuid 'efi')"
 PARTITION_UUID_SWAP="$(load_or_generate_uuid 'swap')"
 PARTITION_UUID_LINUX="$(load_or_generate_uuid 'linux')"
-
-# Format the partitions with the correct filesystems,
-# if you didn't chose automatic partitioning, you will be asked
-# before any formatting is done.
-ENABLE_FORMATTING=true
 
 
 ################################################
@@ -69,9 +69,28 @@ GENTOO_MIRROR="https://mirror.eu.oneandone.net/linux/distributions/gentoo/gentoo
 STAGE3_BASENAME="stage3-amd64-hardened+nomultilib"
 #STAGE3_BASENAME="stage3-amd64-hardened-selinux+nomultilib"
 
-# Default accept keywords (enable testing by default)
-#ACCEPT_KEYWORDS=""
-ACCEPT_KEYWORDS="~amd64"
+
+################################################
+# Additional (optional) configuration
 
 # List of additional packages to install (will be directly passed to emerge)
 ADDITIONAL_PACKAGES="app-editors/neovim"
+
+# Install and configure sshd (a reasonably secure config
+# is provided, only ed25519 host key, pubkey authentication only)
+INSTALL_SSHD=true
+
+# Install ansible, and add a user for it
+INSTALL_ANSIBLE=true
+# The home directory for the ansible user
+ANSIBLE_HOME="/var/lib/ansible"
+# An ssh key to add to the .authorized_keys file for the ansible user
+ANSIBLE_SSH_PUBKEY=""
+
+
+################################################
+# Prove that you have read the config
+
+# To prove that you have read and edited the config
+# properly, set the following value to true.
+I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY=false

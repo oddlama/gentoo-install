@@ -1,0 +1,150 @@
+# /etc/ssh/sshd_config
+#
+# This is the sshd server system-wide configuration file.  See
+# sshd_config(5) for more information.
+
+Port 22
+#AddressFamily any
+#ListenAddress 0.0.0.0
+#ListenAddress ::
+
+#HostKey /etc/ssh/ssh_host_rsa_key
+#HostKey /etc/ssh/ssh_host_dsa_key
+#HostKey /etc/ssh/ssh_host_ecdsa_key
+HostKey /etc/ssh/ssh_host_ed25519_key
+
+# Limit Host Key Algorithms
+HostKeyAlgorithms ssh-ed25519-cert-v01@openssh.com,ssh-rsa-cert-v01@openssh.com,ssh-ed25519,ssh-rsa
+
+# Limit Key Exchange Algorithms
+KexAlgorithms curve25519-sha256@libssh.org,diffie-hellman-group-exchange-sha256
+Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr
+MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-512,hmac-sha2-256,umac-128@openssh.com
+
+# Logging
+#SyslogFacility AUTH
+LogLevel VERBOSE
+
+#LoginGraceTime 2m
+PermitRootLogin no
+#StrictModes yes
+MaxAuthTries 2
+MaxSessions 4
+
+#PubkeyAuthentication yes
+
+# only allow users to login, explicitly forbid root login
+DenyUsers root
+DenyGroups root
+
+# The default is to check both .ssh/authorized_keys and .ssh/authorized_keys2
+# but this is overridden so installations will only check .ssh/authorized_keys
+AuthorizedKeysFile .ssh/authorized_keys
+
+#AuthorizedPrincipalsFile none
+
+#AuthorizedKeysCommand none
+#AuthorizedKeysCommandUser nobody
+
+# For this to work you will also need host keys in /etc/ssh/ssh_known_hosts
+#HostbasedAuthentication no
+# Change to yes if you don't trust ~/.ssh/known_hosts for
+# HostbasedAuthentication
+#IgnoreUserKnownHosts no
+# Don't read the user's ~/.rhosts and ~/.shosts files
+#IgnoreRhosts yes
+
+# To disable tunneled clear text passwords, change to no here!
+PasswordAuthentication no
+#PermitEmptyPasswords no
+
+# Change to no to disable s/key passwords
+ChallengeResponseAuthentication no
+
+# Kerberos options
+#KerberosAuthentication no
+#KerberosOrLocalPasswd yes
+#KerberosTicketCleanup yes
+#KerberosGetAFSToken no
+
+# GSSAPI options
+#GSSAPIAuthentication no
+#GSSAPICleanupCredentials yes
+
+# Set this to 'yes' to enable PAM authentication, account processing,
+# and session processing. If this is enabled, PAM authentication will
+# be allowed through the ChallengeResponseAuthentication and
+# PasswordAuthentication.  Depending on your PAM configuration,
+# PAM authentication via ChallengeResponseAuthentication may bypass
+# the setting of "PermitRootLogin without-password".
+# If you just want the PAM account and session checks to run without
+# PAM authentication, then enable this but set PasswordAuthentication
+# and ChallengeResponseAuthentication to 'no'.
+UsePAM yes
+
+AllowAgentForwarding no
+AllowTcpForwarding no
+#GatewayPorts no
+#X11Forwarding no
+#X11DisplayOffset 10
+#X11UseLocalhost yes
+#PermitTTY yes
+PrintMotd no
+PrintLastLog yes
+TCPKeepAlive no
+#UseLogin no
+#PermitUserEnvironment no
+Compression delayed
+ClientAliveInterval 300
+ClientAliveCountMax 2
+#UseDNS no
+#PidFile /run/sshd.pid
+#MaxStartups 10:30:100
+#PermitTunnel no
+#ChrootDirectory none
+#VersionAddendum none
+
+# no default banner path
+#Banner none
+
+# here are the new patched ldap related tokens
+# entries in your LDAP must have posixAccount & ldapPublicKey objectclass
+#UseLPK yes
+#LpkLdapConf /etc/ldap.conf
+#LpkServers  ldap://10.1.7.1/ ldap://10.1.7.2/
+#LpkUserDN   ou=users,dc=phear,dc=org
+#LpkGroupDN  ou=groups,dc=phear,dc=org
+#LpkBindDN cn=Manager,dc=phear,dc=org
+#LpkBindPw secret
+#LpkServerGroup mail
+#LpkFilter (hostAccess=master.phear.org)
+#LpkForceTLS no
+#LpkSearchTimelimit 3
+#LpkBindTimelimit 3
+#LpkPubKeyAttr sshPublicKey
+
+# override default of no subsystems
+Subsystem sftp /usr/lib64/misc/sftp-server
+
+# the following are HPN related configuration options
+# tcp receive buffer polling. disable in non autotuning kernels
+#TcpRcvBufPoll yes
+
+# disable hpn performance boosts
+#HPNDisabled no
+
+# buffer size for hpn to non-hpn connections
+#HPNBufferSize 2048
+
+# allow the use of the none cipher
+#NoneEnabled no
+
+# Example of overriding settings on a per-user basis
+#Match User anoncvs
+#	X11Forwarding no
+#	AllowTcpForwarding no
+#	PermitTTY no
+#	ForceCommand cvs server
+
+# Allow client to pass locale environment variables #367017
+AcceptEnv LANG LC_*

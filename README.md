@@ -1,5 +1,14 @@
 # Gentoo installation script
 
+TODO clarify:
+
+* /boot will not be mounted to efi partition, instead /boot/efi ist the mountpoint.
+  this prevents /boot from getting full by automated installs, and allows the kernel
+  script to keep exactly two versions (last working kernel), and new one.
+* kernel without module loading capability for security. localyesconfig
+
+
+
 **TL;DR:** Installs gentoo on a new system, suited for both servers and desktops.
 Optionally prepares ansible for automatic system configuration.
 See [Install](#Install) for usage instructions.
