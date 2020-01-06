@@ -47,11 +47,25 @@ but you can obviously do anything later on when the system is booted.
 I highly recommend building a custom kernel and maybe encrypting your
 root filesystem. Have a look at the [Recommendations](#Recommendations) section.
 
+# Install
+
+Installing gentoo with this script is simple.
+
+1. Boot into the live system of your choice. As the script requires some utilities,
+   I recommend using a live system where you can quickly install new software.
+   Any [Arch Linux](https://www.archlinux.org/download/) live iso works fine.
+2. Clone this repository
+3. Edit `gentoo-bootstrap/scripts/config.sh`, and particularily pay attention to
+   the device which will be partitioned. The script will ask before partitioning,
+   but better be safe than sorry.
+4. Execute `bash gentoo-bootstrap/install`. The script will tell you if your live
+   system is missing any required software.
+
 ## Config
 
 The config file `scripts/config.sh` allows you to adjust some parameters of the installation.
 The most important ones will probably be the device to partition, and the stage3 tarball name
-to install. By default you will get hardened nomultilib
+to install. By default you will get the hardened nomultilib profile without systemd.
 
 ### Using existing partitions
  
@@ -83,25 +97,12 @@ You can enter any amount of additional packages to be installed on the target sy
 These will simply be passed to a final `emerge` call before the script is done.
 Autounmasking will be done automatically.
 
-# Install
-
-Installing gentoo with this script is simple.
-
-1. Boot into the live system of your choice. As the script requires some utilities,
-   I recommend using a live system where you can quickly install new software.
-   Any [Arch Linux](https://www.archlinux.org/download/) live iso works fine.
-2. Clone this repository
-3. Edit `gentoo-bootstrap/scripts/config.sh`, and particularily pay attention to
-   the device which will be partitioned. The script will ask before partitioning,
-   but better be safe than sorry.
-4. Execute `bash gentoo-bootstrap/install`. The script will tell you if your live
-   system is missing any required software.
-
 # Recommendations
 
 There are some things that you probably want to do after installing the base system,
 or should consider:
 
+* Read the news with `eselect news read`.
 * Use a custom kernel (config and hardening, see [kernconf](https://github.com/oddlama/kernconf)), and remove `vanilla-kernel-bin`
 * Adjust `/etc/portage/make.conf`
   - Set `CFLAGS` to `-O2 -pipe -march=native` for native builds
