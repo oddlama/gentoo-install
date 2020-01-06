@@ -8,6 +8,13 @@ TODO clarify:
 * kernel without module loading capability for security. localyesconfig
 
 
+Recommendations:
+
+* Use umask 0077
+* Edit sshd_config, change port and create a sshusers group for users which may use ssh.
+* Use LUKS encryption on the disk
+* Use a properly configured kernel, at best restrict even USB!
+
 
 **TL;DR:** Installs gentoo on a new system, suited for both servers and desktops.
 Optionally prepares ansible for automatic system configuration.

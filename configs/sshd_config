@@ -14,7 +14,7 @@ Port 22
 HostKey /etc/ssh/ssh_host_ed25519_key
 
 # Limit Host Key Algorithms
-HostKeyAlgorithms ssh-ed25519-cert-v01@openssh.com,ssh-rsa-cert-v01@openssh.com,ssh-ed25519,ssh-rsa
+HostKeyAlgorithms ssh-ed25519-cert-v01@openssh.com,ssh-ed25519
 
 # Limit Key Exchange Algorithms
 KexAlgorithms curve25519-sha256@libssh.org,diffie-hellman-group-exchange-sha256

@@ -33,8 +33,15 @@ PARTITION_UUID_LINUX="$(load_or_generate_uuid 'linux')"
 ################################################
 # System configuration
 
+# Enter the desired system hostname here
+HOSTNAME="gentoo"
+
 # The timezone for the new system
 TIMEZONE="Europe/Berlin"
+
+# The default keymap for the system
+KEYMAP="de-latin1-nodeadkeys"
+#KEYMAP="us"
 
 # A list of additional locales to generate. You should only
 # add locales here if you really need them and want to localize
@@ -50,10 +57,6 @@ LOCALE="C.utf8"
 # de_DE@euro ISO-8859-15
 # " # End of LOCALES
 # LOCALE="de_DE.utf8"
-
-# The default keymap for the system
-KEYMAP="de-latin1-nodeadkeys"
-#KEYMAP="us"
 
 
 ################################################
@@ -74,16 +77,18 @@ STAGE3_BASENAME="stage3-amd64-hardened+nomultilib"
 # List of additional packages to install (will be directly passed to emerge)
 ADDITIONAL_PACKAGES="app-editors/neovim"
 
-# Install and configure sshd (a reasonably secure config
-# is provided, only ed25519 host key, pubkey authentication only)
+# Install and configure sshd (a reasonably secure config is provided, which
+# only allows the use of ed25519 keys, and requires pubkey authentication)
 INSTALL_SSHD=true
 
 # Install ansible, and add a user for it
 INSTALL_ANSIBLE=true
 # The home directory for the ansible user
 ANSIBLE_HOME="/var/lib/ansible"
-# An ssh key to add to the .authorized_keys file for the ansible user
-ANSIBLE_SSH_PUBKEY=""
+# An ssh key to add to the .authorized_keys file for the ansible user.
+# This variable will become the content of the .authorized_keys file,
+# so you may specify one key per line.
+ANSIBLE_SSH_AUTHORIZED_KEYS=""
 
 
 ################################################

@@ -64,11 +64,21 @@ main_install_gentoo_in_chroot() {
 	einfo "Syncing portage tree"
 	try emerge-webrsync
 
+	# Set hostname
+	einfo "Selecting hostname"
+	sed -i "/hostname=/c\\hostname=\"$HOSTNAME\"" /etc/conf.d/hostname \
+		|| die "Could not sed replace in /etc/conf.d/hostname"
+
 	# Set timezone
 	einfo "Selecting timezone"
 	echo "$TIMEZONE" > /etc/timezone \
 		|| die "Could not write /etc/timezone"
 	try emerge -v --config sys-libs/timezone-data
+
+	# Set keymap
+	einfo "Selecting keymap"
+	sed -i "/keymap=/c\\keymap=\"$KEYMAP\"" /etc/conf.d/keymaps \
+		|| die "Could not sed replace in /etc/conf.d/keymaps"
 
 	# Set locale
 	einfo "Selecting locale"
@@ -77,11 +87,6 @@ main_install_gentoo_in_chroot() {
 	locale-gen \
 		|| die "Could not generate locales"
 	try eselect locale set "$LOCALE"
-
-	# Set keymap
-	einfo "Selecting keymap"
-	sed -i "/keymap=/c\\$KEYMAP" /etc/conf.d/keymaps \
-		|| die "Could not sed replace in /etc/conf.d/keymaps"
 
 	# Update environment
 	env_update
@@ -128,7 +133,7 @@ main_install_gentoo_in_chroot() {
 	efidev="$(get_device_by_partuuid "$PARTITION_UUID_EFI")" \
 		|| die "Could not resolve partition UUID '$PARTITION_UUID_EFI'"
 	local efipartnum="${efidev: -1}"
-	try efibootmgr --verbose --create --disk "$PARTITION_DEVICE" --part "$efipartnum" --label "gentoo" --loader '\EFI\vmlinuz.efi' --unicode "root=$linuxdev initrd=initramfs.img"
+	try efibootmgr --verbose --create --disk "$PARTITION_DEVICE" --part "$efipartnum" --label "gentoo" --loader '\EFI\vmlinuz.efi' --unicode "root=$linuxdev initrd=\\EFI\\initramfs.img"
 
 	# Install additional packages, if any.
 	if [[ -n "$ADDITIONAL_PACKAGES" ]]; then
@@ -172,12 +177,15 @@ main_install_gentoo_in_chroot() {
 		mkdir_or_die 0700 "$ANSIBLE_HOME"
 		mkdir_or_die 0700 "$ANSIBLE_HOME/.ssh"
 
-		if [[ -n "$ANSIBLE_SSH_PUBKEY" ]]; then
-			einfo "Adding ssh key for ansible"
+		if [[ -n "$ANSIBLE_SSH_AUTHORIZED_KEYS" ]]; then
+			einfo "Adding authorized keys for ansible"
 			touch_or_die 0600 "$ANSIBLE_HOME/.ssh/authorized_keys"
-			echo "$ANSIBLE_SSH_PUBKEY" >> "$ANSIBLE_HOME/.ssh/authorized_keys" \
+			echo "$ANSIBLE_SSH_AUTHORIZED_KEYS" >> "$ANSIBLE_HOME/.ssh/authorized_keys" \
 				|| die "Could not add ssh key to authorized_keys"
 		fi
+
+		chown -R ansible: "$ANSIBLE_HOME" \
+			|| die "Could not change ownership of ansible home"
 
 		einfo "Allowing ansible for ssh"
 		echo "AllowUsers ansible" >> "/etc/ssh/sshd_config" \

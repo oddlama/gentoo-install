@@ -25,6 +25,15 @@ sync_time() {
 check_config() {
 	[[ "$KEYMAP" =~ ^[0-9A-Za-z-]*$ ]] \
 		|| die "KEYMAP contains invalid characters"
+
+	# Check hostname per RFC1123
+	[[ "$HOSTNAME" ~= '^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$' ]] \
+		|| die "'$HOSTNAME' is not a valid hostname"
+
+	if [[ "$INSTALL_ANSIBLE" == true ]]; then
+		[[ -n "$ANSIBLE_SSH_AUTHORIZED_KEYS" ]] \
+			|| die "Missing pubkey for ansible user"
+	fi
 }
 
 prepare_installation_environment() {
@@ -160,7 +169,8 @@ mount_efivars() {
 
 	# Mount efivars
 	einfo "Mounting efivars"
-	mount -t efivarfs efivarfs "/sys/firmware/efi/efivars"
+	mount -t efivarfs efivarfs "/sys/firmware/efi/efivars" \
+		|| die "Could not mount efivarfs"
 }
 
 mount_by_partuuid() {
