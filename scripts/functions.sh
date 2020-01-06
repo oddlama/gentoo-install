@@ -153,6 +153,16 @@ format_partitions() {
 		|| die "Could not create ext4 filesystem"
 }
 
+mount_efivars() {
+	# Skip if already mounted
+	mountpoint -q -- "/sys/firmware/efi/efivars" \
+		&& return
+
+	# Mount efivars
+	einfo "Mounting efivars"
+	mount -t efivarfs efivarfs "/sys/firmware/efi/efivars"
+}
+
 mount_by_partuuid() {
 	local dev
 	local partuuid="$1"

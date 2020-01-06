@@ -8,11 +8,9 @@ source "$GENTOO_BOOTSTRAP_DIR/scripts/internal_config.sh" || exit 1
 # Disk configuration
 
 # Enable swap?
-ENABLE_SWAP=false
-
+ENABLE_SWAP=true
 # Enable partitioning (will still ask before doing anything critical)
 ENABLE_PARTITIONING=true
-
 # Format the partitions with the correct filesystems,
 # if you didn't chose automatic partitioning, you will be asked
 # before any formatting is done.

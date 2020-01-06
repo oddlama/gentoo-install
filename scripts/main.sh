@@ -56,7 +56,8 @@ main_install_gentoo_in_chroot() {
 		|| die "Could not change root password"
 
 	# Mount efi partition
-	einfo "Mounting efi"
+	mount_efivars
+	einfo "Mounting efi partition"
 	mount_by_partuuid "$PARTITION_UUID_EFI" "/boot/efi"
 
 	# Sync portage
@@ -107,7 +108,7 @@ main_install_gentoo_in_chroot() {
 
 	# Copy kernel to EFI
 	local kernel_version
-	kernel_version="$(find "/boot" -name "vmlinuz-*" | sort -V | tail -1)" \
+	kernel_version="$(find "/boot" -name "vmlinuz-*" -printf '%f\n' | sort -V | tail -1)" \
 		|| die "Could not list newest kernel file"
 	kernel_version="${kernel_version#vmlinuz-}" \
 		|| die "Could not find kernel version"
@@ -127,8 +128,7 @@ main_install_gentoo_in_chroot() {
 	efidev="$(get_device_by_partuuid "$PARTITION_UUID_EFI")" \
 		|| die "Could not resolve partition UUID '$PARTITION_UUID_EFI'"
 	local efipartnum="${efidev: -1}"
-	efibootmgr --verbose --create --disk "$PARTITION_DEVICE" --part "$efipartnum" --label "gentoo" --loader '\EFI\vmlinuz.efi' --unicode "root=$linuxdev initrd=initramfs.img" \
-		|| die "Could not add efi boot entry"
+	try efibootmgr --verbose --create --disk "$PARTITION_DEVICE" --part "$efipartnum" --label "gentoo" --loader '\EFI\vmlinuz.efi' --unicode "root=$linuxdev initrd=initramfs.img"
 
 	# Install additional packages, if any.
 	if [[ -n "$ADDITIONAL_PACKAGES" ]]; then
@@ -202,7 +202,9 @@ main_install() {
 
 	gentoo_umount
 	install_stage3
+	mount_efivars
 	gentoo_chroot "$GENTOO_BOOTSTRAP_BIND/scripts/main.sh" install_gentoo_in_chroot
+	gentoo_umount
 }
 
 main_chroot() {
