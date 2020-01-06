@@ -55,10 +55,10 @@ Installing gentoo with this script is simple.
    I recommend using a live system where you can quickly install new software.
    Any [Arch Linux](https://www.archlinux.org/download/) live iso works fine.
 2. Clone this repository
-3. Edit `gentoo-bootstrap/scripts/config.sh`, and particularily pay attention to
+3. Edit `scripts/config.sh`, and particularily pay attention to
    the device which will be partitioned. The script will ask before partitioning,
    but better be safe than sorry.
-4. Execute `bash gentoo-bootstrap/install`. The script will tell you if your live
+4. Execute `./install`. The script will tell you if your live
    system is missing any required software.
 
 ## Config
@@ -96,6 +96,13 @@ the new system is up to configure the rest of the system.
 You can enter any amount of additional packages to be installed on the target system.
 These will simply be passed to a final `emerge` call before the script is done.
 Autounmasking will be done automatically.
+
+## Troubleshooting
+
+The script checks every command for success, so if anything fails during installation,
+you will be given a proper message of what went wrong. Inside the chroot,
+most commands will be executed in some kind of try loop, and allow you to
+fix problems interactively with a shell, to retry, or to skip the command.
 
 # Recommendations
 
