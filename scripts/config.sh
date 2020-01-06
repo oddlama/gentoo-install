@@ -66,9 +66,12 @@ LOCALE="C.utf8"
 GENTOO_MIRROR="https://mirror.eu.oneandone.net/linux/distributions/gentoo/gentoo"
 #GENTOO_MIRROR="https://distfiles.gentoo.org"
 
+# The architecture of the target system (only tested with amd64)
+GENTOO_ARCH="amd64"
+
 # The stage3 tarball to install
-STAGE3_BASENAME="stage3-amd64-hardened+nomultilib"
-#STAGE3_BASENAME="stage3-amd64-hardened-selinux+nomultilib"
+STAGE3_BASENAME="stage3-$GENTOO_ARCH-hardened+nomultilib"
+#STAGE3_BASENAME="stage3-$GENTOO_ARCH-hardened-selinux+nomultilib"
 
 
 ################################################

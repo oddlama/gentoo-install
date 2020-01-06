@@ -27,7 +27,8 @@ check_config() {
 		|| die "KEYMAP contains invalid characters"
 
 	# Check hostname per RFC1123
-	[[ "$HOSTNAME" ~= '^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$' ]] \
+	local hostname_regex='^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$'
+	[[ "$HOSTNAME" =~ $hostname_regex ]] \
 		|| die "'$HOSTNAME' is not a valid hostname"
 
 	if [[ "$INSTALL_ANSIBLE" == true ]]; then

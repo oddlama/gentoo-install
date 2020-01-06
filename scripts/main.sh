@@ -103,13 +103,17 @@ main_install_gentoo_in_chroot() {
 	einfo "Selecting fastest portage mirrors"
 	try mirrorselect -s 4 -b 10 -D
 
+	einfo "Adding ~$GENTOO_ARCH to ACCEPT_KEYWORDS"
+	echo "ACCEPT_KEYWORDS=\"~$GENTOO_ARCH\"" >> /etc/portage/make.conf \
+		|| die "Could not modify /etc/portage/make.conf"
+
 	# Install git (for git portage overlays)
 	einfo "Installing git"
 	try emerge --verbose dev-vcs/git
 
 	# Install vanilla kernel and efibootmgr, to be able to boot the system.
-	einfo "Installing vanilla kernel"
-	try emerge --verbose sys-kernel/vanilla-kernel sys-boot/efibootmgr
+	einfo "Installing binary vanilla kernel"
+	try emerge --verbose sys-kernel/vanilla-kernel-bin sys-boot/efibootmgr
 
 	# Copy kernel to EFI
 	local kernel_version
@@ -163,7 +167,7 @@ main_install_gentoo_in_chroot() {
 
 	# Install and enable dhcpcd
 	einfo "Installing dhcpcd"
-	try emerge --verbose net-misc/dhcpcd sys-apps/iproute2
+	try emerge --verbose net-misc/dhcpcd
 	rc-update add dhcpcd default \
 		|| die "Could not add dhcpcd to default services"
 

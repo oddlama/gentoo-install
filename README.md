@@ -14,6 +14,7 @@ Recommendations:
 * Edit sshd_config, change port and create a sshusers group for users which may use ssh.
 * Use LUKS encryption on the disk
 * Use a properly configured kernel, at best restrict even USB!
+* Adjust make.conf (default parallel emerge, cpu flags, binhost?)
 
 
 **TL;DR:** Installs gentoo on a new system, suited for both servers and desktops.
@@ -22,7 +23,7 @@ See [Install](#Install) for usage instructions.
 
 ---
 
-This script will install a minimal (no-bloat) EFI bootable gentoo system.
+This script will install a minimal EFI bootable gentoo system, without additional bloat.
 It will stick closely to the [Gentoo AMD64 Handbook](https://wiki.gentoo.org/wiki/Handbook:AMD64)
 and [Sakaki's EFI Install Guide](https://wiki.gentoo.org/wiki/Sakaki%27s_EFI_Install_Guide).
 
@@ -77,7 +78,7 @@ this script is not suited for it.
 #### EFI
 
 It is assumed that your system can (and will) be booted via EFI.
-This is not a strict requirement, but othewise you will be responsible
+This is not a strict requirement, but otherwise you will be responsible
 to make the system bootable.
 
 This probably involves the following steps:
@@ -85,6 +86,7 @@ This probably involves the following steps:
 * Change partition type of `efi` partition to `ef02` (BIOS boot partition)
 * Change partition name and filesystem name to `boot`
 * Install and configure syslinux
+* Adjust make.conf
 
 Maybe there will be a convenience script for this at some point.
 No promises though.
