@@ -197,10 +197,10 @@ main_install_gentoo_in_chroot() {
 	fi
 
 	if ask "Do you want to assign a root password now?"; then
-		passwd root
+		try passwd root
 		einfo "Root password assigned"
 	else
-		passwd -d root
+		try passwd -d root
 		ewarn "Root password cleared, set one as soon as possible!"
 	fi
 
