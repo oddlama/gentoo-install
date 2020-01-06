@@ -1,107 +1,122 @@
 # Gentoo installation script
 
-TODO clarify:
+This script performs a reasonably minimal installation of gentoo for an EFI system.
+It does everything from the ground up, including creating partitions, downloading
+and extracting the stage3 archive, initial system configuration and optionally installing
+some additional software. The script only supports OpenRC and not systemd.
 
-* /boot will not be mounted to efi partition, instead /boot/efi ist the mountpoint.
-  this prevents /boot from getting full by automated installs, and allows the kernel
-  script to keep exactly two versions (last working kernel), and new one.
-* kernel without module loading capability for security. localyesconfig
+The system will temporarily use `sys-kernel/vanilla-kernel-bin`, which should be suitable
+to boot most systems out of the box. I strongly recommend you to replace this kernel
+with a custom built one, when the system is functional. If you are looking for a way
+to properly manage your kernel configuration parameters, have a look at [kernconf](https://github.com/oddlama/kernconf).
+There you will also find information on how to select the correct options for your system,
+and information on kernel hardening.
 
+## Overview
 
-Recommendations:
+Here is a quick overview of what this script does:
 
-* Use umask 0077
-* Edit sshd_config, change port and create a sshusers group for users which may use ssh.
-* Use LUKS encryption on the disk
-* Use a properly configured kernel, at best restrict even USB!
-* Adjust make.conf (default parallel emerge, cpu flags, binhost?)
+* Does everything minus something
+* Partition the device (efi, optional swap, linux root)
+* Download and cryptographically verify the newest stage3 tarball
+* Extract the stage3 tarball
+* Sync portage tree
+* Configure the base system
+  - Set hostname
+  - Set timezone
+  - Set keymap
+  - Generate and select locale
+  - Prepare `zz-autounmask` files for portage autounmasking
+* Select best 4 gentoo portage mirrors
+* Install git (so you can add your portage overlays later)
+* Install `sys-kernel/vanilla-kernel-bin` (temporarily, until you replace it)
+* Copy kernel to efi partition
+* Create boot entry using efibootmgr
+* Generate fstab
+* Lets you set a root password
 
+Also, optionally the following will be done:
 
-**TL;DR:** Installs gentoo on a new system, suited for both servers and desktops.
-Optionally prepares ansible for automatic system configuration.
-See [Install](#Install) for usage instructions.
+* Install sshd with secure config
+* Install dhcpcd
+* Install ansible, create ansible user and add authorized ssh key
+* Install additional packages provided in config
 
----
+Anything else is probably out of scope for this script,
+but you can obviously do anything later on when the system is booted.
+I highly recommend building a custom kernel and maybe encrypting your
+root filesystem. Have a look at the [Recommendations](#Recommendations) section.
 
-This script will install a minimal EFI bootable gentoo system, without additional bloat.
-It will stick closely to the [Gentoo AMD64 Handbook](https://wiki.gentoo.org/wiki/Handbook:AMD64)
-and [Sakaki's EFI Install Guide](https://wiki.gentoo.org/wiki/Sakaki%27s_EFI_Install_Guide).
+## Config
 
-What you will get:
+The config file `scripts/config.sh` allows you to adjust some parameters of the installation.
+The most important ones will probably be the device to partition, and the stage3 tarball name
+to install. By default you will get hardened nomultilib
 
-* Minimal system configuration
-* Temporary vanilla kernel (precompiled by gentoo), in my opinion you
-  should replace this kernel with a custom made kernel for your system.
-  See [Kernel](#Kernel) for details on how to achieve that with low effort.
+### Using existing partitions
+ 
+If you want to use existing partitions, you will have to set `ENABLE_PARTITIONING=false`.
+As the script uses uuids to refer to partitions, you will have to set the corresponding
+partition uuid variables in the config (all variables beginning with `PARTITION_UUID_`).
 
-What you can get optionally:
+## (Optional) sshd
 
-* LUKS
-* EFI secure boot
-* Initramfs (compiled into the kernel for EFIstub)
-* Preconfigured sshd
-* Ansible ready (packages, user, ssh)
-* Additional packages of your choice (only trivial installations without use flag changes)
+The script can provide a fully configured ssh daemon with reasonably good security settings.
+It will by default only allow ed25519 keys, restrict the key exchange algorithms, disable
+any password based authentication, and only allow specifically mentioned users to use ssh
+(none by default).
 
-What you will **NOT** get: (i.e. you will have to do it yourself)
+To add a user to the list of allowed users, append `AllowUsers myuser` to `/etc/ssh/sshd_config`.
+I recommend to create a separate group for all ssh users (like `sshusers`) and
+to use `AllowGroups sshusers`. You should adjust this to your preferences when
+the system is installed.
 
-* X11 desktop environment
-* A user for yourself (except `root` obviously)
-* Any form of RAID
-* A specialized kernel, see [Kernel](#Kernel) for details on how to get one.
+## (Optional) Ansible
 
-Only necessary configuration is applied to provide a common baseline system.
-If you need advanced features such as an initramfs or a different
-partitioning scheme, you can definitely use this script but will
-have to make some adjustments to it.
+This script can install ansible, create a system user for ansible and add an ssh key of
+you choice to the `.authorized_keys` file. This allows you to directly use ansible when
+the new system is up to configure the rest of the system.
 
-The main purpose of this script is to provide a universal setup
-which should be suitable for most use-cases (desktop and server installations).
+## (Optional) Additional packages
 
-#### Overview of executed tasks
+You can enter any amount of additional packages to be installed on the target system.
+These will simply be passed to a final `emerge` call before the script is done.
+Autounmasking will be done automatically.
 
-* Check live system
-* Sync time
-* Partition disks
-* Format partitions
-* Download stage3
-* Extract stage3
-* Chroot into new system
-* Update portage tree
-* ... TODO MISSING!
+# Install
 
-#### GPT
+Installing gentoo with this script is simple.
 
-The script will create GPT partition tables. If your system cannot use GPT,
-this script is not suited for it.
+1. Boot into the live system of your choice. As the script requires some utilities,
+   I recommend using a live system where you can quickly install new software.
+   Any [Arch Linux](https://www.archlinux.org/download/) live iso works fine.
+2. Clone this repository
+3. Edit `gentoo-bootstrap/scripts/config.sh`, and particularily pay attention to
+   the device which will be partitioned. The script will ask before partitioning,
+   but better be safe than sorry.
+4. Execute `bash gentoo-bootstrap/install`. The script will tell you if your live
+   system is missing any required software.
 
-#### EFI
+# Recommendations
 
-It is assumed that your system can (and will) be booted via EFI.
-This is not a strict requirement, but otherwise you will be responsible
-to make the system bootable.
+There are some things that you probably want to do after installing the base system,
+or should consider:
 
-This probably involves the following steps:
-
-* Change partition type of `efi` partition to `ef02` (BIOS boot partition)
-* Change partition name and filesystem name to `boot`
-* Install and configure syslinux
-* Adjust make.conf
-
-Maybe there will be a convenience script for this at some point.
-No promises though.
-
-# Optional: Ansible ready
-
-Optionally, this script can make the new system ready to be
-used with ansible.
-
-It will do the following steps for you:
-
-* Create an ansible user
-* Generate an ssh keypair (type configurable)
-* Setup a secure sshd (safe ciphers, login only with keypair)
-* Install ansible
+* Use a custom kernel (config and hardening, see [kernconf](https://github.com/oddlama/kernconf)), and remove `vanilla-kernel-bin`
+* Adjust `/etc/portage/make.conf`
+  - Set `CFLAGS` to `-O2 -pipe -march=native` for native builds
+  - Set `CPU_FLAGS_X86` using the `cpuid2cpuflags` tool
+  - Set `MAKEOPTS` to `-jN` with N being the amount of threads used for building
+  - Set `EMERGE_DEFAULT_OPTS` to `-jN` if you want parallel emerging
+  - Set `FEATURES="buildpkg"` if you want to build binary packages
+* Use a safe umask like `umask 0077`
+* Edit `/etc/ssh/sshd_config`, change the port and create a `sshusers` group.
+* Encrypt your system using LUKS
+  - Remount the root fs read-only
+  - Use `rsync -axHAWXS --numeric-ids --info=progress2 / /path/to/backup` to safely backup the whole
+    system including all extended attributes.
+  - Encrypt partition with LUKS
+  - Use rsync to restore the saved system root.
 
 # References
 

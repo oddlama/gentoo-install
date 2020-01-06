@@ -79,12 +79,12 @@ STAGE3_BASENAME="stage3-$GENTOO_ARCH-hardened+nomultilib"
 
 # List of additional packages to install (will be directly passed to emerge)
 ADDITIONAL_PACKAGES="app-editors/neovim"
-
+# Install and enable dhcpcd
+INSTALL_DHCPCD=true
 # Install and configure sshd (a reasonably secure config is provided, which
 # only allows the use of ed25519 keys, and requires pubkey authentication)
 INSTALL_SSHD=true
-
-# Install ansible, and add a user for it
+# Install ansible, and add a user for it. This requires INSTALL_SSHD=true
 INSTALL_ANSIBLE=true
 # The home directory for the ansible user
 ANSIBLE_HOME="/var/lib/ansible"

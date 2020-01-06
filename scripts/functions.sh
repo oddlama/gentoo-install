@@ -32,6 +32,8 @@ check_config() {
 		|| die "'$HOSTNAME' is not a valid hostname"
 
 	if [[ "$INSTALL_ANSIBLE" == true ]]; then
+		[[ "$INSTALL_SSHD" == true ]] \
+			|| die "You must enable INSTALL_SSHD for ansible"
 		[[ -n "$ANSIBLE_SSH_AUTHORIZED_KEYS" ]] \
 			|| die "Missing pubkey for ansible user"
 	fi

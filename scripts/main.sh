@@ -1,3 +1,5 @@
+#!/bin/bash
+
 ################################################
 # Initialize script environment
 
@@ -139,12 +141,6 @@ main_install_gentoo_in_chroot() {
 	local efipartnum="${efidev: -1}"
 	try efibootmgr --verbose --create --disk "$PARTITION_DEVICE" --part "$efipartnum" --label "gentoo" --loader '\EFI\vmlinuz.efi' --unicode "root=$linuxdev initrd=\\EFI\\initramfs.img"
 
-	# Install additional packages, if any.
-	if [[ -n "$ADDITIONAL_PACKAGES" ]]; then
-		einfo "Installing additional packages"
-		try emerge --verbose --autounmask-continue=y -- $ADDITIONAL_PACKAGES
-	fi
-
 	# Generate a valid fstab file
 	einfo "Generating fstab"
 	install -m0644 -o root -g root "$GENTOO_BOOTSTRAP_DIR/configs/fstab" /etc/fstab \
@@ -159,11 +155,13 @@ main_install_gentoo_in_chroot() {
 	fi
 
 	# Install and enable sshd
-	einfo "Installing sshd"
-	install -m0600 -o root -g root "$GENTOO_BOOTSTRAP_DIR/configs/sshd_config" /etc/ssh/sshd_config \
-		|| die "Could not install /etc/ssh/sshd_config"
-	rc-update add sshd default \
-		|| die "Could not add sshd to default services"
+	if [[ "$INSTALL_SSHD" == true ]]; then
+		einfo "Installing sshd"
+		install -m0600 -o root -g root "$GENTOO_BOOTSTRAP_DIR/configs/sshd_config" /etc/ssh/sshd_config \
+			|| die "Could not install /etc/ssh/sshd_config"
+		rc-update add sshd default \
+			|| die "Could not add sshd to default services"
+	fi
 
 	# Install and enable dhcpcd
 	einfo "Installing dhcpcd"
@@ -194,6 +192,12 @@ main_install_gentoo_in_chroot() {
 		einfo "Allowing ansible for ssh"
 		echo "AllowUsers ansible" >> "/etc/ssh/sshd_config" \
 			|| die "Could not append to /etc/ssh/sshd_config"
+	fi
+
+	# Install additional packages, if any.
+	if [[ -n "$ADDITIONAL_PACKAGES" ]]; then
+		einfo "Installing additional packages"
+		try emerge --verbose --autounmask-continue=y -- $ADDITIONAL_PACKAGES
 	fi
 
 	if ask "Do you want to assign a root password now?"; then
