@@ -1,7 +1,7 @@
 #!/bin/bash
 
-source "$GENTOO_BOOTSTRAP_DIR/scripts/protection.sh" || exit 1
-source "$GENTOO_BOOTSTRAP_DIR/scripts/internal_config.sh" || exit 1
+source "$GENTOO_INSTALL_REPO_DIR/scripts/protection.sh" || exit 1
+source "$GENTOO_INSTALL_REPO_DIR/scripts/internal_config.sh" || exit 1
 
 
 ################################################

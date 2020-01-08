@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source "$GENTOO_BOOTSTRAP_DIR/scripts/protection.sh" || exit 1
+source "$GENTOO_INSTALL_REPO_DIR/scripts/protection.sh" || exit 1
 
 
 ################################################
@@ -8,11 +8,11 @@ source "$GENTOO_BOOTSTRAP_DIR/scripts/protection.sh" || exit 1
 
 # The temporary directory for this script,
 # must reside in /tmp to allow the chrooted system to access the files
-TMP_DIR="/tmp/gentoo-bootstrap"
+TMP_DIR="/tmp/gentoo-install"
 # Mountpoint for the new system
 ROOT_MOUNTPOINT="$TMP_DIR/root"
 # Mountpoint for the script files for access from chroot
-GENTOO_BOOTSTRAP_BIND="$TMP_DIR/bind"
+GENTOO_INSTALL_REPO_BIND="$TMP_DIR/bind"
 # Mountpoint for the script files for access from chroot
 UUID_STORAGE_DIR="$TMP_DIR/uuids"
 

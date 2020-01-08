@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source "$GENTOO_BOOTSTRAP_DIR/scripts/protection.sh" || exit 1
+source "$GENTOO_INSTALL_REPO_DIR/scripts/protection.sh" || exit 1
 
 
 ################################################
@@ -199,21 +199,21 @@ mount_root() {
 	mount_by_partuuid "$PARTITION_UUID_LINUX" "$ROOT_MOUNTPOINT"
 }
 
-bind_bootstrap_dir() {
+bind_repo_dir() {
 	# Use new location by default
-	export GENTOO_BOOTSTRAP_DIR="$GENTOO_BOOTSTRAP_BIND"
+	export GENTOO_INSTALL_REPO_DIR="$GENTOO_INSTALL_REPO_BIND"
 
-	# Bind the bootstrap dir to a location in /tmp,
+	# Bind the repo dir to a location in /tmp,
 	# so it can be accessed from within the chroot
-	mountpoint -q -- "$GENTOO_BOOTSTRAP_BIND" \
+	mountpoint -q -- "$GENTOO_INSTALL_REPO_BIND" \
 		&& return
 
 	# Mount root device
-	einfo "Bind mounting bootstrap directory"
-	mkdir -p "$GENTOO_BOOTSTRAP_BIND" \
-		|| die "Could not create mountpoint directory '$GENTOO_BOOTSTRAP_BIND'"
-	mount --bind "$GENTOO_BOOTSTRAP_DIR_ORIGINAL" "$GENTOO_BOOTSTRAP_BIND" \
-		|| die "Could not bind mount '$GENTOO_BOOTSTRAP_DIR_ORIGINAL' to '$GENTOO_BOOTSTRAP_BIND'"
+	einfo "Bind mounting repo directory"
+	mkdir -p "$GENTOO_INSTALL_REPO_BIND" \
+		|| die "Could not create mountpoint directory '$GENTOO_INSTALL_REPO_BIND'"
+	mount --bind "$GENTOO_INSTALL_REPO_DIR_ORIGINAL" "$GENTOO_INSTALL_REPO_BIND" \
+		|| die "Could not bind mount '$GENTOO_INSTALL_REPO_DIR_ORIGINAL' to '$GENTOO_INSTALL_REPO_BIND'"
 }
 
 download_stage3() {
@@ -334,7 +334,7 @@ gentoo_chroot() {
 
 	gentoo_umount
 	mount_root
-	bind_bootstrap_dir
+	bind_repo_dir
 
 	# Copy resolv.conf
 	einfo "Preparing chroot environment"
@@ -358,6 +358,6 @@ gentoo_chroot() {
 	einfo "Chrooting..."
 	EXECUTED_IN_CHROOT=true \
 		TMP_DIR=$TMP_DIR \
-		exec chroot -- "$ROOT_MOUNTPOINT" "$GENTOO_BOOTSTRAP_DIR/scripts/main_chroot.sh" "$@" \
+		exec chroot -- "$ROOT_MOUNTPOINT" "$GENTOO_INSTALL_REPO_DIR/scripts/main_chroot.sh" "$@" \
 		|| die "Failed to chroot into '$ROOT_MOUNTPOINT'"
 }

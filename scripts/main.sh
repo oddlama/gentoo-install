@@ -16,16 +16,16 @@ get_source_dir() {
 	echo -n "$(realpath "$(dirname "${source}")")"
 }
 
-export GENTOO_BOOTSTRAP_DIR_ORIGINAL="$(dirname "$(get_source_dir)")"
-export GENTOO_BOOTSTRAP_DIR="$GENTOO_BOOTSTRAP_DIR_ORIGINAL"
-export GENTOO_BOOTSTRAP_SCRIPT_ACTIVE=true
-export GENTOO_BOOTSTRAP_SCRIPT_PID=$$
+export GENTOO_INSTALL_REPO_DIR_ORIGINAL="$(dirname "$(get_source_dir)")"
+export GENTOO_INSTALL_REPO_DIR="$GENTOO_INSTALL_REPO_DIR_ORIGINAL"
+export GENTOO_INSTALL_REPO_SCRIPT_ACTIVE=true
+export GENTOO_INSTALL_REPO_SCRIPT_PID=$$
 
 umask 0077
 
-source "$GENTOO_BOOTSTRAP_DIR/scripts/utils.sh"
-source "$GENTOO_BOOTSTRAP_DIR/scripts/config.sh"
-source "$GENTOO_BOOTSTRAP_DIR/scripts/functions.sh"
+source "$GENTOO_INSTALL_REPO_DIR/scripts/utils.sh"
+source "$GENTOO_INSTALL_REPO_DIR/scripts/config.sh"
+source "$GENTOO_INSTALL_REPO_DIR/scripts/functions.sh"
 
 [[ $I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY == true ]] \
 	|| die "You have not properly read the config. Set I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY=true to continue."
@@ -143,7 +143,7 @@ main_install_gentoo_in_chroot() {
 
 	# Generate a valid fstab file
 	einfo "Generating fstab"
-	install -m0644 -o root -g root "$GENTOO_BOOTSTRAP_DIR/configs/fstab" /etc/fstab \
+	install -m0644 -o root -g root "$GENTOO_INSTALL_REPO_DIR/configs/fstab" /etc/fstab \
 		|| die "Could not overwrite /etc/fstab"
 	echo "PARTUUID=$PARTITION_UUID_LINUX    /            ext4    defaults,noatime,errors=remount-ro,discard                            0 1" >> /etc/fstab \
 		|| die "Could not append entry to fstab"
@@ -157,7 +157,7 @@ main_install_gentoo_in_chroot() {
 	# Install and enable sshd
 	if [[ "$INSTALL_SSHD" == true ]]; then
 		einfo "Installing sshd"
-		install -m0600 -o root -g root "$GENTOO_BOOTSTRAP_DIR/configs/sshd_config" /etc/ssh/sshd_config \
+		install -m0600 -o root -g root "$GENTOO_INSTALL_REPO_DIR/configs/sshd_config" /etc/ssh/sshd_config \
 			|| die "Could not install /etc/ssh/sshd_config"
 		rc-update add sshd default \
 			|| die "Could not add sshd to default services"
@@ -219,7 +219,7 @@ main_install() {
 	gentoo_umount
 	install_stage3
 	mount_efivars
-	gentoo_chroot "$GENTOO_BOOTSTRAP_BIND/scripts/main.sh" install_gentoo_in_chroot
+	gentoo_chroot "$GENTOO_INSTALL_REPO_BIND/scripts/main.sh" install_gentoo_in_chroot
 	gentoo_umount
 }
 
@@ -236,7 +236,7 @@ main_umount() {
 # Main dispatch
 
 # Instantly kill when pressing ctrl-c
-trap 'kill "$GENTOO_BOOTSTRAP_SCRIPT_PID"' INT
+trap 'kill "$GENTOO_INSTALL_REPO_SCRIPT_PID"' INT
 
 SCRIPT_ALIAS="$(basename "$0")"
 if [[ "$SCRIPT_ALIAS" == "main.sh" ]]; then

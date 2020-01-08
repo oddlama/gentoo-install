@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source "$GENTOO_BOOTSTRAP_DIR/scripts/protection.sh" || exit 1
+source "$GENTOO_INSTALL_REPO_DIR/scripts/protection.sh" || exit 1
 
 elog() {
 	echo "[1m *[m $*"
@@ -20,7 +20,7 @@ eerror() {
 
 die() {
 	eerror "$*"
-	kill "$GENTOO_BOOTSTRAP_SCRIPT_PID"
+	kill "$GENTOO_INSTALL_REPO_SCRIPT_PID"
 	exit 1
 }
 
