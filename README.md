@@ -1,3 +1,10 @@
+**TL;DR:** Edit `scripts/config.sh` and execute `./install` in any live system.
+EFI is required. This will partition the selected disk (with confirmation), and properly
+install the selected stage3 gentoo system. The new system will be bootable with
+`vanilla-kernel-bin` as the kernel. The script can optionally install sshd and
+ansible to allow for easier management of the new system. Afterwards, you can continue
+to roll-out your own advanced setup (LUKS, RAID, custom kernel).
+
 # Gentoo installation script
 
 This script performs a reasonably minimal installation of gentoo for an EFI system.
