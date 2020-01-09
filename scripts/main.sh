@@ -154,6 +154,10 @@ main_install_gentoo_in_chroot() {
 			|| die "Could not append entry to fstab"
 	fi
 
+	# Install and enable dhcpcd
+	einfo "Installing gentoolkit"
+	try emerge --verbose app-portage/gentoolkit
+
 	# Install and enable sshd
 	if [[ "$INSTALL_SSHD" == true ]]; then
 		einfo "Installing sshd"
