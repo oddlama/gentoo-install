@@ -83,9 +83,9 @@ partition uuid variables in the config (all variables beginning with `PARTITION_
 ## (Optional) sshd
 
 The script can provide a fully configured ssh daemon with reasonably good security settings.
-It will by default only allow ed25519 keys, restrict the key exchange algorithms, disable
-any password based authentication, and only allow specifically mentioned users to use ssh
-(none by default).
+It will by default run on port `2222`, only allow ed25519 keys, restrict the key exchange
+algorithms, disable any password based authentication, and only allow specifically mentioned
+users to use ssh service (none by default).
 
 To add a user to the list of allowed users, append `AllowUsers myuser` to `/etc/ssh/sshd_config`.
 I recommend to create a separate group for all ssh users (like `sshusers`) and
@@ -125,7 +125,7 @@ or should consider:
   - Set `EMERGE_DEFAULT_OPTS` to `-jN` if you want parallel emerging
   - Set `FEATURES="buildpkg"` if you want to build binary packages
 * Use a safe umask like `umask 0077`
-* Edit `/etc/ssh/sshd_config`, change the port and create a `sshusers` group.
+* Edit `/etc/ssh/sshd_config`, change the port if you want and create a `sshusers` group.
 * Encrypt your system using LUKS
   - Remount the root fs read-only
   - Use `rsync -axHAWXS --numeric-ids --info=progress2 / /path/to/backup` to safely backup the whole
