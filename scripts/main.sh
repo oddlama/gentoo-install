@@ -48,24 +48,7 @@ install_stage3() {
 	extract_stage3
 }
 
-main_install_gentoo_in_chroot() {
-	[[ $# == 0 ]] || die "Too many arguments"
-
-	# Lock the root password, making the account unaccessible for the
-	# period of installation, except by chrooting
-	einfo "Locking root account"
-	passwd -l root \
-		|| die "Could not change root password"
-
-	# Mount efi partition
-	mount_efivars
-	einfo "Mounting efi partition"
-	mount_by_partuuid "$PARTITION_UUID_EFI" "/boot/efi"
-
-	# Sync portage
-	einfo "Syncing portage tree"
-	try emerge-webrsync
-
+configure_base_system() {
 	# Set hostname
 	einfo "Selecting hostname"
 	sed -i "/hostname=/c\\hostname=\"$HOSTNAME\"" /etc/conf.d/hostname \
@@ -92,27 +75,19 @@ main_install_gentoo_in_chroot() {
 
 	# Update environment
 	env_update
+}
 
-	# Prepare /etc/portage for autounmask
-	mkdir_or_die 0755 "/etc/portage/package.use"
-	touch_or_die 0644 "/etc/portage/package.use/zz-autounmask"
-	mkdir_or_die 0755 "/etc/portage/package.keywords"
-	touch_or_die 0644 "/etc/portage/package.keywords/zz-autounmask"
+install_sshd() {
+	einfo "Installing sshd"
+	install -m0600 -o root -g root "$GENTOO_INSTALL_REPO_DIR/configs/sshd_config" /etc/ssh/sshd_config \
+		|| die "Could not install /etc/ssh/sshd_config"
+	rc-update add sshd default \
+		|| die "Could not add sshd to default services"
+	groupadd -r sshusers \
+		|| die "Could not create group 'sshusers'"
+}
 
-	einfo "Temporarily installing mirrorselect"
-	try emerge --verbose --oneshot app-portage/mirrorselect
-
-	einfo "Selecting fastest portage mirrors"
-	try mirrorselect -s 4 -b 10 -D
-
-	einfo "Adding ~$GENTOO_ARCH to ACCEPT_KEYWORDS"
-	echo "ACCEPT_KEYWORDS=\"~$GENTOO_ARCH\"" >> /etc/portage/make.conf \
-		|| die "Could not modify /etc/portage/make.conf"
-
-	# Install git (for git portage overlays)
-	einfo "Installing git"
-	try emerge --verbose dev-vcs/git
-
+install_kernel() {
 	# Install vanilla kernel and efibootmgr, to be able to boot the system.
 	einfo "Installing binary vanilla kernel"
 	try emerge --verbose sys-kernel/vanilla-kernel-bin sys-boot/efibootmgr
@@ -140,6 +115,75 @@ main_install_gentoo_in_chroot() {
 		|| die "Could not resolve partition UUID '$PARTITION_UUID_EFI'"
 	local efipartnum="${efidev: -1}"
 	try efibootmgr --verbose --create --disk "$PARTITION_DEVICE" --part "$efipartnum" --label "gentoo" --loader '\EFI\vmlinuz.efi' --unicode "root=$linuxdev initrd=\\EFI\\initramfs.img"
+}
+
+install_ansible() {
+	einfo "Installing ansible"
+	try emerge --verbose app-admin/ansible
+
+	einfo "Creating ansible user"
+	useradd -r -d "$ANSIBLE_HOME" -s /bin/bash ansible \
+		|| die "Could not create user 'ansible'"
+	mkdir_or_die 0700 "$ANSIBLE_HOME"
+	mkdir_or_die 0700 "$ANSIBLE_HOME/.ssh"
+
+	if [[ -n "$ANSIBLE_SSH_AUTHORIZED_KEYS" ]]; then
+		einfo "Adding authorized keys for ansible"
+		touch_or_die 0600 "$ANSIBLE_HOME/.ssh/authorized_keys"
+		echo "$ANSIBLE_SSH_AUTHORIZED_KEYS" >> "$ANSIBLE_HOME/.ssh/authorized_keys" \
+			|| die "Could not add ssh key to authorized_keys"
+	fi
+
+	chown -R ansible: "$ANSIBLE_HOME" \
+		|| die "Could not change ownership of ansible home"
+
+	einfo "Adding ansible to sshusers"
+	usermod -a -G sshusers ansible \
+		|| die "Could not add ansible to sshusers group"
+}
+
+main_install_gentoo_in_chroot() {
+	[[ $# == 0 ]] || die "Too many arguments"
+
+	# Lock the root password, making the account unaccessible for the
+	# period of installation, except by chrooting
+	einfo "Locking root account"
+	passwd -l root \
+		|| die "Could not change root password"
+
+	# Mount efi partition
+	mount_efivars
+	einfo "Mounting efi partition"
+	mount_by_partuuid "$PARTITION_UUID_EFI" "/boot/efi"
+
+	# Sync portage
+	einfo "Syncing portage tree"
+	try emerge-webrsync
+
+	# Configure basic system things like timezone, locale, ...
+	configure_base_system
+
+	# Prepare /etc/portage for autounmask
+	mkdir_or_die 0755 "/etc/portage/package.use"
+	touch_or_die 0644 "/etc/portage/package.use/zz-autounmask"
+	mkdir_or_die 0755 "/etc/portage/package.keywords"
+	touch_or_die 0644 "/etc/portage/package.keywords/zz-autounmask"
+
+	einfo "Temporarily installing mirrorselect"
+	try emerge --verbose --oneshot app-portage/mirrorselect
+
+	einfo "Selecting fastest portage mirrors"
+	try mirrorselect -s 4 -b 10 -D
+
+	einfo "Adding ~$GENTOO_ARCH to ACCEPT_KEYWORDS"
+	echo "ACCEPT_KEYWORDS=\"~$GENTOO_ARCH\"" >> /etc/portage/make.conf \
+		|| die "Could not modify /etc/portage/make.conf"
+
+	# Install git (for git portage overlays)
+	einfo "Installing git"
+	try emerge --verbose dev-vcs/git
+
+	install_kernel
 
 	# Generate a valid fstab file
 	einfo "Generating fstab"
@@ -160,11 +204,7 @@ main_install_gentoo_in_chroot() {
 
 	# Install and enable sshd
 	if [[ "$INSTALL_SSHD" == true ]]; then
-		einfo "Installing sshd"
-		install -m0600 -o root -g root "$GENTOO_INSTALL_REPO_DIR/configs/sshd_config" /etc/ssh/sshd_config \
-			|| die "Could not install /etc/ssh/sshd_config"
-		rc-update add sshd default \
-			|| die "Could not add sshd to default services"
+		install_sshd
 	fi
 
 	# Install and enable dhcpcd
@@ -175,27 +215,7 @@ main_install_gentoo_in_chroot() {
 
 	# Install ansible
 	if [[ "$INSTALL_ANSIBLE" == true ]]; then
-		einfo "Installing ansible"
-		try emerge --verbose app-admin/ansible
-
-		einfo "Creating ansible user"
-		useradd -r -d "$ANSIBLE_HOME" -s /bin/bash ansible
-		mkdir_or_die 0700 "$ANSIBLE_HOME"
-		mkdir_or_die 0700 "$ANSIBLE_HOME/.ssh"
-
-		if [[ -n "$ANSIBLE_SSH_AUTHORIZED_KEYS" ]]; then
-			einfo "Adding authorized keys for ansible"
-			touch_or_die 0600 "$ANSIBLE_HOME/.ssh/authorized_keys"
-			echo "$ANSIBLE_SSH_AUTHORIZED_KEYS" >> "$ANSIBLE_HOME/.ssh/authorized_keys" \
-				|| die "Could not add ssh key to authorized_keys"
-		fi
-
-		chown -R ansible: "$ANSIBLE_HOME" \
-			|| die "Could not change ownership of ansible home"
-
-		einfo "Allowing ansible for ssh"
-		echo "AllowUsers ansible" >> "/etc/ssh/sshd_config" \
-			|| die "Could not append to /etc/ssh/sshd_config"
+		install_ansible
 	fi
 
 	# Install additional packages, if any.

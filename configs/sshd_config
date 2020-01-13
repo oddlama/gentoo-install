@@ -33,9 +33,10 @@ MaxSessions 4
 
 #PubkeyAuthentication yes
 
-# only allow users to login, explicitly forbid root login
+# Only allow sshusers group to login, and explicitly forbid root login
 DenyUsers root
 DenyGroups root
+AllowGroups sshusers
 
 # The default is to check both .ssh/authorized_keys and .ssh/authorized_keys2
 # but this is overridden so installations will only check .ssh/authorized_keys
