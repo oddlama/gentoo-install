@@ -137,9 +137,9 @@ install_ansible() {
 	chown -R ansible: "$ANSIBLE_HOME" \
 		|| die "Could not change ownership of ansible home"
 
-	einfo "Adding ansible to sshusers"
-	usermod -a -G sshusers ansible \
-		|| die "Could not add ansible to sshusers group"
+	einfo "Adding ansible to some auxiliary groups"
+	usermod -a -G wheel,sshusers ansible \
+		|| die "Could not add ansible to auxiliary groups"
 }
 
 main_install_gentoo_in_chroot() {
