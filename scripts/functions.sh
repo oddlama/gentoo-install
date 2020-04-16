@@ -359,5 +359,5 @@ gentoo_chroot() {
 	EXECUTED_IN_CHROOT=true \
 		TMP_DIR=$TMP_DIR \
 		exec chroot -- "$ROOT_MOUNTPOINT" "$GENTOO_INSTALL_REPO_DIR/scripts/main_chroot.sh" "$@" \
-		|| die "Failed to chroot into '$ROOT_MOUNTPOINT'"
+			|| die "Failed to chroot into '$ROOT_MOUNTPOINT'"
 }
