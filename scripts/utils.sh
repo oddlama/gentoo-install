@@ -1,5 +1,3 @@
-#!/bin/bash
-
 source "$GENTOO_INSTALL_REPO_DIR/scripts/protection.sh" || exit 1
 
 elog() {
@@ -21,6 +19,15 @@ eerror() {
 die() {
 	eerror "$*"
 	kill "$GENTOO_INSTALL_REPO_SCRIPT_PID"
+	exit 1
+}
+
+# Prints an error with file:line info of the nth "stack frame".
+# 0 is this function, 1 the calling function, 2 its parent, and so on.
+die_trace() {
+	local idx="${1:-0}"
+	shift
+	echo "[1m${BASH_SOURCE[$((idx + 1))]}:${BASH_LINENO[$idx]}: [1;31merror:[m ${FUNCNAME[$idx]}: $*" >&2
 	exit 1
 }
 
@@ -134,4 +141,55 @@ load_or_generate_uuid() {
 	fi
 
 	echo -n "$uuid"
+}
+
+# Parses named arguments and stores them in the associative array `arguments`.
+# The associative array `known_arguments` must contain a list of arguments
+# prefixed with + (mandatory) or ? (optional).
+# "at least one of" can be expressed by +a|b|c.
+# all mandatory arguments are given.
+parse_arguments() {
+	local key
+	local value
+	local a
+	for a in "$@"; do
+		key="${a%%=*}"
+		value="${a#*=}"
+		arguments["$key"]="$value"
+	done
+
+	declare -A allowed_keys
+	if [[ -v "known_arguments" ]]; then
+		local m
+		for m in "${known_arguments[@]}"; do
+			case "${m:0:1}" in
+				'+')
+					m="${m:1}"
+					local has_opt=false
+					local m_opt
+					# Splitting is intentional here
+					for m_opt in ${m//|/ }; do # shellcheck disable=SC2068
+						allowed_keys["$m_opt"]=true
+						if [[ -v "arguments[$m_opt]" ]]; then
+							has_opt=true
+						fi
+					done
+
+					[[ "$has_opt" == true ]] \
+						|| die_trace 2 "Missing mandatory argument $m=..."
+					;;
+
+				'?')
+					allowed_keys["${m:1}"]=true
+					;;
+
+				*) die_trace 2 "Invalid start character in known_arguments, in argument '$m'" ;;
+			esac
+		done
+	fi
+
+	for a in "${!arguments[@]}"; do
+		[[ -v "allowed_keys[$a]" ]] \
+			|| die_trace 2 "Unkown argument '$a'"
+	done
 }

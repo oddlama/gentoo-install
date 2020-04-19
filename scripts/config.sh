@@ -1,5 +1,3 @@
-#!/bin/bash
-
 source "$GENTOO_INSTALL_REPO_DIR/scripts/protection.sh" || exit 1
 source "$GENTOO_INSTALL_REPO_DIR/scripts/internal_config.sh" || exit 1
 
@@ -7,27 +5,49 @@ source "$GENTOO_INSTALL_REPO_DIR/scripts/internal_config.sh" || exit 1
 ################################################
 # Disk configuration
 
-# Enable swap?
-ENABLE_SWAP=true
-# Enable partitioning (will still ask before doing anything critical)
-ENABLE_PARTITIONING=true
-# Format the partitions with the correct filesystems,
-# if you didn't chose automatic partitioning, you will be asked
-# before any formatting is done.
-ENABLE_FORMATTING=true
+# Example 1: Single disk, 3 partitions (efi, swap, root)
+create_default_disk_layout() {
+	local device="$1"
 
-# The device to partition
-PARTITION_DEVICE="/dev/sda"
-# Size of swap partition (if enabled)
-PARTITION_SWAP_SIZE="8GiB"
-# The size of the EFI partition
-PARTITION_EFI_SIZE="128MiB"
+	create_partition new_id=part_efi  device="$device" size=128MiB type=efi
+	create_partition new_id=part_swap device="$device" size=8GiB   type=raid
+	create_partition new_id=part_root device="$device" size=auto   type=raid
 
-# Partition UUIDs.
-# You must insert these by hand, if you do not use automatic partitioning
-PARTITION_UUID_EFI="$(load_or_generate_uuid 'efi')"
-PARTITION_UUID_SWAP="$(load_or_generate_uuid 'swap')"
-PARTITION_UUID_LINUX="$(load_or_generate_uuid 'linux')"
+	format id=part_efi  type=efi  label=efi
+	format id=part_swap type=swap label=swap
+	format id=part_root type=ext4 label=ext4
+
+	set_efi  id=part_efi
+	set_swap id=part_swap
+	set_root id=part_root
+}
+
+create_default_disk_layout
+
+
+# Example 2: Multiple disks, with raid 0 and luks
+# - efi:  partition on all disks, but only first disk used
+# - swap: raid 0 → fs
+# - root: raid 0 → luks → fs
+devices=(/dev/sd{X,Y})
+for i in "${!devices[@]}"; do
+	device="${devices[$i]}"
+	create_partition new_id="part_efi_dev${i}"  device="$device" size=128MiB type=efi
+	create_partition new_id="part_swap_dev${i}" device="$device" size=8GiB   type=raid
+	create_partition new_id="part_root_dev${i}" device="$device" size=auto   type=raid
+done
+
+create_raid new_id=part_raid_swap level=0 ids="${part_swap_dev*}"
+create_raid new_id=part_raid_root level=0 ids="${part_root_dev*}"
+create_luks new_id=part_luks_root id=part_raid_root
+
+format id=part_efi_dev0  type=efi  label=efi
+format id=part_raid_swap type=swap label=swap
+format id=part_luks_root type=ext4 label=ext4
+
+set_efi  id=part_efi_dev0
+set_swap id=part_raid_swap
+set_root id=part_luks_root
 
 
 ################################################
@@ -47,8 +67,8 @@ KEYMAP="de-latin1-nodeadkeys"
 # add locales here if you really need them and want to localize
 # your system. Otherwise, leave this list empty, and use C.utf8.
 LOCALES=""
-# The locale to set for the system. Be careful, this setting differs
-# from the LOCALES list entries. (e.g. .UTF-8 vs .utf8)
+# The locale to set for the system. Be careful, this setting differs from the LOCALES
+# list entries (e.g. .UTF-8 vs .utf8). Use the name as shown in `eselect locale`
 LOCALE="C.utf8"
 # For a german system you could use:
 # LOCALES="
