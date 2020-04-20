@@ -17,6 +17,11 @@ UUID_STORAGE_DIR="$TMP_DIR/uuids"
 # The desired efi partition mountpoint for the actual system
 EFI_MOUNTPOINT="/boot/efi"
 
+# Flag to track usage of raid (needed to check for mdadm existence)
+USED_RAID=false
+# Flag to track usage of luks (needed to check for cryptsetup existence)
+USED_LUKS=false
+
 # An array of disk related actions to perform
 DISK_ACTIONS=()
 # An associative set to check for existing ids
@@ -26,8 +31,8 @@ only_one_of() {
 	local previous=""
 	local a
 	for a in "$@"; do
-		if [[ -v "arguments[$a]" ]]; then
-			if [[ -z "$previous" ]]; then
+		if [[ -v arguments[$a] ]]; then
+			if [[ -z $previous ]]; then
 				previous="$a"
 			else
 				die_trace 2 "Only one of the arguments ($*) can be given"
@@ -38,30 +43,36 @@ only_one_of() {
 
 create_new_id() {
 	local id="${arguments[$1]}"
-	[[ ! -v "DISK_KNOWN_IDS[$id]" ]] \
+	[[ $id == *';'* ]] \
+		&& die_trace 2 "Identifier contains invalid character ';'"
+	[[ ! -v DISK_KNOWN_IDS[$id] ]] \
 		|| die_trace 2 "Identifier '$id' already exists"
 	DISK_KNOWN_IDS[$id]=true
 }
 
 verify_existing_id() {
 	local id="${arguments[$1]}"
-	[[ -v "DISK_KNOWN_IDS[$id]" ]] \
+	[[ -v DISK_KNOWN_IDS[$id] ]] \
 		|| die_trace 2 "Identifier $1='$id' not found"
 }
 
 verify_existing_unique_ids() {
-	local ids="${arguments[$1]}"
+	local arg="$1"
+	local ids="${arguments[$arg]}"
 
-	count_orig="$(tr ' ' '\n' <<< "$ids" | wc -l)"
-	count_uniq="$(tr ' ' '\n' <<< "$ids" | sort -u | wc -l)"
-	[[ "$count_orig" -eq "$count_uniq" ]] \
-		|| die_trace 2 "$1=... contains duplicate identifiers"
+	count_orig="$(tr ';' '\n' <<< "$ids" | grep -c '\S')"
+	count_uniq="$(tr ';' '\n' <<< "$ids" | grep '\S' | sort -u | wc -l)"
+	[[ $count_orig -gt 0 ]] \
+		|| die_trace 2 "$arg=... must contain at least one entry"
+	[[ $count_orig -eq $count_uniq ]] \
+		|| die_trace 2 "$arg=... contains duplicate identifiers"
 
-	local i
+	local id
 	# Splitting is intentional here
-	for i in $ids; do # shellcheck disable=SC2068
-		[[ -v "DISK_KNOWN_IDS[$i]" ]] \
-			|| die_trace 2 "$1=... contains unknown identifier '$i'"
+	# shellcheck disable=SC2086
+	for id in ${ids//';'/ }; do
+		[[ -v DISK_KNOWN_IDS[$id] ]] \
+			|| die_trace 2 "$arg=... contains unknown identifier '$id'"
 	done
 }
 
@@ -72,7 +83,7 @@ verify_option() {
 	local arg="${arguments[$opt]}"
 	local i
 	for i in "$@"; do
-		[[ "$i" == "$arg" ]] \
+		[[ $i == "$arg" ]] \
 			&& return 0
 	done
 
@@ -92,31 +103,43 @@ verify_option() {
 #}
 
 # Named arguments:
-# new_id:    Id for the new partition
-# size:      Size for the new partition, or auto to allocate the rest
-# type:      The parition type, either (efi, swap, raid, luks, linux) (or a 4 digit hex-code for gdisk).
-# [one of]
-#   device:  The operand block device
-#   id:      The operand device id
-create_partition() {
-	local known_arguments=('+new_id' '+device|id' '+size' '+type')
+# new_id:    Id for the new gpt table
+# device:  The operand block device
+create_gpt() {
+	local known_arguments=('+new_id' '+device|id')
 	unset arguments; declare -A arguments; parse_arguments "$@"
 
 	only_one_of device id
 	create_new_id new_id
-	verify_option type efi swap raid luks linux
-
-	[[ -v "arguments[id]" ]] \
+	[[ -v arguments[id] ]] \
 		&& verify_existing_id id
 
-	DISK_ACTIONS+=("action=create_partition" "$@")
+	DISK_ACTIONS+=("action=create_gpt" "$@" ";")
+}
+
+# Named arguments:
+# new_id:  Id for the new partition
+# size:    Size for the new partition, or auto to allocate the rest
+# type:    The parition type, either (boot, efi, swap, raid, luks, linux) (or a 4 digit hex-code for gdisk).
+# id:      The operand device id
+create_partition() {
+	local known_arguments=('+new_id' '+id' '+size' '+type')
+	unset arguments; declare -A arguments; parse_arguments "$@"
+
+	create_new_id new_id
+	verify_existing_id id
+	verify_option type boot efi swap raid luks linux
+
+	DISK_ACTIONS+=("action=create_partition" "$@" ";")
 }
 
 # Named arguments:
 # new_id:  Id for the new raid
 # level:   Raid level
-# ids:     Ids of all member devices
+# ids:     Comma separated list of all member ids
 create_raid() {
+	USED_RAID=true
+
 	local known_arguments=('+new_id' '+level' '+ids')
 	unset arguments; declare -A arguments; parse_arguments "$@"
 
@@ -124,36 +147,43 @@ create_raid() {
 	verify_option level 0 1 5 6
 	verify_existing_unique_ids ids
 
-	DISK_ACTIONS+=("action=create_raid" "$@")
+	DISK_ACTIONS+=("action=create_raid" "$@" ";")
 }
 
 # Named arguments:
 # new_id:  Id for the new luks
-# [one of]
-#   device:  The operand block device
-#   id:      The operand device id
+# id:      The operand device id
 create_luks() {
-	local known_arguments=('+new_id' '+device|id')
+	USED_LUKS=true
+
+	local known_arguments=('+new_id' '+id')
 	unset arguments; declare -A arguments; parse_arguments "$@"
 
 	create_new_id new_id
-	only_one_of device id
-	[[ -v "arguments[id]" ]] \
-		&& verify_existing_id id
+	verify_existing_id id
 
-	DISK_ACTIONS+=("action=create_luks" "$@")
+	DISK_ACTIONS+=("action=create_luks" "$@" ";")
 }
 
 # Named arguments:
 # id:     Id of the device / partition created earlier
-# type:   One of (efi, swap, ext4)
+# type:   One of (boot, efi, swap, ext4)
 # label:  The label for the formatted disk
 format() {
-	local known_arguments=('+id' '+type')
+	local known_arguments=('+id' '+type' '?label')
 	unset arguments; declare -A arguments; parse_arguments "$@"
 
 	verify_existing_id id
-	verify_option type efi swap ext4
+	verify_option type boot efi swap ext4
 
-	DISK_ACTIONS+=("action=format" "$@")
+	DISK_ACTIONS+=("action=format" "$@" ";")
+}
+
+# Returns a comma separated list of all registered ids matching the given regex.
+expand_ids() {
+	local regex="$1"
+	for id in "${!DISK_KNOWN_IDS[@]}"; do
+		[[ $id =~ $regex ]] \
+			&& echo -n "$id;"
+	done
 }

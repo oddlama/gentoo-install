@@ -9,20 +9,21 @@ source "$GENTOO_INSTALL_REPO_DIR/scripts/internal_config.sh" || exit 1
 create_default_disk_layout() {
 	local device="$1"
 
-	create_partition new_id=part_efi  device="$device" size=128MiB type=efi
-	create_partition new_id=part_swap device="$device" size=8GiB   type=raid
-	create_partition new_id=part_root device="$device" size=auto   type=raid
+	create_gpt new_id=gpt device="$device"
+	create_partition new_id=part_efi  id=gpt size=128MiB type=efi
+	create_partition new_id=part_swap id=gpt size=8GiB   type=raid
+	create_partition new_id=part_root id=gpt size=auto   type=raid
 
 	format id=part_efi  type=efi  label=efi
 	format id=part_swap type=swap label=swap
 	format id=part_root type=ext4 label=ext4
 
-	set_efi  id=part_efi
-	set_swap id=part_swap
-	set_root id=part_root
+	DISK_ID_EFI=part_efi
+	DISK_ID_SWAP=part_raid
+	DISK_ID_ROOT=part_luks
 }
 
-create_default_disk_layout
+create_default_disk_layout /dev/sdX
 
 
 # Example 2: Multiple disks, with raid 0 and luks
@@ -31,23 +32,23 @@ create_default_disk_layout
 # - root: raid 0 → luks → fs
 devices=(/dev/sd{X,Y})
 for i in "${!devices[@]}"; do
-	device="${devices[$i]}"
-	create_partition new_id="part_efi_dev${i}"  device="$device" size=128MiB type=efi
-	create_partition new_id="part_swap_dev${i}" device="$device" size=8GiB   type=raid
-	create_partition new_id="part_root_dev${i}" device="$device" size=auto   type=raid
+	create_gpt new_id="gpt_dev${i}" device="${devices[$i]}"
+	create_partition new_id="part_efi_dev${i}"  id="gpt_dev${i}" size=128MiB type=efi
+	create_partition new_id="part_swap_dev${i}" id="gpt_dev${i}" size=8GiB   type=raid
+	create_partition new_id="part_root_dev${i}" id="gpt_dev${i}" size=auto   type=raid
 done
 
-create_raid new_id=part_raid_swap level=0 ids="${part_swap_dev*}"
-create_raid new_id=part_raid_root level=0 ids="${part_root_dev*}"
+create_raid new_id=part_raid_swap level=0 ids="$(expand_ids '^part_swap_dev\d$')"
+create_raid new_id=part_raid_root level=0 ids="$(expand_ids '^part_root_dev\d$')"
 create_luks new_id=part_luks_root id=part_raid_root
 
 format id=part_efi_dev0  type=efi  label=efi
 format id=part_raid_swap type=swap label=swap
 format id=part_luks_root type=ext4 label=ext4
 
-set_efi  id=part_efi_dev0
-set_swap id=part_raid_swap
-set_root id=part_luks_root
+DISK_ID_EFI=part_efi_dev0
+DISK_ID_SWAP=part_raid_swap
+DISK_ID_ROOT=part_luks_root
 
 
 ################################################

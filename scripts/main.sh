@@ -7,11 +7,11 @@ set -uo pipefail
 # Find the directory this script is stored in. (from: http://stackoverflow.com/questions/59895)
 get_source_dir() {
 	local source="${BASH_SOURCE[0]}"
-	while [[ -h "${source}" ]]
+	while [[ -h $source ]]
 	do
 		local tmp="$(cd -P "$(dirname "${source}")" && pwd)"
 		source="$(readlink "${source}")"
-		[[ "${source}" != /* ]] && source="${tmp}/${source}"
+		[[ $source != /* ]] && source="${tmp}/${source}"
 	done
 
 	echo -n "$(realpath "$(dirname "${source}")")"
@@ -128,7 +128,7 @@ install_ansible() {
 	mkdir_or_die 0700 "$ANSIBLE_HOME"
 	mkdir_or_die 0700 "$ANSIBLE_HOME/.ssh"
 
-	if [[ -n "$ANSIBLE_SSH_AUTHORIZED_KEYS" ]]; then
+	if [[ -n $ANSIBLE_SSH_AUTHORIZED_KEYS ]]; then
 		einfo "Adding authorized keys for ansible"
 		touch_or_die 0600 "$ANSIBLE_HOME/.ssh/authorized_keys"
 		echo "$ANSIBLE_SSH_AUTHORIZED_KEYS" >> "$ANSIBLE_HOME/.ssh/authorized_keys" \
@@ -194,7 +194,7 @@ main_install_gentoo_in_chroot() {
 		|| die "Could not append entry to fstab"
 	echo "PARTUUID=$PARTITION_UUID_EFI    /boot/efi    vfat    defaults,noatime,fmask=0022,dmask=0022,noexec,nodev,nosuid,discard    0 2" >> /etc/fstab \
 		|| die "Could not append entry to fstab"
-	if [[ "$ENABLE_SWAP" == true ]]; then
+	if [[ $ENABLE_SWAP == true ]]; then
 		echo "PARTUUID=$PARTITION_UUID_SWAP    none         swap    defaults,discard                                                      0 0" >> /etc/fstab \
 			|| die "Could not append entry to fstab"
 	fi
@@ -204,7 +204,7 @@ main_install_gentoo_in_chroot() {
 	try emerge --verbose app-portage/gentoolkit
 
 	# Install and enable sshd
-	if [[ "$INSTALL_SSHD" == true ]]; then
+	if [[ $INSTALL_SSHD == true ]]; then
 		install_sshd
 	fi
 
@@ -215,13 +215,14 @@ main_install_gentoo_in_chroot() {
 		|| die "Could not add dhcpcd to default services"
 
 	# Install ansible
-	if [[ "$INSTALL_ANSIBLE" == true ]]; then
+	if [[ $INSTALL_ANSIBLE == true ]]; then
 		install_ansible
 	fi
 
 	# Install additional packages, if any.
-	if [[ -n "$ADDITIONAL_PACKAGES" ]]; then
+	if [[ -n $ADDITIONAL_PACKAGES ]]; then
 		einfo "Installing additional packages"
+		# shellcheck disable=SC2086
 		try emerge --verbose --autounmask-continue=y -- $ADDITIONAL_PACKAGES
 	fi
 
@@ -264,7 +265,7 @@ main_umount() {
 trap 'kill "$GENTOO_INSTALL_REPO_SCRIPT_PID"' INT
 
 SCRIPT_ALIAS="$(basename "$0")"
-if [[ "$SCRIPT_ALIAS" == "main.sh" ]]; then
+if [[ $SCRIPT_ALIAS == main.sh ]]; then
 	SCRIPT_ALIAS="$1"
 	shift
 fi

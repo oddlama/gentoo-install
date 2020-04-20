@@ -32,7 +32,7 @@ die_trace() {
 }
 
 for_line_in() {
-	while IFS="" read -r line || [[ -n "$line" ]]; do
+	while IFS="" read -r line || [[ -n $line ]]; do
 		"$2" "$line"
 	done <"$1"
 }
@@ -68,7 +68,7 @@ try() {
 		"$@"
 		cmd_status="$?"
 
-		if [[ "$cmd_status" != 0 ]]; then
+		if [[ $cmd_status != 0 ]]; then
 			echo "[1;31m * Command failed: [1;33m\$[m $*"
 			echo "Last command failed with exit code $cmd_status"
 
@@ -132,7 +132,7 @@ load_or_generate_uuid() {
 	local uuid
 	local uuid_file="$UUID_STORAGE_DIR/$1"
 
-	if [[ -e "$uuid_file" ]]; then
+	if [[ -e $uuid_file ]]; then
 		uuid="$(cat "$uuid_file")"
 	else
 		uuid="$(uuidgen -r)"
@@ -144,10 +144,8 @@ load_or_generate_uuid() {
 }
 
 # Parses named arguments and stores them in the associative array `arguments`.
-# The associative array `known_arguments` must contain a list of arguments
-# prefixed with + (mandatory) or ? (optional).
-# "at least one of" can be expressed by +a|b|c.
-# all mandatory arguments are given.
+# If given, the associative array `known_arguments` must contain a list of arguments
+# prefixed with + (mandatory) or ? (optional). "at least one of" can be expressed by +a|b|c.
 parse_arguments() {
 	local key
 	local value
@@ -155,11 +153,11 @@ parse_arguments() {
 	for a in "$@"; do
 		key="${a%%=*}"
 		value="${a#*=}"
-		arguments["$key"]="$value"
+		arguments[$key]="$value"
 	done
 
 	declare -A allowed_keys
-	if [[ -v "known_arguments" ]]; then
+	if [[ -v known_arguments ]]; then
 		local m
 		for m in "${known_arguments[@]}"; do
 			case "${m:0:1}" in
@@ -168,28 +166,29 @@ parse_arguments() {
 					local has_opt=false
 					local m_opt
 					# Splitting is intentional here
-					for m_opt in ${m//|/ }; do # shellcheck disable=SC2068
-						allowed_keys["$m_opt"]=true
-						if [[ -v "arguments[$m_opt]" ]]; then
+					# shellcheck disable=SC2086
+					for m_opt in ${m//|/ }; do
+						allowed_keys[$m_opt]=true
+						if [[ -v arguments[$m_opt] ]]; then
 							has_opt=true
 						fi
 					done
 
-					[[ "$has_opt" == true ]] \
+					[[ $has_opt == true ]] \
 						|| die_trace 2 "Missing mandatory argument $m=..."
 					;;
 
 				'?')
-					allowed_keys["${m:1}"]=true
+					allowed_keys[${m:1}]=true
 					;;
 
 				*) die_trace 2 "Invalid start character in known_arguments, in argument '$m'" ;;
 			esac
 		done
-	fi
 
-	for a in "${!arguments[@]}"; do
-		[[ -v "allowed_keys[$a]" ]] \
-			|| die_trace 2 "Unkown argument '$a'"
-	done
+		for a in "${!arguments[@]}"; do
+			[[ -v allowed_keys[$a] ]] \
+				|| die_trace 2 "Unkown argument '$a'"
+		done
+	fi
 }

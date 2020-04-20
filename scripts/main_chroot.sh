@@ -1,7 +1,7 @@
 #!/bin/bash
 set -uo pipefail
 
-[[ "${EXECUTED_IN_CHROOT}" != true ]] \
+[[ ${EXECUTED_IN_CHROOT} != true ]] \
 	&& { echo "This script must not be executed directly!" >&2; exit 1; }
 
 # Source the systems profile
@@ -12,7 +12,7 @@ umask 0077
 
 # Export nproc variables
 export NPROC="$(nproc || echo 2)"
-export NPROC_ONE="$(($NPROC + 1))"
+export NPROC_ONE="$((NPROC + 1))"
 
 # Set default makeflags and emerge flags for parallel emerges
 export MAKEFLAGS="-j$NPROC"

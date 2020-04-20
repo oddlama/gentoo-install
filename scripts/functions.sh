@@ -21,18 +21,23 @@ sync_time() {
 }
 
 check_config() {
-	[[ "$KEYMAP" =~ ^[0-9A-Za-z-]*$ ]] \
+	[[ $KEYMAP =~ ^[0-9A-Za-z-]*$ ]] \
 		|| die "KEYMAP contains invalid characters"
 
 	# Check hostname per RFC1123
 	local hostname_regex='^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$'
-	[[ "$HOSTNAME" =~ $hostname_regex ]] \
+	[[ $HOSTNAME =~ $hostname_regex ]] \
 		|| die "'$HOSTNAME' is not a valid hostname"
 
-	if [[ "$INSTALL_ANSIBLE" == true ]]; then
-		[[ "$INSTALL_SSHD" == true ]] \
+	[[ -n $DISK_ID_ROOT ]] \
+		|| die "You must assign DISK_ID_ROOT"
+	[[ -n $DISK_ID_EFI ]] || [[ -n $DISK_ID_BOOT ]] \
+		|| die "You must assign DISK_ID_EFI or DISK_ID_BOOT"
+
+	if [[ $INSTALL_ANSIBLE == true ]]; then
+		[[ $INSTALL_SSHD == true ]] \
 			|| die "You must enable INSTALL_SSHD for ansible"
-		[[ -n "$ANSIBLE_SSH_AUTHORIZED_KEYS" ]] \
+		[[ -n $ANSIBLE_SSH_AUTHORIZED_KEYS ]] \
 			|| die "Missing pubkey for ansible user"
 	fi
 }
@@ -53,7 +58,222 @@ prepare_installation_environment() {
 	check_has_program uuidgen
 	check_has_program wget
 
+	[[ $USED_RAID == true ]] \
+		&& check_has_program mdadm
+	[[ $USED_LUKS == true ]] \
+		&& check_has_program cryptsetup
+
 	sync_time
+}
+
+add_summary_entry() {
+	local parent="$1"
+	local id="$2"
+	local name="$3"
+	local hint="$4"
+	local desc="$5"
+
+	local ptr
+	case "$id" in
+		"$DISK_ID_BOOT")  ptr="[1;32m← boot[m" ;;
+		"$DISK_ID_EFI")   ptr="[1;32m← efi[m"  ;;
+		"$DISK_ID_SWAP")  ptr="[1;34m← swap[m" ;;
+		"$DISK_ID_ROOT")  ptr="[1;33m← root[m" ;;
+		# \x1f characters compensate for printf byte count and unicode character count mismatch due to '←'
+		*)                ptr="[1;32m[m$(echo -e "\x1f\x1f")" ;;
+	esac
+
+	summary_tree[$parent]+=";$id"
+	summary_name[$id]="$name"
+	summary_hint[$id]="$hint"
+	summary_ptr[$id]="$ptr"
+	summary_desc[$id]="$desc"
+}
+
+summary_color_args() {
+	for arg in "$@"; do
+		if [[ -v "arguments[$arg]" ]]; then
+			printf '%-28s ' "[1;34m$arg[2m=[m${arguments[$arg]}"
+		fi
+	done
+}
+
+disk_create_gpt() {
+	if [[ $disk_action_summarize_only == true ]]; then
+		if [[ -v arguments[id] ]]; then
+			add_summary_entry "${arguments[id]}" "${arguments[new_id]}" "gpt" "" ""
+		else
+			add_summary_entry __root__ "${arguments[new_id]}" "${arguments[device]}" "(gpt)" ""
+		fi
+		return 0
+	fi
+}
+
+disk_create_partition() {
+	if [[ $disk_action_summarize_only == true ]]; then
+		add_summary_entry "${arguments[id]}" "${arguments[new_id]}" "part" "(${arguments[type]})" "$(summary_color_args size)"
+		return 0
+	fi
+}
+
+disk_create_raid() {
+	if [[ $disk_action_summarize_only == true ]]; then
+		local id
+		# Splitting is intentional here
+		# shellcheck disable=SC2086
+		for id in ${arguments[ids]//';'/ }; do
+			add_summary_entry "$id" "_${arguments[new_id]}" "raid${arguments[level]}" "" ""
+		done
+
+		add_summary_entry __root__ "${arguments[new_id]}" "raid${arguments[level]}" "" ""
+		return 0
+	fi
+}
+
+disk_create_luks() {
+	if [[ $disk_action_summarize_only == true ]]; then
+		add_summary_entry "${arguments[id]}" "${arguments[new_id]}" "luks" "" ""
+		return 0
+	fi
+}
+
+disk_format() {
+	if [[ $disk_action_summarize_only == true ]]; then
+		add_summary_entry "${arguments[id]}" "__fs__${arguments[id]}" "${arguments[type]}" "(fs)" "$(summary_color_args label)"
+		return 0
+	fi
+}
+
+apply_disk_action() {
+	unset known_arguments
+	unset arguments; declare -A arguments; parse_arguments "$@"
+	case "${arguments[action]}" in
+		'create_gpt')       disk_create_gpt       ;;
+		'create_partition') disk_create_partition ;;
+		'create_raid')      disk_create_raid      ;;
+		'create_luks')      disk_create_luks      ;;
+		'format')           disk_format           ;;
+		*) echo "Ignoring invalid action: ${arguments[action]}" ;;
+	esac
+}
+
+print_summary_tree_entry() {
+	local indent_chars=""
+	local indent="0"
+	local d="1"
+	local maxd="$((depth - 1))"
+	while [[ $d -lt $maxd ]]; do
+		if [[ ${summary_depth_continues[$d]} == true ]]; then
+			indent_chars+='│ '
+		else
+			indent_chars+='  '
+		fi
+		indent=$((indent + 2))
+		d="$((d + 1))"
+	done
+	if [[ $maxd -gt 0 ]]; then
+		if [[ ${summary_depth_continues[$maxd]} == true ]]; then
+			indent_chars+='├─'
+		else
+			indent_chars+='└─'
+		fi
+		indent=$((indent + 2))
+	fi
+
+	local name="${summary_name[$root]}"
+	local hint="${summary_hint[$root]}"
+	local desc="${summary_desc[$root]}"
+	local ptr="${summary_ptr[$root]}"
+	local id_name="[2m[m"
+	if [[ $root != __* ]]; then
+		if [[ $root == _* ]]; then
+			id_name="[2m${root:1}[m"
+		else
+			id_name="[2m${root}[m"
+		fi
+	fi
+
+	local align=0
+	if [[ $indent -lt 33 ]]; then
+		align="$((33 - indent))"
+	fi
+
+	elog "$indent_chars$(printf "%-${align}s %-47s %s" \
+		"$name [2m$hint[m" \
+		"$id_name $ptr" \
+		"$desc")"
+}
+
+print_summary_tree() {
+	local root="$1"
+	local depth="$((depth + 1))"
+	local has_children=false
+
+	if [[ -v "summary_tree[$root]" ]]; then
+		local children="${summary_tree[$root]}"
+		has_children=true
+		summary_depth_continues[$depth]=true
+	else
+		summary_depth_continues[$depth]=false
+	fi
+
+	if [[ $root != __root__ ]]; then
+		print_summary_tree_entry "$root"
+	fi
+
+	if [[ $has_children == true ]]; then
+		local count="$(tr ';' '\n' <<< "$children" | grep -c '\S')"
+		local idx=0
+		# Splitting is intentional here
+		# shellcheck disable=SC2086
+		for id in ${children//';'/ }; do
+			idx="$((idx + 1))"
+			[[ $idx == "$count" ]] \
+				&& summary_depth_continues[$depth]=false
+			print_summary_tree "$id"
+			# separate blocks by newline
+			[[ ${summary_depth_continues[0]} == true ]] && [[ $depth == 1 ]] && [[ $idx == "$count" ]] \
+				&& elog
+		done
+	fi
+}
+
+summarize_disk_actions() {
+	elog "[1mCurrent lsblk output[m"
+	for_line_in <(lsblk \
+		|| die "Error in lsblk") elog
+
+	disk_action_summarize_only=true
+	declare -A summary_tree
+	declare -A summary_name
+	declare -A summary_hint
+	declare -A summary_ptr
+	declare -A summary_desc
+	declare -A summary_depth_continues
+	apply_disk_actions
+	unset disk_action_summarize_only
+
+	local depth=-1
+	elog
+	elog "[1mConfigured disk layout[m"
+	elog ────────────────────────────────────────────────────────────────────────────────
+	elog "$(printf '%-26s %-28s %s' NODE ID OPTIONS)"
+	elog ────────────────────────────────────────────────────────────────────────────────
+	print_summary_tree __root__
+	elog ────────────────────────────────────────────────────────────────────────────────
+}
+
+apply_disk_actions() {
+	local param
+	local current_params=()
+	for param in "${DISK_ACTIONS[@]}"; do
+		if [[ $param == ';' ]]; then
+			apply_disk_action "${current_params[@]}"
+			current_params=()
+		else
+			current_params+=("$param")
+		fi
+	done
 }
 
 partition_device_print_config_summary() {
@@ -65,22 +285,22 @@ partition_device_print_config_summary() {
 	elog "New partition table:"
 	elog "[1;33m$PARTITION_DEVICE[m"
 	elog "├─efi   size=[1;32m$PARTITION_EFI_SIZE[m"
-	if [[ "$ENABLE_SWAP" == true ]]; then
+	if [[ $ENABLE_SWAP == true ]]; then
 	elog "├─swap  size=[1;32m$PARTITION_SWAP_SIZE[m"
 	fi
 	elog "└─linux size=[1;32m[remaining][m"
-	if [[ "$ENABLE_SWAP" != true ]]; then
+	if [[ $ENABLE_SWAP != true ]]; then
 	elog "swap: [1;31mdisabled[m"
 	fi
 }
 
 partition_device() {
-	[[ "$ENABLE_PARTITIONING" == true ]] \
+	[[ $ENABLE_PARTITIONING == true ]] \
 		|| return 0
 
 	einfo "Preparing partitioning of device '$PARTITION_DEVICE'"
 
-	[[ -b "$PARTITION_DEVICE" ]] \
+	[[ -b $PARTITION_DEVICE ]] \
 		|| die "Selected device '$PARTITION_DEVICE' is not a block device"
 
 	partition_device_print_config_summary
@@ -99,7 +319,7 @@ partition_device() {
 		|| die "Could not create efi partition"
 
 	# Create swap partition
-	if [[ "$ENABLE_SWAP" == true ]]; then
+	if [[ $ENABLE_SWAP == true ]]; then
 		sgdisk -n "0:0:+$PARTITION_SWAP_SIZE" -t 0:8200 -c 0:"swap" -u 0:"$PARTITION_UUID_SWAP" "$PARTITION_DEVICE" >/dev/null \
 			|| die "Could not create swap partition"
 	fi
@@ -119,15 +339,15 @@ partition_device() {
 }
 
 format_partitions() {
-	[[ "$ENABLE_FORMATTING" == true ]] \
+	[[ $ENABLE_FORMATTING == true ]] \
 		|| return 0
 
-	if [[ "$ENABLE_PARTITIONING" != true ]]; then
+	if [[ $ENABLE_PARTITIONING != true ]]; then
 		einfo "Preparing to format the following partitions:"
 
 		blkid -t PARTUUID="$PARTITION_UUID_EFI" \
 			|| die "Error while listing efi partition"
-		if [[ "$ENABLE_SWAP" == true ]]; then
+		if [[ $ENABLE_SWAP == true ]]; then
 			blkid -t PARTUUID="$PARTITION_UUID_SWAP" \
 				|| die "Error while listing swap partition"
 		fi
@@ -148,7 +368,7 @@ format_partitions() {
 	mkfs.fat -F 32 -n "efi" "$dev" \
 		|| die "Could not format EFI partition"
 
-	if [[ "$ENABLE_SWAP" == true ]]; then
+	if [[ $ENABLE_SWAP == true ]]; then
 		dev="$(get_device_by_partuuid "$PARTITION_UUID_SWAP")" \
 			|| die "Could not resolve partition UUID '$PARTITION_UUID_SWAP'"
 		einfo "  $dev (swap)"
@@ -235,7 +455,7 @@ download_stage3() {
 	CURRENT_STAGE3_VERIFIED="${CURRENT_STAGE3}.verified"
 
 	# Download file if not already downloaded
-	if [[ -e "$CURRENT_STAGE3_VERIFIED" ]]; then
+	if [[ -e $CURRENT_STAGE3_VERIFIED ]]; then
 		einfo "$STAGE3_BASENAME tarball already downloaded and verified"
 	else
 		einfo "Downloading $STAGE3_BASENAME tarball"
@@ -312,6 +532,7 @@ env_update() {
 }
 
 mkdir_or_die() {
+	# shellcheck disable=SC2174
 	mkdir -m "$1" -p "$2" \
 		|| die "Could not create directory '$2'"
 }
