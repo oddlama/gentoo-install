@@ -132,9 +132,10 @@ resolve_id_to_device() {
 	local arg="${disk_id_to_resolvable[$id]#*:}"
 
 	case "$type" in
-		'partuuid') get_device_by_partuuid "$arg" ;;
-		'ptuuid')   get_device_by_ptuuid   "$arg" ;;
-		'uuid')     get_device_by_uuid     "$arg" ;;
+		'partuuid') get_device_by_partuuid   "$arg" ;;
+		'ptuuid')   get_device_by_ptuuid     "$arg" ;;
+		'uuid')     get_device_by_uuid       "$arg" ;;
+		'mdadm')    get_device_by_mdadm_uuid "$arg" ;;
 		*) die "Cannot resolve '$type:$arg' to device (unkown type)"
 	esac
 }
@@ -237,12 +238,14 @@ disk_create_raid() {
 	done
 	devices_desc="${devices_desc:0:-2}"
 
+	local mddevice="/dev/md/$name"
 	local uuid="${DISK_ID_TO_UUID[$new_id]}"
-	disk_id_to_resolvable[$new_id]="uuid:$uuid"
+	DISK_MDADM_UUID_TO_DEVICE[${uuid,,}]="$mddevice"
+	disk_id_to_resolvable[$new_id]="mdadm:$uuid"
 
 	einfo "Creating raid$level ($new_id) on $devices_desc"
 	mdadm \
-			--create "/dev/md/$name" \
+			--create "$mddevice" \
 			--verbose \
 			--homehost="$HOSTNAME" \
 			--metadata=1.2 \

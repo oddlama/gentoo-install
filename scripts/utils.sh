@@ -134,12 +134,16 @@ get_device_by_partuuid() {
 	get_device_by_blkid_field 'PARTUUID' "$1"
 }
 
+get_device_by_uuid() {
+	get_device_by_blkid_field 'UUID' "$1"
+}
+
 get_device_by_ptuuid() {
 	echo -n "${DISK_PTUUID_TO_DEVICE[${1,,}]}"
 }
 
-get_device_by_uuid() {
-	get_device_by_blkid_field 'UUID' "$1"
+get_device_by_mdadm_uuid() {
+	echo -n "${DISK_MDADM_UUID_TO_DEVICE[${1,,}]}"
 }
 
 load_or_generate_uuid() {

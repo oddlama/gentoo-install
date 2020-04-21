@@ -29,6 +29,8 @@ declare -A DISK_ID_TO_UUID
 declare -A DISK_GPT_HAD_SIZE_REMAINING
 # An associative from PTUUID to device
 declare -A DISK_PTUUID_TO_DEVICE
+# An associative from MDADM uuid to device
+declare -A DISK_MDADM_UUID_TO_DEVICE
 
 only_one_of() {
 	local previous=""
@@ -229,8 +231,8 @@ create_default_disk_layout() {
 	else
 		DISK_ID_BIOS="part_$type"
 	fi
-	DISK_ID_SWAP=part_raid
-	DISK_ID_ROOT=part_luks
+	DISK_ID_SWAP=part_swap
+	DISK_ID_ROOT=part_root
 }
 
 # Example 2: Multiple disks, with raid 0 and luks
