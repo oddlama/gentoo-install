@@ -116,28 +116,30 @@ download() {
 	wget --quiet --https-only --secure-protocol=PFS --show-progress -O "$2" -- "$1"
 }
 
-get_device_by_partuuid() {
+get_device_by_blkid_field() {
+	local blkid_field="$1"
+	local field_value="$2"
 	blkid -g \
 		|| die "Error while executing blkid"
 	local dev
-	dev="$(blkid -o export -t PARTUUID="$1")" \
-		|| die "Error while executing blkid to find PARTUUID=$1"
+	dev="$(blkid -o export -t "$blkid_field=$field_value")" \
+		|| die "Error while executing blkid to find $blkid_field=$field_value"
 	dev="$(grep DEVNAME <<< "$dev")" \
 		|| die "Could not find DEVNAME=... in blkid output"
 	dev="${dev:8}"
 	echo -n "$dev"
 }
 
+get_device_by_partuuid() {
+	get_device_by_blkid_field 'PARTUUID' "$1"
+}
+
+get_device_by_ptuuid() {
+	get_device_by_blkid_field 'PTUUID' "$1"
+}
+
 get_device_by_uuid() {
-	blkid -g \
-		|| die "Error while executing blkid"
-	local dev
-	dev="$(blkid -o export -t UUID="$1")" \
-		|| die "Error while executing blkid to find UUID=$1"
-	dev="$(grep DEVNAME <<< "$dev")" \
-		|| die "Could not find DEVNAME=... in blkid output"
-	dev="${dev:8}"
-	echo -n "$dev"
+	get_device_by_blkid_field 'UUID' "$1"
 }
 
 load_or_generate_uuid() {

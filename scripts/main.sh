@@ -116,7 +116,7 @@ install_kernel_efi() {
 	local efipartnum="${efipartdev: -1}"
 	local gptuuid="${DISK_PARTUUID_TO_GPT_UUID[$PARTITION_UUID_EFI]}"
 	local gptdev
-	gptdev="$(get_device_by_uuid "$gptuuid")" \
+	gptdev="$(get_device_by_ptuuid "$gptuuid")" \
 		|| die "Could not resolve GPT UUID '$gptuuid'"
 	try efibootmgr --verbose --create --disk "$gptdev" --part "$efipartnum" --label "gentoo" --loader '\EFI\vmlinuz.efi' --unicode "root=$linuxdev initrd=\\EFI\\initramfs.img"
 }
@@ -131,7 +131,7 @@ install_kernel_bios() {
 		|| die "Could not resolve partition UUID '$PARTITION_UUID_BOOT'"
 	local gptuuid="${DISK_PARTUUID_TO_GPT_UUID[$PARTITION_UUID_BOOT]}"
 	local gptdev
-	gptdev="$(get_device_by_uuid "$gptuuid")" \
+	gptdev="$(get_device_by_ptuuid "$gptuuid")" \
 		|| die "Could not resolve GPT UUID '$gptuuid'"
 	try dd bs=440 conv=notrunc count=1 if=/usr/share/syslinux/gptmbr.bin of="$gptdev"
 
