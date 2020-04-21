@@ -205,8 +205,8 @@ create_default_disk_layout() {
 	local type="${arguments[type]}"
 	local efi=true
 	case "$type" in
-		'bios')   efi=false ;;
-		'efi'|'') efi=true  ;;
+		'bios')   efi=false type=bios ;;
+		'efi'|'') efi=true  type=efi  ;;
 		*)        die_trace 1 "Invalid argument type=$type, must be one of (bios, efi)" ;;
 	esac
 
@@ -248,8 +248,8 @@ create_raid0_luks_layout() {
 	local type="${arguments[type]}"
 	local efi=true
 	case "$type" in
-		'bios')   efi=false ;;
-		'efi'|'') efi=true  ;;
+		'bios')   efi=false type=bios ;;
+		'efi'|'') efi=true  type=efi  ;;
 		*)        die_trace 1 "Invalid argument type=$type, must be one of (bios, efi)" ;;
 	esac
 
