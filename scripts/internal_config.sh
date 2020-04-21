@@ -205,9 +205,9 @@ create_default_disk_layout() {
 	local type="${arguments[type]}"
 	local efi=true
 	case "$type" in
-		'bios') efi=false ;;
-		'efi')  efi=true  ;;
-		*)      die_trace 1 "Invalid argument type=$type, must be one of (bios, efi)" ;;
+		'bios')   efi=false ;;
+		'efi'|'') efi=true  ;;
+		*)        die_trace 1 "Invalid argument type=$type, must be one of (bios, efi)" ;;
 	esac
 
 	create_gpt new_id=gpt device="$device"
@@ -248,9 +248,9 @@ create_raid0_luks_layout() {
 	local type="${arguments[type]}"
 	local efi=true
 	case "$type" in
-		'bios') efi=false ;;
-		'efi')  efi=true  ;;
-		*)      die_trace 1 "Invalid argument type=$type, must be one of (bios, efi)" ;;
+		'bios')   efi=false ;;
+		'efi'|'') efi=true  ;;
+		*)        die_trace 1 "Invalid argument type=$type, must be one of (bios, efi)" ;;
 	esac
 
 	for i in "${!extra_arguments[@]}"; do
