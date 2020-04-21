@@ -100,7 +100,7 @@ add_summary_entry() {
 
 	local ptr
 	case "$id" in
-		"$DISK_ID_BOOT")  ptr="[1;32m← boot[m" ;;
+		"$DISK_ID_BOOT")  ptr="[1;32m← bios[m" ;;
 		"$DISK_ID_EFI")   ptr="[1;32m← efi[m"  ;;
 		"$DISK_ID_SWAP")  ptr="[1;34m← swap[m" ;;
 		"$DISK_ID_ROOT")  ptr="[1;33m← root[m" ;;
@@ -189,7 +189,7 @@ disk_create_partition() {
 	local partuuid="${DISK_ID_TO_UUID[$new_id]}"
 	local extra_args=""
 	case "$type" in
-		'boot')  type='ef02' extra_args='--attributes=0:set:2';;
+		'bios')  type='ef02' extra_args='--attributes=0:set:2';;
 		'efi')   type='ef00' ;;
 		'swap')  type='8200' ;;
 		'raid')  type='fd00' ;;
@@ -280,7 +280,7 @@ disk_format() {
 
 	einfo "Formatting $device ($id) with $type"
 	case "$type" in
-		'boot'|'efi')
+		'bios'|'efi')
 			if [[ -v "arguments[label]" ]]; then
 				mkfs.fat -F 32 -n "$label" "$device" \
 					|| die "Could not format device '$device' ($id)"

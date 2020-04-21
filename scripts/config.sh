@@ -7,8 +7,19 @@ source "$GENTOO_INSTALL_REPO_DIR/scripts/internal_config.sh" || exit 1
 
 # See the respective functions in internal_config.sh if you
 # want to use a different disk configuration.
-create_default_disk_layout /dev/sdX
-#create_raid0_luks_layout /dev/sd{X,Y}
+
+# Create default scheme (efi/boot, (optional swap), root)
+# To disable swap, set swap=false
+#EFI:  create_default_disk_layout swap=8GiB /dev/sdX
+#BIOS: create_default_disk_layout swap=8GiB type=bios /dev/sdX
+create_default_disk_layout swap=8GiB /dev/sdX
+
+# Create default scheme from above on each given device,
+# but create two raid0s for all swap partitions and all root partitions
+# respectively. Create luks on the root raid.
+# Hint: You will get N times the swap amount, so be sure to divide beforehand.
+#create_raid0_luks_layout swap=4GiB /dev/sd{X,Y}
+#create_raid0_luks_layout swap=0 type=bios /dev/sd{X,Y}
 
 ################################################
 # System configuration

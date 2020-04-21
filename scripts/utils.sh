@@ -167,6 +167,12 @@ parse_arguments() {
 	for a in "$@"; do
 		key="${a%%=*}"
 		value="${a#*=}"
+
+		if [[ $key == "" ]]; then
+			extra_arguments+=("$a")
+			continue
+		fi
+
 		arguments[$key]="$value"
 	done
 

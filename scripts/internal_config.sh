@@ -14,9 +14,6 @@ GENTOO_INSTALL_REPO_BIND="$TMP_DIR/bind"
 # Mountpoint for the script files for access from chroot
 UUID_STORAGE_DIR="$TMP_DIR/uuids"
 
-# The desired efi partition mountpoint for the actual system
-EFI_MOUNTPOINT="/boot/efi"
-
 # Flag to track usage of raid (needed to check for mdadm existence)
 USED_RAID=false
 # Flag to track usage of luks (needed to check for cryptsetup existence)
@@ -99,7 +96,8 @@ verify_option() {
 # device:  The operand block device
 create_gpt() {
 	local known_arguments=('+new_id' '+device|id')
-	unset arguments; declare -A arguments; parse_arguments "$@"
+	local extra_arguments=()
+	declare -A arguments; parse_arguments "$@"
 
 	only_one_of device id
 	create_new_id new_id
@@ -112,15 +110,16 @@ create_gpt() {
 # Named arguments:
 # new_id:  Id for the new partition
 # size:    Size for the new partition, or 'remaining' to allocate the rest
-# type:    The parition type, either (boot, efi, swap, raid, luks, linux) (or a 4 digit hex-code for gdisk).
+# type:    The parition type, either (bios, efi, swap, raid, luks, linux) (or a 4 digit hex-code for gdisk).
 # id:      The operand device id
 create_partition() {
 	local known_arguments=('+new_id' '+id' '+size' '+type')
-	unset arguments; declare -A arguments; parse_arguments "$@"
+	local extra_arguments=()
+	declare -A arguments; parse_arguments "$@"
 
 	create_new_id new_id
 	verify_existing_id id
-	verify_option type boot efi swap raid luks linux
+	verify_option type bios efi swap raid luks linux
 
 	[[ -v "DISK_GPT_HAD_SIZE_REMAINING[${arguments[id]}]" ]] \
 		&& die_trace 1 "Cannot add another partition to table (${arguments[id]}) after size=remaining was used"
@@ -140,7 +139,8 @@ create_raid() {
 	USED_RAID=true
 
 	local known_arguments=('+new_id' '+level' '+ids')
-	unset arguments; declare -A arguments; parse_arguments "$@"
+	local extra_arguments=()
+	declare -A arguments; parse_arguments "$@"
 
 	create_new_id new_id
 	verify_option level 0 1 5 6
@@ -156,7 +156,8 @@ create_luks() {
 	USED_LUKS=true
 
 	local known_arguments=('+new_id' '+id')
-	unset arguments; declare -A arguments; parse_arguments "$@"
+	local extra_arguments=()
+	declare -A arguments; parse_arguments "$@"
 
 	create_new_id new_id
 	verify_existing_id id
@@ -166,14 +167,15 @@ create_luks() {
 
 # Named arguments:
 # id:     Id of the device / partition created earlier
-# type:   One of (boot, efi, swap, ext4)
+# type:   One of (bios, efi, swap, ext4)
 # label:  The label for the formatted disk
 format() {
 	local known_arguments=('+id' '+type' '?label')
-	unset arguments; declare -A arguments; parse_arguments "$@"
+	local extra_arguments=()
+	declare -A arguments; parse_arguments "$@"
 
 	verify_existing_id id
-	verify_option type boot efi swap ext4
+	verify_option type bios efi swap ext4
 
 	DISK_ACTIONS+=("action=format" "$@" ";")
 }
@@ -188,19 +190,42 @@ expand_ids() {
 }
 
 # Example 1: Single disk, 3 partitions (efi, swap, root)
+# Parameters:
+#   swap=<size>      create a swap partition with given size, or no swap if set to false
+#   type=[efi|bios]  defaults to efi. Selects the boot type.
 create_default_disk_layout() {
-	local device="$1"
+	local known_arguments=('+device' '+swap')
+	local extra_arguments=()
+	declare -A arguments; parse_arguments "$@"
+
+	[[ ${#extra_arguments[@]} -eq 1 ]] \
+		|| die_trace 1 "Expected exactly one positional argument (the device)"
+	local device="${extra_arguments[0]}"
+	local size_swap="${arguments[swap]}"
+	local type="${arguments[type]}"
+	local efi=true
+	case "$type" in
+		'bios') efi=false ;;
+		'efi')  efi=true  ;;
+		*)      die_trace 1 "Invalid argument type=$type, must be one of (bios, efi)" ;;
+	esac
 
 	create_gpt new_id=gpt device="$device"
-	create_partition new_id=part_efi  id=gpt size=128MiB    type=efi
-	create_partition new_id=part_swap id=gpt size=8GiB      type=raid
-	create_partition new_id=part_root id=gpt size=remaining type=raid
+	create_partition new_id="part_$type" id=gpt size=128MiB       type="$type"
+	[[ $size_swap != "false" ]] && \
+	create_partition new_id=part_swap    id=gpt size="$size_swap" type=swap
+	create_partition new_id=part_root    id=gpt size=remaining    type=linux
 
-	format id=part_efi  type=efi  label=efi
+	format id="part_$type" type="$type" label="$type"
+	[[ $size_swap != "false" ]] && \
 	format id=part_swap type=swap label=swap
 	format id=part_root type=ext4 label=root
 
-	DISK_ID_EFI=part_efi
+	if [[ $type == "efi" ]]; then
+		DISK_ID_EFI="part_$type"
+	else
+		DISK_ID_BIOS="part_$type"
+	fi
 	DISK_ID_SWAP=part_raid
 	DISK_ID_ROOT=part_luks
 }
@@ -209,24 +234,49 @@ create_default_disk_layout() {
 # - efi:  partition on all disks, but only first disk used
 # - swap: raid 0 → fs
 # - root: raid 0 → luks → fs
+# Parameters:
+#   swap=<size>      create a swap partition with given size, or no swap if set to false
+#   type=[efi|bios]  defaults to efi. Selects the boot type.
 create_raid0_luks_layout() {
-	local devices=("$@")
-	for i in "${!devices[@]}"; do
-		create_gpt new_id="gpt_dev${i}" device="${devices[$i]}"
-		create_partition new_id="part_efi_dev${i}"  id="gpt_dev${i}" size=128MiB    type=efi
-		create_partition new_id="part_swap_dev${i}" id="gpt_dev${i}" size=8GiB      type=raid
-		create_partition new_id="part_root_dev${i}" id="gpt_dev${i}" size=remaining type=raid
+	local known_arguments=('+device' '+swap')
+	local extra_arguments=()
+	declare -A arguments; parse_arguments "$@"
+
+	[[ ${#extra_arguments[@]} -gt 0 ]] \
+		|| die_trace 1 "Expected at least one positional argument (the devices)"
+	local size_swap="${arguments[swap]}"
+	local type="${arguments[type]}"
+	local efi=true
+	case "$type" in
+		'bios') efi=false ;;
+		'efi')  efi=true  ;;
+		*)      die_trace 1 "Invalid argument type=$type, must be one of (bios, efi)" ;;
+	esac
+
+	for i in "${!extra_arguments[@]}"; do
+		create_gpt new_id="gpt_dev${i}" device="${extra_arguments[$i]}"
+		create_partition new_id="part_${type}_dev${i}" id="gpt_dev${i}" size=128MiB       type="$type"
+		[[ $size_swap != "false" ]] && \
+		create_partition new_id="part_swap_dev${i}"    id="gpt_dev${i}" size="$size_swap" type=raid
+		create_partition new_id="part_root_dev${i}"    id="gpt_dev${i}" size=remaining    type=raid
 	done
 
+	[[ $size_swap != "false" ]] && \
 	create_raid new_id=part_raid_swap level=0 ids="$(expand_ids '^part_swap_dev[[:digit:]]$')"
 	create_raid new_id=part_raid_root level=0 ids="$(expand_ids '^part_root_dev[[:digit:]]$')"
 	create_luks new_id=part_luks_root id=part_raid_root
 
-	format id=part_efi_dev0  type=efi  label=efi
+	format id="part_${type}_dev0" type="$type" label="$type"
+	[[ $size_swap != "false" ]] && \
 	format id=part_raid_swap type=swap label=swap
 	format id=part_luks_root type=ext4 label=root
 
-	DISK_ID_EFI=part_efi_dev0
+	if [[ $type == "efi" ]]; then
+		DISK_ID_EFI="part_${type}_dev0"
+	else
+		DISK_ID_BIOS="part_${type}_dev0"
+	fi
+	[[ $size_swap != "false" ]] && \
 	DISK_ID_SWAP=part_raid_swap
 	DISK_ID_ROOT=part_luks_root
 }

@@ -126,10 +126,10 @@ install_kernel_bios() {
 
 	# Install syslinux MBR record
 	einfo "Copying syslinux MBR record"
-	local bootdev
-	bootdev="$(get_device_by_partuuid "$PARTITION_UUID_BOOT")" \
-		|| die "Could not resolve partition UUID '$PARTITION_UUID_BOOT'"
-	local gptuuid="${DISK_PARTUUID_TO_GPT_UUID[$PARTITION_UUID_BOOT]}"
+	local biosdev
+	biosdev="$(get_device_by_partuuid "$PARTITION_UUID_BIOS")" \
+		|| die "Could not resolve partition UUID '$PARTITION_UUID_BIOS'"
+	local gptuuid="${DISK_PARTUUID_TO_GPT_UUID[$PARTITION_UUID_BIOS]}"
 	local gptdev
 	gptdev="$(get_device_by_ptuuid "$gptuuid")" \
 		|| die "Could not resolve GPT UUID '$gptuuid'"
@@ -137,7 +137,7 @@ install_kernel_bios() {
 
 	# Install syslinux
 	einfo "Installing syslinux"
-	syslinux --install "$bootdev"
+	syslinux --install "$biosdev"
 }
 
 install_kernel() {
@@ -194,7 +194,7 @@ main_install_gentoo_in_chroot() {
 	else
 		# Mount boot partition
 		einfo "Mounting boot partition"
-		mount_by_partuuid "$PARTITION_UUID_BOOT" "/boot"
+		mount_by_partuuid "$PARTITION_UUID_BIOS" "/boot"
 	fi
 
 	# Sync portage
@@ -236,7 +236,7 @@ main_install_gentoo_in_chroot() {
 		echo "PARTUUID=$PARTITION_UUID_EFI    /boot/efi    vfat    defaults,noatime,fmask=0022,dmask=0022,noexec,nodev,nosuid,discard    0 2" >> /etc/fstab \
 			|| die "Could not append entry to fstab"
 	else
-		echo "PARTUUID=$PARTITION_UUID_BOOT    /boot        vfat    defaults,noatime,fmask=0022,dmask=0022,noexec,nodev,nosuid,discard    0 2" >> /etc/fstab \
+		echo "PARTUUID=$PARTITION_UUID_BIOS    /boot        vfat    defaults,noatime,fmask=0022,dmask=0022,noexec,nodev,nosuid,discard    0 2" >> /etc/fstab \
 			|| die "Could not append entry to fstab"
 	fi
 	if [[ -v "PARTITION_UUID_SWAP" ]]; then
