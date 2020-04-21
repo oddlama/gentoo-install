@@ -1,13 +1,14 @@
 **TL;DR:** Edit `scripts/config.sh` and execute `./install` in any live system.
-EFI is required. This will partition the selected disk (with confirmation), and properly
+This will apply the selected partitioning scheme (with confirmation), and properly
 install the selected stage3 gentoo system. The new system will be bootable with
 `vanilla-kernel-bin` as the kernel. The script can optionally install sshd and
 ansible to allow for easier management of the new system. Afterwards, you can continue
-to roll-out your own advanced setup (LUKS, RAID, custom kernel).
+to deploy your own specific setup.
 
 # Gentoo installation script
 
-This script performs a reasonably minimal installation of gentoo for an EFI system.
+This script performs a reasonably minimal installation of gentoo. An EFI system is highly
+recommended, but legacy BIOS boot is still supported.
 It does everything from the ground up, including creating partitions, downloading
 and extracting the stage3 archive, initial system configuration and optionally installing
 some additional software. The script only supports OpenRC and not systemd.
@@ -15,16 +16,14 @@ some additional software. The script only supports OpenRC and not systemd.
 The system will temporarily use `sys-kernel/vanilla-kernel-bin`, which should be suitable
 to boot most systems out of the box. I strongly recommend you to replace this kernel
 with a custom built one, when the system is functional. If you are looking for a way
-to properly manage your kernel configuration parameters, have a look at [kernconf](https://github.com/oddlama/kernconf).
-There you will also find information on how to select the correct options for your system,
-and information on kernel hardening.
+to detect and manage your kernel configuration, have a look at [autokernel](https://github.com/oddlama/autokernel).
 
 ## Overview
 
 Here is a quick overview of what this script does:
 
 * Does everything minus something
-* Partition the device (efi, optional swap, linux root)
+* Partition disks (supports gpt, raid, luks)
 * Download and cryptographically verify the newest stage3 tarball
 * Extract the stage3 tarball
 * Sync portage tree
@@ -34,7 +33,7 @@ Here is a quick overview of what this script does:
   - Set keymap
   - Generate and select locale
   - Prepare `zz-autounmask` files for portage autounmasking
-* Select best 4 gentoo portage mirrors
+* Select best gentoo portage mirrors
 * Install git (so you can add your portage overlays later)
 * Install `sys-kernel/vanilla-kernel-bin` (temporarily, until you replace it)
 * Copy kernel to efi partition
@@ -73,12 +72,6 @@ Installing gentoo with this script is simple.
 The config file `scripts/config.sh` allows you to adjust some parameters of the installation.
 The most important ones will probably be the device to partition, and the stage3 tarball name
 to install. By default you will get the hardened nomultilib profile without systemd.
-
-### Using existing partitions
- 
-If you want to use existing partitions, you will have to set `ENABLE_PARTITIONING=false`.
-As the script uses uuids to refer to partitions, you will have to set the corresponding
-partition uuid variables in the config (all variables beginning with `PARTITION_UUID_`).
 
 ## (Optional) sshd
 
