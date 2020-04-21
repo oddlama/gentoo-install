@@ -1,5 +1,5 @@
 #!/bin/bash
-set -uo pipefail
+set -o pipefail
 
 [[ ${EXECUTED_IN_CHROOT} != true ]] \
 	&& { echo "This script must not be executed directly!" >&2; exit 1; }

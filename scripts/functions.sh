@@ -98,50 +98,174 @@ summary_color_args() {
 	done
 }
 
+resolve_id_to_device() {
+	local id="$1"
+	[[ -v disk_id_to_resolvable[$id] ]] \
+		|| die "Cannot resolve id='$id' to a block device (no table entry)"
+
+	local type="${disk_id_to_resolvable[$id]%%:*}"
+	local arg="${disk_id_to_resolvable[$id]#*:}"
+
+	case "$type" in
+     	'partuuid') get_device_by_partuuid "$arg" ;;
+     	'uuid') get_device_by_uuid "$arg" ;;
+     	'raw') echo -n "$arg" ;;
+		*) die "Cannot resolve '$type:$arg' to device (unkown type)"
+	esac
+}
+
 disk_create_gpt() {
+	local new_id="${arguments[new_id]}"
 	if [[ $disk_action_summarize_only == true ]]; then
 		if [[ -v arguments[id] ]]; then
-			add_summary_entry "${arguments[id]}" "${arguments[new_id]}" "gpt" "" ""
+			add_summary_entry "${arguments[id]}" "$new_id" "gpt" "" ""
 		else
-			add_summary_entry __root__ "${arguments[new_id]}" "${arguments[device]}" "(gpt)" ""
+			add_summary_entry __root__ "$new_id" "${arguments[device]}" "(gpt)" ""
 		fi
 		return 0
 	fi
+
+	local device
+	if [[ -v arguments[id] ]]; then
+		device="$(resolve_id_to_device "${arguments[id]}")"
+	else
+		device="${arguments[device]}"
+	fi
+
+	disk_id_to_resolvable[$new_id]="raw:$device"
+	sgdisk -Z "$device" >/dev/null \
+		|| die "Could not create new gpt partition table ($new_id) on '$device'"
+	partprobe "$device"
 }
 
 disk_create_partition() {
+	local new_id="${arguments[new_id]}"
+	local id="${arguments[id]}"
+	local size="${arguments[size]}"
+	local type="${arguments[type]}"
 	if [[ $disk_action_summarize_only == true ]]; then
-		add_summary_entry "${arguments[id]}" "${arguments[new_id]}" "part" "(${arguments[type]})" "$(summary_color_args size)"
+		add_summary_entry "$id" "$new_id" "part" "($type)" "$(summary_color_args size)"
 		return 0
 	fi
+
+	if [[ $size == "remaining" ]]; then
+		size=0
+	else
+		size="+$size"
+	fi
+
+	local device="$(resolve_id_to_device "$id")"
+	local partuuid="$(load_or_generate_uuid "$(base64 -w 0 <<< "$new_id")")"
+	case "$type" in
+		'boot')  type='ef02' ;;
+		'efi')   type='ef00' ;;
+		'swap')  type='8200' ;;
+		'raid')  type='fd00' ;;
+		'luks')  type='8309' ;;
+		'linux') type='8300' ;;
+		*) ;;
+	esac
+
+	disk_id_to_resolvable[$new_id]="partuuid:$partuuid"
+	sgdisk -n "0:0:$size" -t "0:$type" -u 0:"$partuuid" "$device" >/dev/null \
+		|| die "Could not create new gpt partition ($new_id) on '$device' ($id)"
+	partprobe "$device"
 }
 
 disk_create_raid() {
+	local new_id="${arguments[new_id]}"
+	local level="${arguments[level]}"
+	local ids="${arguments[ids]}"
 	if [[ $disk_action_summarize_only == true ]]; then
 		local id
 		# Splitting is intentional here
 		# shellcheck disable=SC2086
-		for id in ${arguments[ids]//';'/ }; do
-			add_summary_entry "$id" "_${arguments[new_id]}" "raid${arguments[level]}" "" ""
+		for id in ${ids//';'/ }; do
+			add_summary_entry "$id" "_$new_id" "raid$level" "" ""
 		done
 
-		add_summary_entry __root__ "${arguments[new_id]}" "raid${arguments[level]}" "" ""
+		add_summary_entry __root__ "$new_id" "raid$level" "" ""
 		return 0
 	fi
+
+	local devices=()
+	# Splitting is intentional here
+	# shellcheck disable=SC2086
+	for id in ${ids//';'/ }; do
+		devices+=("$(resolve_id_to_device "$id")")
+	done
+
+	local uuid="$(load_or_generate_uuid "$(base64 -w 0 <<< "$new_id")")"
+	disk_id_to_resolvable[$new_id]="uuid:$uuid"
+
+	mdadm --create \
+			--uuid="$uuid" \
+			--level="$level" \
+			"${devices[@]}" \
+		|| die "Could not format device '$device' ($id)"
 }
 
 disk_create_luks() {
+	local new_id="${arguments[new_id]}"
+	local id="${arguments[id]}"
 	if [[ $disk_action_summarize_only == true ]]; then
-		add_summary_entry "${arguments[id]}" "${arguments[new_id]}" "luks" "" ""
+		add_summary_entry "$id" "$new_id" "luks" "" ""
 		return 0
 	fi
+
+	local device="$(resolve_id_to_device "$id")"
+	local uuid="$(load_or_generate_uuid "$(base64 -w 0 <<< "$new_id")")"
+	disk_id_to_resolvable[$new_id]="uuid:$uuid"
+
+	cryptsetup luksFormat \
+			--uuid="$uuid" \
+			--type=luks2 \
+			--cipher aes-xts-plain64 \
+			--key-size 512 \
+			--pbkdf argon2id \
+			--iter-time=4000 "$device" \
+		|| die "Could not format device '$device' ($id)"
 }
 
 disk_format() {
+	local id="${arguments[id]}"
+	local type="${arguments[type]}"
+	local label="${arguments[label]}"
 	if [[ $disk_action_summarize_only == true ]]; then
 		add_summary_entry "${arguments[id]}" "__fs__${arguments[id]}" "${arguments[type]}" "(fs)" "$(summary_color_args label)"
 		return 0
 	fi
+
+	case "$type" in
+		'boot'|'efi')
+			if [[ -v "arguments[label]" ]]; then
+				mkfs.fat -F 32 -n "$label" "$device" \
+					|| die "Could not format device '$device' ($id)"
+			else
+				mkfs.fat -F 32 "$device" \
+					|| die "Could not format device '$device' ($id)"
+			fi
+			;;
+		'swap')
+			if [[ -v "arguments[label]" ]]; then
+				mkswap -L "$label" "$device" \
+					|| die "Could not format device '$device' ($id)"
+			else
+				mkswap "$device" \
+					|| die "Could not format device '$device' ($id)"
+			fi
+			;;
+		'ext4')
+			if [[ -v "arguments[label]" ]]; then
+				mkfs.ext4 -q -L "$label" "$device" \
+					|| die "Could not format device '$device' ($id)"
+			else
+				mkfs.ext4 -q "$device" \
+					|| die "Could not format device '$device' ($id)"
+			fi
+			;;
+		*) die "Unknown filesystem type" ;;
+	esac
 }
 
 apply_disk_action() {
@@ -238,32 +362,9 @@ print_summary_tree() {
 	fi
 }
 
-summarize_disk_actions() {
-	elog "[1mCurrent lsblk output[m"
-	for_line_in <(lsblk \
-		|| die "Error in lsblk") elog
-
-	disk_action_summarize_only=true
-	declare -A summary_tree
-	declare -A summary_name
-	declare -A summary_hint
-	declare -A summary_ptr
-	declare -A summary_desc
-	declare -A summary_depth_continues
-	apply_disk_actions
-	unset disk_action_summarize_only
-
-	local depth=-1
-	elog
-	elog "[1mConfigured disk layout[m"
-	elog ────────────────────────────────────────────────────────────────────────────────
-	elog "$(printf '%-26s %-28s %s' NODE ID OPTIONS)"
-	elog ────────────────────────────────────────────────────────────────────────────────
-	print_summary_tree __root__
-	elog ────────────────────────────────────────────────────────────────────────────────
-}
-
 apply_disk_actions() {
+	declare -A disk_id_to_resolvable
+
 	local param
 	local current_params=()
 	for param in "${DISK_ACTIONS[@]}"; do
@@ -276,112 +377,134 @@ apply_disk_actions() {
 	done
 }
 
-partition_device_print_config_summary() {
-	elog "-------- Partition configuration --------"
-	elog "Device: [1;33m$PARTITION_DEVICE[m"
-	elog "Existing partition table:"
-	for_line_in <(lsblk -n "$PARTITION_DEVICE" \
+summarize_disk_actions() {
+	elog "[1mCurrent lsblk output:[m"
+	for_line_in <(lsblk \
 		|| die "Error in lsblk") elog
-	elog "New partition table:"
-	elog "[1;33m$PARTITION_DEVICE[m"
-	elog "├─efi   size=[1;32m$PARTITION_EFI_SIZE[m"
-	if [[ $ENABLE_SWAP == true ]]; then
-	elog "├─swap  size=[1;32m$PARTITION_SWAP_SIZE[m"
-	fi
-	elog "└─linux size=[1;32m[remaining][m"
-	if [[ $ENABLE_SWAP != true ]]; then
-	elog "swap: [1;31mdisabled[m"
-	fi
+
+	local disk_action_summarize_only=true
+	declare -A summary_tree
+	declare -A summary_name
+	declare -A summary_hint
+	declare -A summary_ptr
+	declare -A summary_desc
+	declare -A summary_depth_continues
+	apply_disk_actions
+
+	local depth=-1
+	elog
+	elog "[1mConfigured disk layout:[m"
+	elog ────────────────────────────────────────────────────────────────────────────────
+	elog "$(printf '%-26s %-28s %s' NODE ID OPTIONS)"
+	elog ────────────────────────────────────────────────────────────────────────────────
+	print_summary_tree __root__
+	elog ────────────────────────────────────────────────────────────────────────────────
 }
 
-partition_device() {
-	[[ $ENABLE_PARTITIONING == true ]] \
-		|| return 0
+apply_disk_configuration() {
+	summarize_disk_actions
 
-	einfo "Preparing partitioning of device '$PARTITION_DEVICE'"
+	ask "Do you really want to apply this disk configuration?" \
+		|| die "Aborted"
+	countdown "Applying in " 5
 
-	[[ -b $PARTITION_DEVICE ]] \
-		|| die "Selected device '$PARTITION_DEVICE' is not a block device"
+	einfo "Applying disk configuration"
+	apply_disk_actions
 
-	partition_device_print_config_summary
-	ask "Do you really want to apply this partitioning?" \
-		|| die "For manual partitioning formatting please set ENABLE_PARTITIONING=false in config.sh"
-	countdown "Partitioning in " 5
-
-	einfo "Partitioning device '$PARTITION_DEVICE'"
-
-	# Delete any existing partition table
-	sgdisk -Z "$PARTITION_DEVICE" >/dev/null \
-		|| die "Could not delete existing partition table"
-
-	# Create efi/boot partition
-	sgdisk -n "0:0:+$PARTITION_EFI_SIZE" -t 0:ef00 -c 0:"efi" -u 0:"$PARTITION_UUID_EFI" "$PARTITION_DEVICE" >/dev/null \
-		|| die "Could not create efi partition"
-
-	# Create swap partition
-	if [[ $ENABLE_SWAP == true ]]; then
-		sgdisk -n "0:0:+$PARTITION_SWAP_SIZE" -t 0:8200 -c 0:"swap" -u 0:"$PARTITION_UUID_SWAP" "$PARTITION_DEVICE" >/dev/null \
-			|| die "Could not create swap partition"
-	fi
-
-	# Create system partition
-	sgdisk -n 0:0:0 -t 0:8300 -c 0:"linux" -u 0:"$PARTITION_UUID_LINUX" "$PARTITION_DEVICE" >/dev/null \
-		|| die "Could not create linux partition"
-
-	# Print partition table
-	einfo "Applied partition table"
-	sgdisk -p "$PARTITION_DEVICE" \
-		|| die "Could not print partition table"
-
-	# Inform kernel of partition table changes
-	partprobe "$PARTITION_DEVICE" \
-		|| die "Could not probe partitions"
+	einfo "Disk configuration was applied successfully"
+	elog "[1mNew lsblk output:[m"
+	for_line_in <(lsblk \
+		|| die "Error in lsblk") elog
 }
 
-format_partitions() {
-	[[ $ENABLE_FORMATTING == true ]] \
-		|| return 0
-
-	if [[ $ENABLE_PARTITIONING != true ]]; then
-		einfo "Preparing to format the following partitions:"
-
-		blkid -t PARTUUID="$PARTITION_UUID_EFI" \
-			|| die "Error while listing efi partition"
-		if [[ $ENABLE_SWAP == true ]]; then
-			blkid -t PARTUUID="$PARTITION_UUID_SWAP" \
-				|| die "Error while listing swap partition"
-		fi
-		blkid -t PARTUUID="$PARTITION_UUID_LINUX" \
-			|| die "Error while listing linux partition"
-
-		ask "Do you really want to format these partitions?" \
-			|| die "For manual formatting please set ENABLE_FORMATTING=false in config.sh"
-		countdown "Formatting in " 5
-	fi
-
-	einfo "Formatting partitions"
-
-	local dev
-	dev="$(get_device_by_partuuid "$PARTITION_UUID_EFI")" \
-		|| die "Could not resolve partition UUID '$PARTITION_UUID_EFI'"
-	einfo "  $dev (efi)"
-	mkfs.fat -F 32 -n "efi" "$dev" \
-		|| die "Could not format EFI partition"
-
-	if [[ $ENABLE_SWAP == true ]]; then
-		dev="$(get_device_by_partuuid "$PARTITION_UUID_SWAP")" \
-			|| die "Could not resolve partition UUID '$PARTITION_UUID_SWAP'"
-		einfo "  $dev (swap)"
-		mkswap -L "swap" "$dev" \
-			|| die "Could not create swap"
-	fi
-
-	dev="$(get_device_by_partuuid "$PARTITION_UUID_LINUX")" \
-		|| die "Could not resolve partition UUID '$PARTITION_UUID_LINUX'"
-	einfo "  $dev (linux)"
-	mkfs.ext4 -q -L "linux" "$dev" \
-		|| die "Could not create ext4 filesystem"
-}
+#partition_device() {
+#	[[ $ENABLE_PARTITIONING == true ]] \
+#		|| return 0
+#
+#	einfo "Preparing partitioning of device '$PARTITION_DEVICE'"
+#
+#	[[ -b $PARTITION_DEVICE ]] \
+#		|| die "Selected device '$PARTITION_DEVICE' is not a block device"
+#
+#	partition_device_print_config_summary
+#	ask "Do you really want to apply this partitioning?" \
+#		|| die "For manual partitioning formatting please set ENABLE_PARTITIONING=false in config.sh"
+#	countdown "Partitioning in " 5
+#
+#	einfo "Partitioning device '$PARTITION_DEVICE'"
+#
+#	# Delete any existing partition table
+#	sgdisk -Z "$PARTITION_DEVICE" >/dev/null \
+#		|| die "Could not delete existing partition table"
+#
+#	# Create efi/boot partition
+#	sgdisk -n "0:0:+$PARTITION_EFI_SIZE" -t 0:ef00 -c 0:"efi" -u 0:"$PARTITION_UUID_EFI" "$PARTITION_DEVICE" >/dev/null \
+#		|| die "Could not create efi partition"
+#
+#	# Create swap partition
+#	if [[ $ENABLE_SWAP == true ]]; then
+#		sgdisk -n "0:0:+$PARTITION_SWAP_SIZE" -t 0:8200 -c 0:"swap" -u 0:"$PARTITION_UUID_SWAP" "$PARTITION_DEVICE" >/dev/null \
+#			|| die "Could not create swap partition"
+#	fi
+#
+#	# Create system partition
+#	sgdisk -n 0:0:0 -t 0:8300 -c 0:"linux" -u 0:"$PARTITION_UUID_LINUX" "$PARTITION_DEVICE" >/dev/null \
+#		|| die "Could not create linux partition"
+#
+#	# Print partition table
+#	einfo "Applied partition table"
+#	sgdisk -p "$PARTITION_DEVICE" \
+#		|| die "Could not print partition table"
+#
+#	# Inform kernel of partition table changes
+#	partprobe "$PARTITION_DEVICE" \
+#		|| die "Could not probe partitions"
+#}
+#
+#format_partitions() {
+#	[[ $ENABLE_FORMATTING == true ]] \
+#		|| return 0
+#
+#	if [[ $ENABLE_PARTITIONING != true ]]; then
+#		einfo "Preparing to format the following partitions:"
+#
+#		blkid -t PARTUUID="$PARTITION_UUID_EFI" \
+#			|| die "Error while listing efi partition"
+#		if [[ $ENABLE_SWAP == true ]]; then
+#			blkid -t PARTUUID="$PARTITION_UUID_SWAP" \
+#				|| die "Error while listing swap partition"
+#		fi
+#		blkid -t PARTUUID="$PARTITION_UUID_LINUX" \
+#			|| die "Error while listing linux partition"
+#
+#		ask "Do you really want to format these partitions?" \
+#			|| die "For manual formatting please set ENABLE_FORMATTING=false in config.sh"
+#		countdown "Formatting in " 5
+#	fi
+#
+#	einfo "Formatting partitions"
+#
+#	local dev
+#	dev="$(get_device_by_partuuid "$PARTITION_UUID_EFI")" \
+#		|| die "Could not resolve partition UUID '$PARTITION_UUID_EFI'"
+#	einfo "  $dev (efi)"
+#	mkfs.fat -F 32 -n "efi" "$dev" \
+#		|| die "Could not format EFI partition"
+#
+#	if [[ $ENABLE_SWAP == true ]]; then
+#		dev="$(get_device_by_partuuid "$PARTITION_UUID_SWAP")" \
+#			|| die "Could not resolve partition UUID '$PARTITION_UUID_SWAP'"
+#		einfo "  $dev (swap)"
+#		mkswap -L "swap" "$dev" \
+#			|| die "Could not create swap"
+#	fi
+#
+#	dev="$(get_device_by_partuuid "$PARTITION_UUID_LINUX")" \
+#		|| die "Could not resolve partition UUID '$PARTITION_UUID_LINUX'"
+#	einfo "  $dev (linux)"
+#	mkfs.ext4 -q -L "linux" "$dev" \
+#		|| die "Could not create ext4 filesystem"
+#}
 
 mount_efivars() {
 	# Skip if already mounted

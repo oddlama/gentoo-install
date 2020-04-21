@@ -10,13 +10,13 @@ create_default_disk_layout() {
 	local device="$1"
 
 	create_gpt new_id=gpt device="$device"
-	create_partition new_id=part_efi  id=gpt size=128MiB type=efi
-	create_partition new_id=part_swap id=gpt size=8GiB   type=raid
-	create_partition new_id=part_root id=gpt size=auto   type=raid
+	create_partition new_id=part_efi  id=gpt size=128MiB    type=efi
+	create_partition new_id=part_swap id=gpt size=8GiB      type=raid
+	create_partition new_id=part_root id=gpt size=remaining type=raid
 
 	format id=part_efi  type=efi  label=efi
 	format id=part_swap type=swap label=swap
-	format id=part_root type=ext4 label=ext4
+	format id=part_root type=ext4 label=root
 
 	DISK_ID_EFI=part_efi
 	DISK_ID_SWAP=part_raid
@@ -33,9 +33,9 @@ create_default_disk_layout /dev/sdX
 devices=(/dev/sd{X,Y})
 for i in "${!devices[@]}"; do
 	create_gpt new_id="gpt_dev${i}" device="${devices[$i]}"
-	create_partition new_id="part_efi_dev${i}"  id="gpt_dev${i}" size=128MiB type=efi
-	create_partition new_id="part_swap_dev${i}" id="gpt_dev${i}" size=8GiB   type=raid
-	create_partition new_id="part_root_dev${i}" id="gpt_dev${i}" size=auto   type=raid
+	create_partition new_id="part_efi_dev${i}"  id="gpt_dev${i}" size=128MiB    type=efi
+	create_partition new_id="part_swap_dev${i}" id="gpt_dev${i}" size=8GiB      type=raid
+	create_partition new_id="part_root_dev${i}" id="gpt_dev${i}" size=remaining type=raid
 done
 
 create_raid new_id=part_raid_swap level=0 ids="$(expand_ids '^part_swap_dev\d$')"
@@ -44,7 +44,7 @@ create_luks new_id=part_luks_root id=part_raid_root
 
 format id=part_efi_dev0  type=efi  label=efi
 format id=part_raid_swap type=swap label=swap
-format id=part_luks_root type=ext4 label=ext4
+format id=part_luks_root type=ext4 label=root
 
 DISK_ID_EFI=part_efi_dev0
 DISK_ID_SWAP=part_raid_swap

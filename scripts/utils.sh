@@ -128,6 +128,18 @@ get_device_by_partuuid() {
 	echo -n "$dev"
 }
 
+get_device_by_uuid() {
+	blkid -g \
+		|| die "Error while executing blkid"
+	local dev
+	dev="$(blkid -o export -t UUID="$1")" \
+		|| die "Error while executing blkid to find UUID=$1"
+	dev="$(grep DEVNAME <<< "$dev")" \
+		|| die "Could not find DEVNAME=... in blkid output"
+	dev="${dev:8}"
+	echo -n "$dev"
+}
+
 load_or_generate_uuid() {
 	local uuid
 	local uuid_file="$UUID_STORAGE_DIR/$1"

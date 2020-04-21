@@ -1,5 +1,5 @@
 #!/bin/bash
-set -uo pipefail
+set -o pipefail
 
 ################################################
 # Initialize script environment
@@ -43,8 +43,7 @@ install_stage3() {
 	[[ $# == 0 ]] || die "Too many arguments"
 
 	prepare_installation_environment
-	partition_device
-	format_partitions
+	apply_disk_configuration
 	download_stage3
 	extract_stage3
 }

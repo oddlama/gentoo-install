@@ -26,6 +26,8 @@ USED_LUKS=false
 DISK_ACTIONS=()
 # An associative set to check for existing ids
 declare -A DISK_KNOWN_IDS
+# An associative set to check for correct usage of size=remaining in gpt tables
+declare -A DISK_GPT_HAD_SIZE_REMAINING
 
 only_one_of() {
 	local previous=""
@@ -90,18 +92,6 @@ verify_option() {
 	die_trace 2 "Invalid option $opt='$arg', must be one of ($*)"
 }
 
-#create_luks() {
-#	gpg --decrypt /tmp/efiboot/luks-key.gpg | \
-#		cryptsetup --cipher serpent-xts-plain64 --key-size 512 --hash whirlpool --key-file - luksFormat /dev/sdZn
-#	local dev
-#	cryptsetup luksFormat \
-#		--type=luks2 \
-#		--cipher aes-xts-plain64 \
-#		--key-size 512 \
-#		--pbkdf argon2id \
-#		--iter-time=4000 "$dev"
-#}
-
 # Named arguments:
 # new_id:    Id for the new gpt table
 # device:  The operand block device
@@ -119,7 +109,7 @@ create_gpt() {
 
 # Named arguments:
 # new_id:  Id for the new partition
-# size:    Size for the new partition, or auto to allocate the rest
+# size:    Size for the new partition, or 'remaining' to allocate the rest
 # type:    The parition type, either (boot, efi, swap, raid, luks, linux) (or a 4 digit hex-code for gdisk).
 # id:      The operand device id
 create_partition() {
@@ -129,6 +119,12 @@ create_partition() {
 	create_new_id new_id
 	verify_existing_id id
 	verify_option type boot efi swap raid luks linux
+
+	[[ -v "DISK_GPT_HAD_SIZE_REMAINING[${arguments[id]}]" ]] \
+		&& die_trace 1 "Cannot add another partition to table (${arguments[id]}) after size=remaining was used"
+
+	[[ ${arguments[size]} == "remaining" ]] \
+		&& DISK_GPT_HAD_SIZE_REMAINING[${arguments[id]}]=true
 
 	DISK_ACTIONS+=("action=create_partition" "$@" ";")
 }
