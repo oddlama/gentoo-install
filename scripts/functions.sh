@@ -211,16 +211,17 @@ disk_create_partition() {
 disk_create_raid() {
 	local new_id="${arguments[new_id]}"
 	local level="${arguments[level]}"
+	local name="${arguments[name]}"
 	local ids="${arguments[ids]}"
 	if [[ $disk_action_summarize_only == true ]]; then
 		local id
 		# Splitting is intentional here
 		# shellcheck disable=SC2086
 		for id in ${ids//';'/ }; do
-			add_summary_entry "$id" "_$new_id" "raid$level" "" ""
+			add_summary_entry "$id" "_$new_id" "raid$level" "" "$(summary_color_args name)"
 		done
 
-		add_summary_entry __root__ "$new_id" "raid$level" "" ""
+		add_summary_entry __root__ "$new_id" "raid$level" "" "$(summary_color_args name)"
 		return 0
 	fi
 
@@ -240,7 +241,12 @@ disk_create_raid() {
 	disk_id_to_resolvable[$new_id]="uuid:$uuid"
 
 	einfo "Creating raid$level ($new_id) on $devices_desc"
-	mdadm --create \
+	mdadm \
+			--create "/dev/md/$name" \
+			--verbose \
+			--homehost="$HOSTNAME" \
+			--metadata=1.2 \
+			--raid-devices="${#devices[@]}" \
 			--uuid="$uuid" \
 			--level="$level" \
 			"${devices[@]}" \

@@ -136,11 +136,12 @@ create_partition() {
 # Named arguments:
 # new_id:  Id for the new raid
 # level:   Raid level
+# name:    Raid name (/dev/md/<name>)
 # ids:     Comma separated list of all member ids
 create_raid() {
 	USED_RAID=true
 
-	local known_arguments=('+new_id' '+level' '+ids')
+	local known_arguments=('+new_id' '+level' '+name' '+ids')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
 
@@ -264,8 +265,8 @@ create_raid0_luks_layout() {
 	done
 
 	[[ $size_swap != "false" ]] && \
-	create_raid new_id=part_raid_swap level=0 ids="$(expand_ids '^part_swap_dev[[:digit:]]$')"
-	create_raid new_id=part_raid_root level=0 ids="$(expand_ids '^part_root_dev[[:digit:]]$')"
+	create_raid new_id=part_raid_swap name="swap" level=0 ids="$(expand_ids '^part_swap_dev[[:digit:]]$')"
+	create_raid new_id=part_raid_root name="root" level=0 ids="$(expand_ids '^part_root_dev[[:digit:]]$')"
 	create_luks new_id=part_luks_root id=part_raid_root
 
 	format id="part_${type}_dev0" type="$type" label="$type"

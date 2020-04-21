@@ -24,7 +24,10 @@ create_default_disk_layout swap=8GiB /dev/sdX
 ################################################
 # System configuration
 
-# Enter the desired system hostname here
+# Enter the desired system hostname here,
+# be aware that when creating raid arrays, this value will be
+# recorded in metadata block. If you change it later, you should
+# also update the metadata.
 HOSTNAME="gentoo"
 
 # The timezone for the new system
