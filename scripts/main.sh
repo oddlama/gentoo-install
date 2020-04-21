@@ -31,6 +31,8 @@ source "$GENTOO_INSTALL_REPO_DIR/scripts/functions.sh"
 [[ $I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY == true ]] \
 	|| die "You have not properly read the config. Set I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY=true to continue."
 
+preprocess_config
+
 mkdir_or_die 0755 "$TMP_DIR"
 [[ $EUID == 0 ]] \
 	|| die "Must be root"

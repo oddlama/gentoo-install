@@ -80,8 +80,3 @@ ANSIBLE_SSH_AUTHORIZED_KEYS=""
 # To prove that you have read and edited the config
 # properly, set the following value to true.
 I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY=false
-
-
-################################################
-# DO NOT EDIT
-preprocess_config

@@ -35,13 +35,13 @@ check_config() {
 		|| die "You must assign DISK_ID_EFI or DISK_ID_BOOT"
 
 	[[ -v "DISK_ID_BOOT" ]] && [[ -v "DISK_ID_TO_UUID[$DISK_ID_BOOT]" ]] \
-		die "Missing uuid for DISK_ID_BOOT, have you made sure it is used?"
+		|| die "Missing uuid for DISK_ID_BOOT, have you made sure it is used?"
 	[[ -v "DISK_ID_EFI" ]]  && [[ -v "DISK_ID_TO_UUID[$DISK_ID_EFI]" ]] \
-		die "Missing uuid for DISK_ID_EFI, have you made sure it is used?"
+		|| die "Missing uuid for DISK_ID_EFI, have you made sure it is used?"
 	[[ -v "DISK_ID_SWAP" ]] && [[ -v "DISK_ID_TO_UUID[$DISK_ID_SWAP]" ]] \
-		die "Missing uuid for DISK_ID_SWAP, have you made sure it is used?"
+		|| die "Missing uuid for DISK_ID_SWAP, have you made sure it is used?"
 	[[ -v "DISK_ID_ROOT" ]] && [[ -v "DISK_ID_TO_UUID[$DISK_ID_ROOT]" ]] \
-		die "Missing uuid for DISK_ID_ROOT, have you made sure it is used?"
+		|| die "Missing uuid for DISK_ID_ROOT, have you made sure it is used?"
 
 	if [[ $INSTALL_ANSIBLE == true ]]; then
 		[[ $INSTALL_SSHD == true ]] \
