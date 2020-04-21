@@ -253,7 +253,7 @@ disk_create_raid() {
 			--uuid="$uuid" \
 			--level="$level" \
 			"${devices[@]}" \
-		|| die "Could not format device '$device' ($id)"
+		|| die "Could not create raid$level array '$mddevice' ($new_id) on $devices_desc"
 }
 
 disk_create_luks() {
@@ -276,7 +276,7 @@ disk_create_luks() {
 			--key-size 512 \
 			--pbkdf argon2id \
 			--iter-time=4000 "$device" \
-		|| die "Could not format device '$device' ($id)"
+		|| die "Could not create luks on '$device' ($id)"
 }
 
 disk_format() {
