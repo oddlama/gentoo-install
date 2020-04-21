@@ -39,10 +39,11 @@ Here is a quick overview of what this script does:
 * Select best gentoo portage mirrors
 * Install git (so you can add your portage overlays later)
 * Install `sys-kernel/vanilla-kernel-bin` (temporarily, until you replace it)
-* Copy kernel to efi partition
-* Create boot entry using efibootmgr
+  - EFI: Copy kernel to efi partition
+  - EFI: Create boot entry using efibootmgr (or install syslinux for BIOS boot)
+  - BIOS: Install syslinux
 * Generate fstab
-* Lets you set a root password
+* Ask for a root password
 
 Also, optionally the following will be done:
 

@@ -18,8 +18,7 @@ eerror() {
 
 die() {
 	eerror "$*"
-	echo "Aborted." >&2
-	kill "$GENTOO_INSTALL_REPO_SCRIPT_PID" >/dev/null
+	kill "$GENTOO_INSTALL_REPO_SCRIPT_PID"
 	exit 1
 }
 

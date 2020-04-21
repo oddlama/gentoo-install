@@ -34,14 +34,20 @@ check_config() {
 	[[ -n $DISK_ID_EFI ]] || [[ -n $DISK_ID_BOOT ]] \
 		|| die "You must assign DISK_ID_EFI or DISK_ID_BOOT"
 
-	[[ -v "DISK_ID_BOOT" ]] && [[ -v "DISK_ID_TO_UUID[$DISK_ID_BOOT]" ]] \
-		|| die "Missing uuid for DISK_ID_BOOT, have you made sure it is used?"
-	[[ -v "DISK_ID_EFI" ]]  && [[ -v "DISK_ID_TO_UUID[$DISK_ID_EFI]" ]] \
-		|| die "Missing uuid for DISK_ID_EFI, have you made sure it is used?"
-	[[ -v "DISK_ID_SWAP" ]] && [[ -v "DISK_ID_TO_UUID[$DISK_ID_SWAP]" ]] \
-		|| die "Missing uuid for DISK_ID_SWAP, have you made sure it is used?"
-	[[ -v "DISK_ID_ROOT" ]] && [[ -v "DISK_ID_TO_UUID[$DISK_ID_ROOT]" ]] \
-		|| die "Missing uuid for DISK_ID_ROOT, have you made sure it is used?"
+	[[ -v "DISK_ID_BOOT" ]] && [[ ! -v "DISK_ID_TO_UUID[$DISK_ID_BOOT]" ]] \
+		&& die "Missing uuid for DISK_ID_BOOT, have you made sure it is used?"
+	[[ -v "DISK_ID_EFI" ]] && [[ ! -v "DISK_ID_TO_UUID[$DISK_ID_EFI]" ]] \
+		&& die "Missing uuid for DISK_ID_EFI, have you made sure it is used?"
+	[[ -v "DISK_ID_SWAP" ]] && [[ ! -v "DISK_ID_TO_UUID[$DISK_ID_SWAP]" ]] \
+		&& die "Missing uuid for DISK_ID_SWAP, have you made sure it is used?"
+	[[ -v "DISK_ID_ROOT" ]] && [[ ! -v "DISK_ID_TO_UUID[$DISK_ID_ROOT]" ]] \
+		&& die "Missing uuid for DISK_ID_ROOT, have you made sure it is used?"
+
+	if [[ -v "DISK_ID_EFI" ]]; then
+		IS_EFI=true
+	else
+		IS_EFI=false
+	fi
 
 	if [[ $INSTALL_ANSIBLE == true ]]; then
 		[[ $INSTALL_SSHD == true ]] \
@@ -154,10 +160,11 @@ disk_create_gpt() {
 		device_desc="$device"
 	fi
 
-	disk_id_to_resolvable[$new_id]="raw:$device"
+	local uuid="${DISK_ID_TO_UUID[$new_id]}"
+	disk_id_to_resolvable[$new_id]="uuid:$uuid"
 
 	einfo "Creating new gpt partition table ($new_id) on $device_desc"
-	sgdisk -Z "$device" >/dev/null \
+	sgdisk -Z -U "$uuid" "$device" >/dev/null \
 		|| die "Could not create new gpt partition table ($new_id) on '$device'"
 	partprobe "$device"
 }
@@ -180,8 +187,9 @@ disk_create_partition() {
 
 	local device="$(resolve_id_to_device "$id")"
 	local partuuid="${DISK_ID_TO_UUID[$new_id]}"
+	local extra_args=""
 	case "$type" in
-		'boot')  type='ef02' ;;
+		'boot')  type='ef02' extra_args='--attributes=0:set:2';;
 		'efi')   type='ef00' ;;
 		'swap')  type='8200' ;;
 		'raid')  type='fd00' ;;
@@ -193,7 +201,8 @@ disk_create_partition() {
 	disk_id_to_resolvable[$new_id]="partuuid:$partuuid"
 
 	einfo "Creating partition ($new_id) with type=$type, size=$size on $device"
-	sgdisk -n "0:0:$arg_size" -t "0:$type" -u 0:"$partuuid" "$device" >/dev/null \
+	# shellcheck disable=SC2086
+	sgdisk -n "0:0:$arg_size" -t "0:$type" -u 0:"$partuuid" $extra_args "$device" >/dev/null \
 		|| die "Could not create new gpt partition ($new_id) on '$device' ($id)"
 	partprobe "$device"
 }

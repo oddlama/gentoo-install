@@ -89,14 +89,12 @@ install_sshd() {
 		|| die "Could not create group 'sshusers'"
 }
 
-install_kernel() {
-	# Install vanilla kernel and efibootmgr, to be able to boot the system.
-	einfo "Installing binary vanilla kernel"
-	try emerge --verbose sys-kernel/vanilla-kernel-bin sys-boot/efibootmgr
+install_kernel_efi() {
+	try emerge --verbose sys-boot/efibootmgr
 
 	# Copy kernel to EFI
 	local kernel_version
-	kernel_version="$(find "/boot" -name "vmlinuz-*" -printf '%f\n' | sort -V | tail -1)" \
+	kernel_version="$(find "/boot" -name "vmlinuz-*" -printf '%f\n' | sort -V | tail -n 1)" \
 		|| die "Could not list newest kernel file"
 	kernel_version="${kernel_version#vmlinuz-}" \
 		|| die "Could not find kernel version"
@@ -112,11 +110,46 @@ install_kernel() {
 	local linuxdev
 	linuxdev="$(get_device_by_partuuid "$PARTITION_UUID_ROOT")" \
 		|| die "Could not resolve partition UUID '$PARTITION_UUID_ROOT'"
-	local efidev
-	efidev="$(get_device_by_partuuid "$PARTITION_UUID_EFI")" \
+	local efipartdev
+	efipartdev="$(get_device_by_partuuid "$PARTITION_UUID_EFI")" \
 		|| die "Could not resolve partition UUID '$PARTITION_UUID_EFI'"
-	local efipartnum="${efidev: -1}"
-	try efibootmgr --verbose --create --disk "$PARTITION_DEVICE" --part "$efipartnum" --label "gentoo" --loader '\EFI\vmlinuz.efi' --unicode "root=$linuxdev initrd=\\EFI\\initramfs.img"
+	local efipartnum="${efipartdev: -1}"
+	local gptuuid="${DISK_PARTUUID_TO_GPT_UUID[$PARTITION_UUID_EFI]}"
+	local gptdev
+	gptdev="$(get_device_by_uuid "$gptuuid")" \
+		|| die "Could not resolve GPT UUID '$gptuuid'"
+	try efibootmgr --verbose --create --disk "$gptdev" --part "$efipartnum" --label "gentoo" --loader '\EFI\vmlinuz.efi' --unicode "root=$linuxdev initrd=\\EFI\\initramfs.img"
+}
+
+install_kernel_bios() {
+	try emerge --verbose sys-boot/syslinux
+
+	# Install syslinux MBR record
+	einfo "Copying syslinux MBR record"
+	local bootdev
+	bootdev="$(get_device_by_partuuid "$PARTITION_UUID_BOOT")" \
+		|| die "Could not resolve partition UUID '$PARTITION_UUID_BOOT'"
+	local gptuuid="${DISK_PARTUUID_TO_GPT_UUID[$PARTITION_UUID_BOOT]}"
+	local gptdev
+	gptdev="$(get_device_by_uuid "$gptuuid")" \
+		|| die "Could not resolve GPT UUID '$gptuuid'"
+	try dd bs=440 conv=notrunc count=1 if=/usr/share/syslinux/gptmbr.bin of="$gptdev"
+
+	# Install syslinux
+	einfo "Installing syslinux"
+	syslinux --install "$bootdev"
+}
+
+install_kernel() {
+	# Install vanilla kernel
+	einfo "Installing binary vanilla kernel"
+	try emerge --verbose sys-kernel/vanilla-kernel-bin
+
+	if [[ $IS_EFI == "true" ]]; then
+		install_kernel_efi
+	else
+		install_kernel_bios
+	fi
 }
 
 install_ansible() {
@@ -153,10 +186,16 @@ main_install_gentoo_in_chroot() {
 	passwd -l root \
 		|| die "Could not change root password"
 
-	# Mount efi partition
-	mount_efivars
-	einfo "Mounting efi partition"
-	mount_by_partuuid "$PARTITION_UUID_EFI" "/boot/efi"
+	if [[ $IS_EFI == "true" ]]; then
+		# Mount efi partition
+		mount_efivars
+		einfo "Mounting efi partition"
+		mount_by_partuuid "$PARTITION_UUID_EFI" "/boot/efi"
+	else
+		# Mount boot partition
+		einfo "Mounting boot partition"
+		mount_by_partuuid "$PARTITION_UUID_BOOT" "/boot"
+	fi
 
 	# Sync portage
 	einfo "Syncing portage tree"
@@ -193,8 +232,13 @@ main_install_gentoo_in_chroot() {
 		|| die "Could not overwrite /etc/fstab"
 	echo "PARTUUID=$PARTITION_UUID_ROOT    /            ext4    defaults,noatime,errors=remount-ro,discard                            0 1" >> /etc/fstab \
 		|| die "Could not append entry to fstab"
-	echo "PARTUUID=$PARTITION_UUID_EFI    /boot/efi    vfat    defaults,noatime,fmask=0022,dmask=0022,noexec,nodev,nosuid,discard    0 2" >> /etc/fstab \
-		|| die "Could not append entry to fstab"
+	if [[ $IS_EFI == "true" ]]; then
+		echo "PARTUUID=$PARTITION_UUID_EFI    /boot/efi    vfat    defaults,noatime,fmask=0022,dmask=0022,noexec,nodev,nosuid,discard    0 2" >> /etc/fstab \
+			|| die "Could not append entry to fstab"
+	else
+		echo "PARTUUID=$PARTITION_UUID_BOOT    /boot        vfat    defaults,noatime,fmask=0022,dmask=0022,noexec,nodev,nosuid,discard    0 2" >> /etc/fstab \
+			|| die "Could not append entry to fstab"
+	fi
 	if [[ -v "PARTITION_UUID_SWAP" ]]; then
 		echo "PARTUUID=$PARTITION_UUID_SWAP    none         swap    defaults,discard                                                      0 0" >> /etc/fstab \
 			|| die "Could not append entry to fstab"
@@ -245,7 +289,9 @@ main_install() {
 
 	gentoo_umount
 	install_stage3
-	mount_efivars
+
+	[[ $IS_EFI == "true" ]] \
+		&& mount_efivars
 	gentoo_chroot "$GENTOO_INSTALL_REPO_BIND/scripts/main.sh" install_gentoo_in_chroot
 	gentoo_umount
 }
