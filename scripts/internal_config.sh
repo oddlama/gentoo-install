@@ -194,7 +194,7 @@ expand_ids() {
 #   swap=<size>      create a swap partition with given size, or no swap if set to false
 #   type=[efi|bios]  defaults to efi. Selects the boot type.
 create_default_disk_layout() {
-	local known_arguments=('+device' '+swap')
+	local known_arguments=('+swap' '?type')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
 
@@ -238,7 +238,7 @@ create_default_disk_layout() {
 #   swap=<size>      create a swap partition with given size, or no swap if set to false
 #   type=[efi|bios]  defaults to efi. Selects the boot type.
 create_raid0_luks_layout() {
-	local known_arguments=('+device' '+swap')
+	local known_arguments=('+swap' '?type')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
 

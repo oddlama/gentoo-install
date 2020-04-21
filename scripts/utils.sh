@@ -168,7 +168,7 @@ parse_arguments() {
 		key="${a%%=*}"
 		value="${a#*=}"
 
-		if [[ $key == "" ]]; then
+		if [[ $key == "$a" ]]; then
 			extra_arguments+=("$a")
 			continue
 		fi
