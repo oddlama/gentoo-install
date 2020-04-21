@@ -1,11 +1,4 @@
-**TL;DR:** Edit `scripts/config.sh` and execute `./install` in any live system.
-This will apply the selected partitioning scheme (with confirmation), and properly
-install the selected stage3 gentoo system. The new system will be bootable with
-`vanilla-kernel-bin` as the kernel. The script can optionally install sshd and
-ansible to allow for easier management of the new system. Afterwards, you can continue
-to deploy your own specific setup.
-
-# Gentoo installation script
+## About gentoo-install
 
 This script performs a reasonably minimal installation of gentoo. An EFI system is highly
 recommended, but legacy BIOS boot is still supported.
@@ -17,6 +10,16 @@ The system will temporarily use `sys-kernel/vanilla-kernel-bin`, which should be
 to boot most systems out of the box. I strongly recommend you to replace this kernel
 with a custom built one, when the system is functional. If you are looking for a way
 to detect and manage your kernel configuration, have a look at [autokernel](https://github.com/oddlama/autokernel).
+
+## Quick start
+
+Edit `scripts/config.sh` and execute `./install` in any live system.
+This will apply the selected partitioning scheme (with confirmation), and properly
+install the selected stage3 gentoo system. The new system will by default use
+`vanilla-kernel-bin` as the kernel, and an initramfs generated with dracut to provide
+a bootable environment. The script can optionally install `sshd` and `ansible` to
+allow for quick setup of the new system. So when the script finishes, you can
+directly begin to deploy your specific setup.
 
 ## Overview
 
@@ -53,7 +56,7 @@ but you can obviously do anything later on when the system is booted.
 I highly recommend building a custom kernel and maybe encrypting your
 root filesystem. Have a look at the [Recommendations](#Recommendations) section.
 
-# Install
+## Install
 
 Installing gentoo with this script is simple.
 
@@ -67,13 +70,13 @@ Installing gentoo with this script is simple.
 4. Execute `./install`. The script will tell you if your live
    system is missing any required software.
 
-## Config
+### Config
 
 The config file `scripts/config.sh` allows you to adjust some parameters of the installation.
 The most important ones will probably be the device to partition, and the stage3 tarball name
 to install. By default you will get the hardened nomultilib profile without systemd.
 
-## (Optional) sshd
+### (Optional) sshd
 
 The script can provide a fully configured ssh daemon with reasonably good security settings.
 It will by default run on port `2222`, only allow ed25519 keys, restrict the key exchange
@@ -85,26 +88,26 @@ I recommend to create a separate group for all ssh users (like `sshusers`) and
 to use `AllowGroups sshusers`. You should adjust this to your preferences when
 the system is installed.
 
-## (Optional) Ansible
+### (Optional) Ansible
 
 This script can install ansible, create a system user for ansible and add an ssh key of
 you choice to the `.authorized_keys` file. This allows you to directly use ansible when
 the new system is up to configure the rest of the system.
 
-## (Optional) Additional packages
+### (Optional) Additional packages
 
 You can enter any amount of additional packages to be installed on the target system.
 These will simply be passed to a final `emerge` call before the script is done.
 Autounmasking will be done automatically.
 
-## Troubleshooting
+### Troubleshooting
 
 The script checks every command for success, so if anything fails during installation,
 you will be given a proper message of what went wrong. Inside the chroot,
 most commands will be executed in some kind of try loop, and allow you to
 fix problems interactively with a shell, to retry, or to skip the command.
 
-# Recommendations
+## Recommendations
 
 There are some things that you probably want to do after installing the base system,
 or should consider:
@@ -126,7 +129,7 @@ or should consider:
   - Encrypt partition with LUKS
   - Use rsync to restore the saved system root.
 
-# References
+## References
 
 * [Sakaki's EFI Install Guide](https://wiki.gentoo.org/wiki/Sakaki%27s_EFI_Install_Guide)
 * [Gentoo AMD64 Handbook](https://wiki.gentoo.org/wiki/Handbook:AMD64)
