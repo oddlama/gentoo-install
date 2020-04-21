@@ -24,8 +24,8 @@ USED_LUKS=false
 
 # An array of disk related actions to perform
 DISK_ACTIONS=()
-# An associative set to check for existing ids
-declare -A DISK_KNOWN_IDS
+# An associative array to check for existing ids (maps to uuids)
+declare -A DISK_ID_TO_UUID
 # An associative set to check for correct usage of size=remaining in gpt tables
 declare -A DISK_GPT_HAD_SIZE_REMAINING
 
@@ -47,14 +47,14 @@ create_new_id() {
 	local id="${arguments[$1]}"
 	[[ $id == *';'* ]] \
 		&& die_trace 2 "Identifier contains invalid character ';'"
-	[[ ! -v DISK_KNOWN_IDS[$id] ]] \
+	[[ ! -v DISK_ID_TO_UUID[$id] ]] \
 		|| die_trace 2 "Identifier '$id' already exists"
-	DISK_KNOWN_IDS[$id]=true
+	DISK_ID_TO_UUID[$id]="$(load_or_generate_uuid "$(base64 -w 0 <<< "$id")")"
 }
 
 verify_existing_id() {
 	local id="${arguments[$1]}"
-	[[ -v DISK_KNOWN_IDS[$id] ]] \
+	[[ -v DISK_ID_TO_UUID[$id] ]] \
 		|| die_trace 2 "Identifier $1='$id' not found"
 }
 
@@ -73,7 +73,7 @@ verify_existing_unique_ids() {
 	# Splitting is intentional here
 	# shellcheck disable=SC2086
 	for id in ${ids//';'/ }; do
-		[[ -v DISK_KNOWN_IDS[$id] ]] \
+		[[ -v DISK_ID_TO_UUID[$id] ]] \
 			|| die_trace 2 "$arg=... contains unknown identifier '$id'"
 	done
 }
@@ -178,7 +178,7 @@ format() {
 # Returns a comma separated list of all registered ids matching the given regex.
 expand_ids() {
 	local regex="$1"
-	for id in "${!DISK_KNOWN_IDS[@]}"; do
+	for id in "${!DISK_ID_TO_UUID[@]}"; do
 		[[ $id =~ $regex ]] \
 			&& echo -n "$id;"
 	done

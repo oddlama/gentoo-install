@@ -108,8 +108,8 @@ install_kernel() {
 	# Create boot entry
 	einfo "Creating efi boot entry"
 	local linuxdev
-	linuxdev="$(get_device_by_partuuid "$PARTITION_UUID_LINUX")" \
-		|| die "Could not resolve partition UUID '$PARTITION_UUID_LINUX'"
+	linuxdev="$(get_device_by_partuuid "$PARTITION_UUID_ROOT")" \
+		|| die "Could not resolve partition UUID '$PARTITION_UUID_ROOT'"
 	local efidev
 	efidev="$(get_device_by_partuuid "$PARTITION_UUID_EFI")" \
 		|| die "Could not resolve partition UUID '$PARTITION_UUID_EFI'"
@@ -189,11 +189,11 @@ main_install_gentoo_in_chroot() {
 	einfo "Generating fstab"
 	install -m0644 -o root -g root "$GENTOO_INSTALL_REPO_DIR/configs/fstab" /etc/fstab \
 		|| die "Could not overwrite /etc/fstab"
-	echo "PARTUUID=$PARTITION_UUID_LINUX    /            ext4    defaults,noatime,errors=remount-ro,discard                            0 1" >> /etc/fstab \
+	echo "PARTUUID=$PARTITION_UUID_ROOT    /            ext4    defaults,noatime,errors=remount-ro,discard                            0 1" >> /etc/fstab \
 		|| die "Could not append entry to fstab"
 	echo "PARTUUID=$PARTITION_UUID_EFI    /boot/efi    vfat    defaults,noatime,fmask=0022,dmask=0022,noexec,nodev,nosuid,discard    0 2" >> /etc/fstab \
 		|| die "Could not append entry to fstab"
-	if [[ $ENABLE_SWAP == true ]]; then
+	if [[ -v "PARTITION_UUID_SWAP" ]]; then
 		echo "PARTUUID=$PARTITION_UUID_SWAP    none         swap    defaults,discard                                                      0 0" >> /etc/fstab \
 			|| die "Could not append entry to fstab"
 	fi

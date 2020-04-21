@@ -34,6 +34,15 @@ check_config() {
 	[[ -n $DISK_ID_EFI ]] || [[ -n $DISK_ID_BOOT ]] \
 		|| die "You must assign DISK_ID_EFI or DISK_ID_BOOT"
 
+	[[ -v "DISK_ID_BOOT" ]] && [[ -v "DISK_ID_TO_UUID[$DISK_ID_BOOT]" ]] \
+		die "Missing uuid for DISK_ID_BOOT, have you made sure it is used?"
+	[[ -v "DISK_ID_EFI" ]]  && [[ -v "DISK_ID_TO_UUID[$DISK_ID_EFI]" ]] \
+		die "Missing uuid for DISK_ID_EFI, have you made sure it is used?"
+	[[ -v "DISK_ID_SWAP" ]] && [[ -v "DISK_ID_TO_UUID[$DISK_ID_SWAP]" ]] \
+		die "Missing uuid for DISK_ID_SWAP, have you made sure it is used?"
+	[[ -v "DISK_ID_ROOT" ]] && [[ -v "DISK_ID_TO_UUID[$DISK_ID_ROOT]" ]] \
+		die "Missing uuid for DISK_ID_ROOT, have you made sure it is used?"
+
 	if [[ $INSTALL_ANSIBLE == true ]]; then
 		[[ $INSTALL_SSHD == true ]] \
 			|| die "You must enable INSTALL_SSHD for ansible"
@@ -42,10 +51,20 @@ check_config() {
 	fi
 }
 
+preprocess_config() {
+	check_config
+
+	[[ -v "DISK_ID_TO_UUID[$DISK_ID_BOOT]" ]] \
+		&& PARTITION_UUID_BOOT="${DISK_ID_TO_UUID[$DISK_ID_BOOT]}"
+	[[ -v "DISK_ID_TO_UUID[$DISK_ID_EFI]" ]] \
+		&& PARTITION_UUID_EFI="${DISK_ID_TO_UUID[$DISK_ID_EFI]}"
+	[[ -v "DISK_ID_TO_UUID[$DISK_ID_SWAP]" ]] \
+		&& PARTITION_UUID_SWAP="${DISK_ID_TO_UUID[$DISK_ID_SWAP]}"
+	PARTITION_UUID_ROOT="${DISK_ID_TO_UUID[$DISK_ID_ROOT]}"
+}
+
 prepare_installation_environment() {
 	einfo "Preparing installation environment"
-
-	check_config
 
 	check_has_program gpg
 	check_has_program hwclock
@@ -126,13 +145,18 @@ disk_create_gpt() {
 	fi
 
 	local device
+	local device_desc=""
 	if [[ -v arguments[id] ]]; then
 		device="$(resolve_id_to_device "${arguments[id]}")"
+		device_desc="$device ($id)"
 	else
 		device="${arguments[device]}"
+		device_desc="$device"
 	fi
 
 	disk_id_to_resolvable[$new_id]="raw:$device"
+
+	einfo "Creating new gpt partition table ($new_id) on $device_desc"
 	sgdisk -Z "$device" >/dev/null \
 		|| die "Could not create new gpt partition table ($new_id) on '$device'"
 	partprobe "$device"
@@ -149,13 +173,13 @@ disk_create_partition() {
 	fi
 
 	if [[ $size == "remaining" ]]; then
-		size=0
+		arg_size=0
 	else
-		size="+$size"
+		arg_size="+$size"
 	fi
 
 	local device="$(resolve_id_to_device "$id")"
-	local partuuid="$(load_or_generate_uuid "$(base64 -w 0 <<< "$new_id")")"
+	local partuuid="${DISK_ID_TO_UUID[$new_id]}"
 	case "$type" in
 		'boot')  type='ef02' ;;
 		'efi')   type='ef00' ;;
@@ -167,7 +191,9 @@ disk_create_partition() {
 	esac
 
 	disk_id_to_resolvable[$new_id]="partuuid:$partuuid"
-	sgdisk -n "0:0:$size" -t "0:$type" -u 0:"$partuuid" "$device" >/dev/null \
+
+	einfo "Creating partition ($new_id) with type=$type, size=$size on $device"
+	sgdisk -n "0:0:$arg_size" -t "0:$type" -u 0:"$partuuid" "$device" >/dev/null \
 		|| die "Could not create new gpt partition ($new_id) on '$device' ($id)"
 	partprobe "$device"
 }
@@ -188,16 +214,22 @@ disk_create_raid() {
 		return 0
 	fi
 
+	local devices_desc=""
 	local devices=()
+	local id
 	# Splitting is intentional here
 	# shellcheck disable=SC2086
 	for id in ${ids//';'/ }; do
-		devices+=("$(resolve_id_to_device "$id")")
+		local dev="$(resolve_id_to_device "$id")"
+		devices+=("$dev")
+		devices_desc+="$dev ($id), "
 	done
+	devices_desc="${devices_desc:0:-2}"
 
-	local uuid="$(load_or_generate_uuid "$(base64 -w 0 <<< "$new_id")")"
+	local uuid="${DISK_ID_TO_UUID[$new_id]}"
 	disk_id_to_resolvable[$new_id]="uuid:$uuid"
 
+	einfo "Creating raid$level ($new_id) on $devices_desc"
 	mdadm --create \
 			--uuid="$uuid" \
 			--level="$level" \
@@ -214,9 +246,10 @@ disk_create_luks() {
 	fi
 
 	local device="$(resolve_id_to_device "$id")"
-	local uuid="$(load_or_generate_uuid "$(base64 -w 0 <<< "$new_id")")"
+	local uuid="${DISK_ID_TO_UUID[$new_id]}"
 	disk_id_to_resolvable[$new_id]="uuid:$uuid"
 
+	einfo "Creating luks ($new_id) on $device ($id)"
 	cryptsetup luksFormat \
 			--uuid="$uuid" \
 			--type=luks2 \
@@ -236,6 +269,7 @@ disk_format() {
 		return 0
 	fi
 
+	einfo "Formatting $device ($id) with $type"
 	case "$type" in
 		'boot'|'efi')
 			if [[ -v "arguments[label]" ]]; then
@@ -417,95 +451,6 @@ apply_disk_configuration() {
 		|| die "Error in lsblk") elog
 }
 
-#partition_device() {
-#	[[ $ENABLE_PARTITIONING == true ]] \
-#		|| return 0
-#
-#	einfo "Preparing partitioning of device '$PARTITION_DEVICE'"
-#
-#	[[ -b $PARTITION_DEVICE ]] \
-#		|| die "Selected device '$PARTITION_DEVICE' is not a block device"
-#
-#	partition_device_print_config_summary
-#	ask "Do you really want to apply this partitioning?" \
-#		|| die "For manual partitioning formatting please set ENABLE_PARTITIONING=false in config.sh"
-#	countdown "Partitioning in " 5
-#
-#	einfo "Partitioning device '$PARTITION_DEVICE'"
-#
-#	# Delete any existing partition table
-#	sgdisk -Z "$PARTITION_DEVICE" >/dev/null \
-#		|| die "Could not delete existing partition table"
-#
-#	# Create efi/boot partition
-#	sgdisk -n "0:0:+$PARTITION_EFI_SIZE" -t 0:ef00 -c 0:"efi" -u 0:"$PARTITION_UUID_EFI" "$PARTITION_DEVICE" >/dev/null \
-#		|| die "Could not create efi partition"
-#
-#	# Create swap partition
-#	if [[ $ENABLE_SWAP == true ]]; then
-#		sgdisk -n "0:0:+$PARTITION_SWAP_SIZE" -t 0:8200 -c 0:"swap" -u 0:"$PARTITION_UUID_SWAP" "$PARTITION_DEVICE" >/dev/null \
-#			|| die "Could not create swap partition"
-#	fi
-#
-#	# Create system partition
-#	sgdisk -n 0:0:0 -t 0:8300 -c 0:"linux" -u 0:"$PARTITION_UUID_LINUX" "$PARTITION_DEVICE" >/dev/null \
-#		|| die "Could not create linux partition"
-#
-#	# Print partition table
-#	einfo "Applied partition table"
-#	sgdisk -p "$PARTITION_DEVICE" \
-#		|| die "Could not print partition table"
-#
-#	# Inform kernel of partition table changes
-#	partprobe "$PARTITION_DEVICE" \
-#		|| die "Could not probe partitions"
-#}
-#
-#format_partitions() {
-#	[[ $ENABLE_FORMATTING == true ]] \
-#		|| return 0
-#
-#	if [[ $ENABLE_PARTITIONING != true ]]; then
-#		einfo "Preparing to format the following partitions:"
-#
-#		blkid -t PARTUUID="$PARTITION_UUID_EFI" \
-#			|| die "Error while listing efi partition"
-#		if [[ $ENABLE_SWAP == true ]]; then
-#			blkid -t PARTUUID="$PARTITION_UUID_SWAP" \
-#				|| die "Error while listing swap partition"
-#		fi
-#		blkid -t PARTUUID="$PARTITION_UUID_LINUX" \
-#			|| die "Error while listing linux partition"
-#
-#		ask "Do you really want to format these partitions?" \
-#			|| die "For manual formatting please set ENABLE_FORMATTING=false in config.sh"
-#		countdown "Formatting in " 5
-#	fi
-#
-#	einfo "Formatting partitions"
-#
-#	local dev
-#	dev="$(get_device_by_partuuid "$PARTITION_UUID_EFI")" \
-#		|| die "Could not resolve partition UUID '$PARTITION_UUID_EFI'"
-#	einfo "  $dev (efi)"
-#	mkfs.fat -F 32 -n "efi" "$dev" \
-#		|| die "Could not format EFI partition"
-#
-#	if [[ $ENABLE_SWAP == true ]]; then
-#		dev="$(get_device_by_partuuid "$PARTITION_UUID_SWAP")" \
-#			|| die "Could not resolve partition UUID '$PARTITION_UUID_SWAP'"
-#		einfo "  $dev (swap)"
-#		mkswap -L "swap" "$dev" \
-#			|| die "Could not create swap"
-#	fi
-#
-#	dev="$(get_device_by_partuuid "$PARTITION_UUID_LINUX")" \
-#		|| die "Could not resolve partition UUID '$PARTITION_UUID_LINUX'"
-#	einfo "  $dev (linux)"
-#	mkfs.ext4 -q -L "linux" "$dev" \
-#		|| die "Could not create ext4 filesystem"
-#}
-
 mount_efivars() {
 	# Skip if already mounted
 	mountpoint -q -- "/sys/firmware/efi/efivars" \
@@ -531,13 +476,13 @@ mount_by_partuuid() {
 	mkdir -p "$mountpoint" \
 		|| die "Could not create mountpoint directory '$mountpoint'"
 	dev="$(get_device_by_partuuid "$partuuid")" \
-		|| die "Could not resolve partition UUID '$PARTITION_UUID_LINUX'"
+		|| die "Could not resolve partition UUID '$partuuid'"
 	mount "$dev" "$mountpoint" \
 		|| die "Could not mount device '$dev'"
 }
 
 mount_root() {
-	mount_by_partuuid "$PARTITION_UUID_LINUX" "$ROOT_MOUNTPOINT"
+	mount_by_partuuid "$PARTITION_UUID_ROOT" "$ROOT_MOUNTPOINT"
 }
 
 bind_repo_dir() {

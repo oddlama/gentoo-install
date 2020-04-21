@@ -23,33 +23,34 @@ create_default_disk_layout() {
 	DISK_ID_ROOT=part_luks
 }
 
-create_default_disk_layout /dev/sdX
-
-
 # Example 2: Multiple disks, with raid 0 and luks
 # - efi:  partition on all disks, but only first disk used
 # - swap: raid 0 → fs
 # - root: raid 0 → luks → fs
-devices=(/dev/sd{X,Y})
-for i in "${!devices[@]}"; do
-	create_gpt new_id="gpt_dev${i}" device="${devices[$i]}"
-	create_partition new_id="part_efi_dev${i}"  id="gpt_dev${i}" size=128MiB    type=efi
-	create_partition new_id="part_swap_dev${i}" id="gpt_dev${i}" size=8GiB      type=raid
-	create_partition new_id="part_root_dev${i}" id="gpt_dev${i}" size=remaining type=raid
-done
+create_raid0_luks_layout() {
+	local devices=("$@")
+	for i in "${!devices[@]}"; do
+		create_gpt new_id="gpt_dev${i}" device="${devices[$i]}"
+		create_partition new_id="part_efi_dev${i}"  id="gpt_dev${i}" size=128MiB    type=efi
+		create_partition new_id="part_swap_dev${i}" id="gpt_dev${i}" size=8GiB      type=raid
+		create_partition new_id="part_root_dev${i}" id="gpt_dev${i}" size=remaining type=raid
+	done
 
-create_raid new_id=part_raid_swap level=0 ids="$(expand_ids '^part_swap_dev\d$')"
-create_raid new_id=part_raid_root level=0 ids="$(expand_ids '^part_root_dev\d$')"
-create_luks new_id=part_luks_root id=part_raid_root
+	create_raid new_id=part_raid_swap level=0 ids="$(expand_ids '^part_swap_dev\d$')"
+	create_raid new_id=part_raid_root level=0 ids="$(expand_ids '^part_root_dev\d$')"
+	create_luks new_id=part_luks_root id=part_raid_root
 
-format id=part_efi_dev0  type=efi  label=efi
-format id=part_raid_swap type=swap label=swap
-format id=part_luks_root type=ext4 label=root
+	format id=part_efi_dev0  type=efi  label=efi
+	format id=part_raid_swap type=swap label=swap
+	format id=part_luks_root type=ext4 label=root
 
-DISK_ID_EFI=part_efi_dev0
-DISK_ID_SWAP=part_raid_swap
-DISK_ID_ROOT=part_luks_root
+	DISK_ID_EFI=part_efi_dev0
+	DISK_ID_SWAP=part_raid_swap
+	DISK_ID_ROOT=part_luks_root
+}
 
+create_default_disk_layout /dev/sdX
+#create_raid0_luks_layout /dev/sd{X,Y}
 
 ################################################
 # System configuration
@@ -121,3 +122,8 @@ ANSIBLE_SSH_AUTHORIZED_KEYS=""
 # To prove that you have read and edited the config
 # properly, set the following value to true.
 I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY=false
+
+
+################################################
+# DO NOT EDIT
+preprocess_config
