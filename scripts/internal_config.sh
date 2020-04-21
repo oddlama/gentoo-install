@@ -27,6 +27,8 @@ declare -A DISK_PARTUUID_TO_GPT_UUID
 declare -A DISK_ID_TO_UUID
 # An associative set to check for correct usage of size=remaining in gpt tables
 declare -A DISK_GPT_HAD_SIZE_REMAINING
+# An associative from PTUUID to device
+declare -A DISK_PTUUID_TO_DEVICE
 
 only_one_of() {
 	local previous=""

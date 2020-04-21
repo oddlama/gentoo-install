@@ -132,9 +132,9 @@ resolve_id_to_device() {
 	local arg="${disk_id_to_resolvable[$id]#*:}"
 
 	case "$type" in
-     	'partuuid') get_device_by_partuuid "$arg" ;;
-     	'ptuuid') get_device_by_ptuuid "$arg" ;;
-     	'uuid') get_device_by_uuid "$arg" ;;
+		'partuuid') get_device_by_partuuid "$arg" ;;
+		'ptuuid')   get_device_by_ptuuid   "$arg" ;;
+		'uuid')     get_device_by_uuid     "$arg" ;;
 		*) die "Cannot resolve '$type:$arg' to device (unkown type)"
 	esac
 }
@@ -161,6 +161,7 @@ disk_create_gpt() {
 	fi
 
 	local ptuuid="${DISK_ID_TO_UUID[$new_id]}"
+	DISK_PTUUID_TO_DEVICE[${ptuuid,,}]="$device"
 	disk_id_to_resolvable[$new_id]="ptuuid:$ptuuid"
 
 	einfo "Creating new gpt partition table ($new_id) on $device_desc"
@@ -202,7 +203,7 @@ disk_create_partition() {
 
 	einfo "Creating partition ($new_id) with type=$type, size=$size on $device"
 	# shellcheck disable=SC2086
-	sgdisk -n "0:0:$arg_size" -t "0:$type" -u 0:"$partuuid" $extra_args "$device" >/dev/null \
+	sgdisk -n "0:0:$arg_size" -t "0:$type" -u "0:$partuuid" $extra_args "$device" >/dev/null \
 		|| die "Could not create new gpt partition ($new_id) on '$device' ($id)"
 	partprobe "$device"
 }

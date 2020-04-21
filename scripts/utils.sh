@@ -135,7 +135,7 @@ get_device_by_partuuid() {
 }
 
 get_device_by_ptuuid() {
-	get_device_by_blkid_field 'PTUUID' "$1"
+	echo -n "${DISK_PTUUID_TO_DEVICE[${1,,}]}"
 }
 
 get_device_by_uuid() {
