@@ -128,7 +128,7 @@ create_partition() {
 	[[ ${arguments[size]} == "remaining" ]] \
 		&& DISK_GPT_HAD_SIZE_REMAINING[${arguments[id]}]=true
 
-	DISK_PARTUUID_TO_GPT_UUID[${DISK_ID_TO_UUID[$new_id]}]="${DISK_ID_TO_UUID[$id]}"
+	DISK_PARTUUID_TO_GPT_UUID[${DISK_ID_TO_UUID[${arguments[new_id]}]}]="${DISK_ID_TO_UUID[${arguments[id]}]}"
 	DISK_ACTIONS+=("action=create_partition" "$@" ";")
 }
 
