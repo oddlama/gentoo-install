@@ -5,6 +5,26 @@ source "$GENTOO_INSTALL_REPO_DIR/scripts/internal_config.sh" || exit 1
 ################################################
 # Disk configuration
 
+# This function will be called when the key for a luks device is needed.
+# Parameters:
+#	$1 will be the id of the luks device as given in `create_luks new_id=<id> ...`.
+# Example: Keyfile
+#   1. Generate a 512-bit (or anything < 8MiB) keyfile with
+#      `dd if=/dev/urandom bs=1024 count=1 of=/path/to/keyfile`
+#   2. Copy the keyfile somewhere safe, but don't delete the original,
+#      which we will use in the live environment.
+#   3. Use `cat /path/to/keyfile` below.
+# Example: GPG Smartcard
+#   Same as above, but do not store a copy of the keyfile and instead store a
+#   gpg encrypted copy: `cat /path/to/keyfile | gpg --symmetric --cipher-algo AES256 --s2k-digest-algo SHA512 --output /my/permanent/storage/luks-key.gpg`
+luks_getkey() {
+	case "$1" in
+		#'my_luks_partition') echo -n 'yourLuksPassword_MakeItLongAndStrong' ;;
+		*) cat "/path/to/luks-keyfile" ;;
+	esac
+}
+
+# Below you can see examples of how to use the two provided default schemes.
 # See the respective functions in internal_config.sh if you
 # want to use a different disk configuration.
 

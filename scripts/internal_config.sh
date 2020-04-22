@@ -13,6 +13,8 @@ ROOT_MOUNTPOINT="$TMP_DIR/root"
 GENTOO_INSTALL_REPO_BIND="$TMP_DIR/bind"
 # Mountpoint for the script files for access from chroot
 UUID_STORAGE_DIR="$TMP_DIR/uuids"
+# Backup dir for luks headers
+LUKS_HEADER_BACKUP_DIR="$TMP_DIR/luks-headers"
 
 # Flag to track usage of raid (needed to check for mdadm existence)
 USED_RAID=false

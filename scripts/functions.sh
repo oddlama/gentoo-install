@@ -136,6 +136,7 @@ resolve_id_to_device() {
 		'ptuuid')   get_device_by_ptuuid     "$arg" ;;
 		'uuid')     get_device_by_uuid       "$arg" ;;
 		'mdadm')    get_device_by_mdadm_uuid "$arg" ;;
+		'luks')     get_device_by_luks_uuid  "$arg" ;;
 		*) die "Cannot resolve '$type:$arg' to device (unkown type)"
 	esac
 }
@@ -266,17 +267,34 @@ disk_create_luks() {
 
 	local device="$(resolve_id_to_device "$id")"
 	local uuid="${DISK_ID_TO_UUID[$new_id]}"
-	disk_id_to_resolvable[$new_id]="uuid:$uuid"
+	disk_id_to_resolvable[$new_id]="luks:$uuid"
 
 	einfo "Creating luks ($new_id) on $device ($id)"
+	local luks_key
+	luks_key="$(luks_getkey "$new_id")" \
+		|| die "Error in luks_getkey for id=$id"
 	cryptsetup luksFormat \
-			--uuid="$uuid" \
-			--type=luks2 \
+			--type luks2 \
+			--uuid "$uuid" \
+			--key-file '-' \
 			--cipher aes-xts-plain64 \
-			--key-size 512 \
+			--hash sha512 \
 			--pbkdf argon2id \
-			--iter-time=4000 "$device" \
+			--iter-time 4000 \
+			--key-size 512 \
+			"$device" \
+				<<< "$luks_key" \
 		|| die "Could not create luks on '$device' ($id)"
+	mkdir -p "$LUKS_HEADER_BACKUP_DIR" \
+		|| die "Could not create luks header backup dir '$LUKS_HEADER_BACKUP_DIR'"
+	cryptsetup luksHeaderBackup "$device" \
+			--header-backup-file "$LUKS_HEADER_BACKUP_DIR/luks-header-$id-${uuid,,}.img" \
+		|| die "Could not backup luks header on '$device' ($id)"
+	cryptsetup open --type luks2 \
+			--key-file '-' \
+			"$device" "${uuid,,}" \
+				<<< "$luks_key" \
+		|| die "Could not open luks header on '$device' ($id)"
 }
 
 disk_format() {

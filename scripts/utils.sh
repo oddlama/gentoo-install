@@ -146,6 +146,10 @@ get_device_by_mdadm_uuid() {
 	echo -n "${DISK_MDADM_UUID_TO_DEVICE[${1,,}]}"
 }
 
+get_device_by_luks_uuid() {
+	echo -n "/dev/mapper/${1,,}"
+}
+
 load_or_generate_uuid() {
 	local uuid
 	local uuid_file="$UUID_STORAGE_DIR/$1"
