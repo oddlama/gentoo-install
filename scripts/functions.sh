@@ -288,6 +288,7 @@ disk_format() {
 		return 0
 	fi
 
+	local device="$(resolve_id_to_device "$id")"
 	einfo "Formatting $device ($id) with $type"
 	case "$type" in
 		'bios'|'efi')
