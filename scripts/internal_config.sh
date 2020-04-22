@@ -23,8 +23,8 @@ USED_LUKS=false
 
 # An array of disk related actions to perform
 DISK_ACTIONS=()
-# An associative array from partuuid to disk uuid
-declare -A DISK_PARTUUID_TO_GPT_UUID
+# An associative array from disk id to parent gpt disk id (only for partitions)
+declare -A DISK_ID_PART_TO_GPT_ID
 # An associative array to check for existing ids (maps to uuids)
 declare -A DISK_ID_TO_UUID
 # An associative set to check for correct usage of size=remaining in gpt tables
@@ -133,7 +133,7 @@ create_partition() {
 	[[ ${arguments[size]} == "remaining" ]] \
 		&& DISK_GPT_HAD_SIZE_REMAINING[${arguments[id]}]=true
 
-	DISK_PARTUUID_TO_GPT_UUID[${DISK_ID_TO_UUID[${arguments[new_id]}]}]="${DISK_ID_TO_UUID[${arguments[id]}]}"
+	DISK_ID_PART_TO_GPT_ID[${arguments[new_id]}]="${arguments[id]}"
 	DISK_ACTIONS+=("action=create_partition" "$@" ";")
 }
 

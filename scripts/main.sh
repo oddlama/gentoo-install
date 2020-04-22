@@ -107,17 +107,10 @@ install_kernel_efi() {
 
 	# Create boot entry
 	einfo "Creating efi boot entry"
-	local linuxdev
-	linuxdev="$(get_device_by_partuuid "$PARTITION_UUID_ROOT")" \
-		|| die "Could not resolve partition UUID '$PARTITION_UUID_ROOT'"
-	local efipartdev
-	efipartdev="$(get_device_by_partuuid "$PARTITION_UUID_EFI")" \
-		|| die "Could not resolve partition UUID '$PARTITION_UUID_EFI'"
+	local linuxdev="$(resolve_device_by_id "$DISK_ID_ROOT")"
+	local efipartdev="$(resolve_device_by_id "$DISK_ID_EFI")"
 	local efipartnum="${efipartdev: -1}"
-	local gptuuid="${DISK_PARTUUID_TO_GPT_UUID[$PARTITION_UUID_EFI]}"
-	local gptdev
-	gptdev="$(get_device_by_ptuuid "$gptuuid")" \
-		|| die "Could not resolve GPT UUID '$gptuuid'"
+	local gptdev="$(resolve_device_by_id "${DISK_ID_PART_TO_GPT_ID[$DISK_ID_EFI]}")"
 	try efibootmgr --verbose --create --disk "$gptdev" --part "$efipartnum" --label "gentoo" --loader '\EFI\vmlinuz.efi' --unicode "root=$linuxdev initrd=\\EFI\\initramfs.img"
 }
 
@@ -126,13 +119,8 @@ install_kernel_bios() {
 
 	# Install syslinux MBR record
 	einfo "Copying syslinux MBR record"
-	local biosdev
-	biosdev="$(get_device_by_partuuid "$PARTITION_UUID_BIOS")" \
-		|| die "Could not resolve partition UUID '$PARTITION_UUID_BIOS'"
-	local gptuuid="${DISK_PARTUUID_TO_GPT_UUID[$PARTITION_UUID_BIOS]}"
-	local gptdev
-	gptdev="$(get_device_by_ptuuid "$gptuuid")" \
-		|| die "Could not resolve GPT UUID '$gptuuid'"
+	local biosdev="$(resolve_device_by_id "$DISK_ID_BIOS")"
+	local gptdev="$(resolve_device_by_id "${DISK_ID_PART_TO_GPT_ID[$DISK_ID_BIOS]}")"
 	try dd bs=440 conv=notrunc count=1 if=/usr/share/syslinux/gptmbr.bin of="$gptdev"
 
 	# Install syslinux
@@ -190,11 +178,11 @@ main_install_gentoo_in_chroot() {
 		# Mount efi partition
 		mount_efivars
 		einfo "Mounting efi partition"
-		mount_by_partuuid "$PARTITION_UUID_EFI" "/boot/efi"
+		mount_by_id "$DISK_ID_EFI" "/boot/efi"
 	else
 		# Mount boot partition
 		einfo "Mounting boot partition"
-		mount_by_partuuid "$PARTITION_UUID_BIOS" "/boot"
+		mount_by_id "$DISK_ID_BIOS" "/boot"
 	fi
 
 	# Sync portage
@@ -230,17 +218,17 @@ main_install_gentoo_in_chroot() {
 	einfo "Generating fstab"
 	install -m0644 -o root -g root "$GENTOO_INSTALL_REPO_DIR/configs/fstab" /etc/fstab \
 		|| die "Could not overwrite /etc/fstab"
-	echo "PARTUUID=$PARTITION_UUID_ROOT    /            ext4    defaults,noatime,errors=remount-ro,discard                            0 1" >> /etc/fstab \
+	echo "$(resolve_device_by_id "$DISK_ID_ROOT")    /            ext4    defaults,noatime,errors=remount-ro,discard                            0 1" >> /etc/fstab \
 		|| die "Could not append entry to fstab"
 	if [[ $IS_EFI == "true" ]]; then
-		echo "PARTUUID=$PARTITION_UUID_EFI    /boot/efi    vfat    defaults,noatime,fmask=0022,dmask=0022,noexec,nodev,nosuid,discard    0 2" >> /etc/fstab \
+		echo "$(resolve_device_by_id "$DISK_ID_EFI")    /boot/efi    vfat    defaults,noatime,fmask=0022,dmask=0022,noexec,nodev,nosuid,discard    0 2" >> /etc/fstab \
 			|| die "Could not append entry to fstab"
 	else
-		echo "PARTUUID=$PARTITION_UUID_BIOS    /boot        vfat    defaults,noatime,fmask=0022,dmask=0022,noexec,nodev,nosuid,discard    0 2" >> /etc/fstab \
+		echo "$(resolve_device_by_id "$DISK_ID_BIOS")    /boot        vfat    defaults,noatime,fmask=0022,dmask=0022,noexec,nodev,nosuid,discard    0 2" >> /etc/fstab \
 			|| die "Could not append entry to fstab"
 	fi
-	if [[ -v "PARTITION_UUID_SWAP" ]]; then
-		echo "PARTUUID=$PARTITION_UUID_SWAP    none         swap    defaults,discard                                                      0 0" >> /etc/fstab \
+	if [[ -v "DISK_ID_SWAP" ]]; then
+		echo "$(resolve_device_by_id "$DISK_ID_SWAP")    none         swap    defaults,discard                                                      0 0" >> /etc/fstab \
 			|| die "Could not append entry to fstab"
 	fi
 

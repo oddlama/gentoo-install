@@ -31,11 +31,11 @@ check_config() {
 
 	[[ -n $DISK_ID_ROOT ]] \
 		|| die "You must assign DISK_ID_ROOT"
-	[[ -n $DISK_ID_EFI ]] || [[ -n $DISK_ID_BOOT ]] \
-		|| die "You must assign DISK_ID_EFI or DISK_ID_BOOT"
+	[[ -n $DISK_ID_EFI ]] || [[ -n $DISK_ID_BIOS ]] \
+		|| die "You must assign DISK_ID_EFI or DISK_ID_BIOS"
 
-	[[ -v "DISK_ID_BOOT" ]] && [[ ! -v "DISK_ID_TO_UUID[$DISK_ID_BOOT]" ]] \
-		&& die "Missing uuid for DISK_ID_BOOT, have you made sure it is used?"
+	[[ -v "DISK_ID_BIOS" ]] && [[ ! -v "DISK_ID_TO_UUID[$DISK_ID_BIOS]" ]] \
+		&& die "Missing uuid for DISK_ID_BIOS, have you made sure it is used?"
 	[[ -v "DISK_ID_EFI" ]] && [[ ! -v "DISK_ID_TO_UUID[$DISK_ID_EFI]" ]] \
 		&& die "Missing uuid for DISK_ID_EFI, have you made sure it is used?"
 	[[ -v "DISK_ID_SWAP" ]] && [[ ! -v "DISK_ID_TO_UUID[$DISK_ID_SWAP]" ]] \
@@ -59,14 +59,6 @@ check_config() {
 
 preprocess_config() {
 	check_config
-
-	[[ -v "DISK_ID_TO_UUID[$DISK_ID_BOOT]" ]] \
-		&& PARTITION_UUID_BOOT="${DISK_ID_TO_UUID[$DISK_ID_BOOT]}"
-	[[ -v "DISK_ID_TO_UUID[$DISK_ID_EFI]" ]] \
-		&& PARTITION_UUID_EFI="${DISK_ID_TO_UUID[$DISK_ID_EFI]}"
-	[[ -v "DISK_ID_TO_UUID[$DISK_ID_SWAP]" ]] \
-		&& PARTITION_UUID_SWAP="${DISK_ID_TO_UUID[$DISK_ID_SWAP]}"
-	PARTITION_UUID_ROOT="${DISK_ID_TO_UUID[$DISK_ID_ROOT]}"
 }
 
 prepare_installation_environment() {
@@ -100,7 +92,7 @@ add_summary_entry() {
 
 	local ptr
 	case "$id" in
-		"$DISK_ID_BOOT")  ptr="[1;32m← bios[m" ;;
+		"$DISK_ID_BIOS")  ptr="[1;32m← bios[m" ;;
 		"$DISK_ID_EFI")   ptr="[1;32m← efi[m"  ;;
 		"$DISK_ID_SWAP")  ptr="[1;34m← swap[m" ;;
 		"$DISK_ID_ROOT")  ptr="[1;33m← root[m" ;;
@@ -123,7 +115,7 @@ summary_color_args() {
 	done
 }
 
-resolve_id_to_device() {
+resolve_device_by_id() {
 	local id="$1"
 	[[ -v disk_id_to_resolvable[$id] ]] \
 		|| die "Cannot resolve id='$id' to a block device (no table entry)"
@@ -155,7 +147,7 @@ disk_create_gpt() {
 	local device
 	local device_desc=""
 	if [[ -v arguments[id] ]]; then
-		device="$(resolve_id_to_device "${arguments[id]}")"
+		device="$(resolve_device_by_id "${arguments[id]}")"
 		device_desc="$device ($id)"
 	else
 		device="${arguments[device]}"
@@ -188,7 +180,7 @@ disk_create_partition() {
 		arg_size="+$size"
 	fi
 
-	local device="$(resolve_id_to_device "$id")"
+	local device="$(resolve_device_by_id "$id")"
 	local partuuid="${DISK_ID_TO_UUID[$new_id]}"
 	local extra_args=""
 	case "$type" in
@@ -233,7 +225,7 @@ disk_create_raid() {
 	# Splitting is intentional here
 	# shellcheck disable=SC2086
 	for id in ${ids//';'/ }; do
-		local dev="$(resolve_id_to_device "$id")"
+		local dev="$(resolve_device_by_id "$id")"
 		devices+=("$dev")
 		devices_desc+="$dev ($id), "
 	done
@@ -265,25 +257,24 @@ disk_create_luks() {
 		return 0
 	fi
 
-	local device="$(resolve_id_to_device "$id")"
+	local device="$(resolve_device_by_id "$id")"
 	local uuid="${DISK_ID_TO_UUID[$new_id]}"
 	disk_id_to_resolvable[$new_id]="luks:$uuid"
 
 	einfo "Creating luks ($new_id) on $device ($id)"
-	local luks_key
-	luks_key="$(luks_getkey "$new_id")" \
-		|| die "Error in luks_getkey for id=$id"
+	local keyfile
+	keyfile="$(luks_getkeyfile "$new_id")" \
+		|| die "Error in luks_getkeyfile for id=$id"
 	cryptsetup luksFormat \
 			--type luks2 \
 			--uuid "$uuid" \
-			--key-file '-' \
+			--key-file "$keyfile" \
 			--cipher aes-xts-plain64 \
 			--hash sha512 \
 			--pbkdf argon2id \
 			--iter-time 4000 \
 			--key-size 512 \
 			"$device" \
-				<<< "$luks_key" \
 		|| die "Could not create luks on '$device' ($id)"
 	mkdir -p "$LUKS_HEADER_BACKUP_DIR" \
 		|| die "Could not create luks header backup dir '$LUKS_HEADER_BACKUP_DIR'"
@@ -291,9 +282,8 @@ disk_create_luks() {
 			--header-backup-file "$LUKS_HEADER_BACKUP_DIR/luks-header-$id-${uuid,,}.img" \
 		|| die "Could not backup luks header on '$device' ($id)"
 	cryptsetup open --type luks2 \
-			--key-file '-' \
+			--key-file "$keyfile" \
 			"$device" "${uuid,,}" \
-				<<< "$luks_key" \
 		|| die "Could not open luks header on '$device' ($id)"
 }
 
@@ -306,7 +296,7 @@ disk_format() {
 		return 0
 	fi
 
-	local device="$(resolve_id_to_device "$id")"
+	local device="$(resolve_device_by_id "$id")"
 	einfo "Formatting $device ($id) with $type"
 	case "$type" in
 		'bios'|'efi')
@@ -500,9 +490,9 @@ mount_efivars() {
 		|| die "Could not mount efivarfs"
 }
 
-mount_by_partuuid() {
+mount_by_id() {
 	local dev
-	local partuuid="$1"
+	local id="$1"
 	local mountpoint="$2"
 
 	# Skip if already mounted
@@ -510,17 +500,17 @@ mount_by_partuuid() {
 		&& return
 
 	# Mount device
-	einfo "Mounting device partuuid=$partuuid to '$mountpoint'"
+	einfo "Mounting device with id=$id to '$mountpoint'"
 	mkdir -p "$mountpoint" \
 		|| die "Could not create mountpoint directory '$mountpoint'"
-	dev="$(get_device_by_partuuid "$partuuid")" \
-		|| die "Could not resolve partition UUID '$partuuid'"
+	dev="$(resolve_device_by_id "$id")" \
+		|| die "Could not resolve device with id=$id"
 	mount "$dev" "$mountpoint" \
 		|| die "Could not mount device '$dev'"
 }
 
 mount_root() {
-	mount_by_partuuid "$PARTITION_UUID_ROOT" "$ROOT_MOUNTPOINT"
+	mount_by_id "$DISK_ID_ROOT" "$ROOT_MOUNTPOINT"
 }
 
 bind_repo_dir() {

@@ -13,14 +13,14 @@ source "$GENTOO_INSTALL_REPO_DIR/scripts/internal_config.sh" || exit 1
 #      `dd if=/dev/urandom bs=1024 count=1 of=/path/to/keyfile`
 #   2. Copy the keyfile somewhere safe, but don't delete the original,
 #      which we will use in the live environment.
-#   3. Use `cat /path/to/keyfile` below.
+#   3. Use `echo -n /path/to/keyfile` below.
 # Example: GPG Smartcard
 #   Same as above, but do not store a copy of the keyfile and instead store a
 #   gpg encrypted copy: `cat /path/to/keyfile | gpg --symmetric --cipher-algo AES256 --s2k-digest-algo SHA512 --output /my/permanent/storage/luks-key.gpg`
-luks_getkey() {
+luks_getkeyfile() {
 	case "$1" in
-		#'my_luks_partition') echo -n 'yourLuksPassword_MakeItLongAndStrong' ;;
-		*) cat "/path/to/luks-keyfile" ;;
+		#'my_luks_partition') echo -n '/path/to/my_luks_partition_keyfile' ;;
+		*) echo -n "/path/to/luks-keyfile" ;;
 	esac
 }
 
