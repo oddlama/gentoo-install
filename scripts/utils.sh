@@ -1,19 +1,19 @@
 source "$GENTOO_INSTALL_REPO_DIR/scripts/protection.sh" || exit 1
 
 elog() {
-	echo "[1m *[m $*"
+	echo "[[1m+[m] $*"
 }
 
 einfo() {
-	echo "[1;32m *[m $*"
+	echo "[[1;32m+[m] $*"
 }
 
 ewarn() {
-	echo "[1;33m *[m $*" >&2
+	echo "[[1;33m+[m] $*" >&2
 }
 
 eerror() {
-	echo "[1;31m * ERROR:[m $*" >&2
+	echo " [1;31m* ERROR:[m $*" >&2
 }
 
 die() {
@@ -141,12 +141,35 @@ get_device_by_uuid() {
 get_device_by_stored_uuid() {
 	local key="${1,,}"
 	[[ -v "DISK_UUID_TO_DEVICE[$key]" ]] \
-		|| die "Could not resolve uuid $key to device"
+		|| die "Could not resolve uuid $key to device (not stored)"
 	echo -n "${DISK_UUID_TO_DEVICE[$key]}"
 }
 
 get_device_by_luks_uuid() {
 	echo -n "/dev/mapper/${1,,}"
+}
+
+save_map_entry() {
+	local mapname="$1"
+	local key="$2"
+	local value="$3"
+	mkdir -p "$RESOLVABLE_MAP_DIR/$mapname" \
+		|| die "Could not create '$RESOLVABLE_MAP_DIR/$mapname'"
+	echo -n "$value" > "$RESOLVABLE_MAP_DIR/$mapname/$(base64 -w 0 <<< "$key")"
+}
+
+load_map_entries() {
+	local mapname="$1"
+	local lambda="$2"
+
+	local base64_key
+	local key
+	local value
+	for base64_key in "$RESOLVABLE_MAP_DIR/$mapname/"*; do
+		key="$(base64 -d <<< "$(basename "$base64_key")")"
+		value="$(cat "$base64_key")"
+		"$lambda" "$key" "$value"
+	done
 }
 
 create_resolve_entry() {
@@ -162,35 +185,25 @@ create_resolve_entry() {
 		'ptuuid')   ;& # fallthrough
 		'mdadm')
 			DISK_UUID_TO_DEVICE[$arg]="$device"
-			mkdir -p "$RESOLVABLE_MAP_DIR/DISK_UUID_TO_DEVICE" \
-				|| die "Could not create resolveable map dir '$RESOLVABLE_MAP_DIR'"
-			echo -n "$device" > "$RESOLVABLE_MAP_DIR/DISK_UUID_TO_DEVICE/$(base64 -w 0 <<< "$id")"
+			save_map_entry DISK_UUID_TO_DEVICE "$arg" "$device"
 			;;
 		*) die "Cannot add resolvable entry for '$type:$arg' (unknown type)"
 	esac
 
 	DISK_ID_TO_RESOLVABLE[$id]="$type:$arg"
-	mkdir -p "$RESOLVABLE_MAP_DIR/DISK_ID_TO_RESOLVABLE" \
-		|| die "Could not create resolveable map dir '$RESOLVABLE_MAP_DIR'"
-	echo -n "$type:$arg" > "$RESOLVABLE_MAP_DIR/DISK_ID_TO_RESOLVABLE/$(base64 -w 0 <<< "$id")"
+	save_map_entry DISK_ID_TO_RESOLVABLE "$id" "$type:$arg"
 }
 
 load_resolvable_entries() {
 	[[ -d $RESOLVABLE_MAP_DIR ]] \
 		|| return 0
-	local base64_key
-	local key
-	local value
-	for base64_key in "$RESOLVABLE_MAP_DIR/DISK_ID_TO_RESOLVABLE/"*; do
-		key="$(base64 -d <<< "$(basename "$base64_key")")"
-		value="$(cat "$base64_key")"
-		DISK_ID_TO_RESOLVABLE[$key]="$value"
-	done
-	for base64_key in "$RESOLVABLE_MAP_DIR/DISK_UUID_TO_DEVICE/"*; do
-		key="$(base64 -d <<< "$(basename "$base64_key")")"
-		value="$(cat "$base64_key")"
-		DISK_UUID_TO_DEVICE[$key]="$value"
-	done
+
+	lambda() {
+		DISK_ID_TO_RESOLVABLE[$1]="$2"
+	}; load_map_entries DISK_ID_TO_RESOLVABLE lambda
+	lambda() {
+		DISK_UUID_TO_DEVICE[$1]="$2"
+	}; load_map_entries DISK_UUID_TO_DEVICE lambda
 }
 
 resolve_device_by_id() {

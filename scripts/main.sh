@@ -79,6 +79,24 @@ configure_base_system() {
 	env_update
 }
 
+configure_portage() {
+	# Prepare /etc/portage for autounmask
+	mkdir_or_die 0755 "/etc/portage/package.use"
+	touch_or_die 0644 "/etc/portage/package.use/zz-autounmask"
+	mkdir_or_die 0755 "/etc/portage/package.keywords"
+	touch_or_die 0644 "/etc/portage/package.keywords/zz-autounmask"
+
+	einfo "Temporarily installing mirrorselect"
+	try emerge --verbose --oneshot app-portage/mirrorselect
+
+	einfo "Selecting fastest portage mirrors"
+	try mirrorselect -s 4 -b 10 -D
+
+	einfo "Adding ~$GENTOO_ARCH to ACCEPT_KEYWORDS"
+	echo "ACCEPT_KEYWORDS=\"~$GENTOO_ARCH\"" >> /etc/portage/make.conf \
+		|| die "Could not modify /etc/portage/make.conf"
+}
+
 install_sshd() {
 	einfo "Installing sshd"
 	install -m0600 -o root -g root "$GENTOO_INSTALL_REPO_DIR/configs/sshd_config" /etc/ssh/sshd_config \
@@ -140,6 +158,25 @@ install_kernel() {
 	fi
 }
 
+generate_fstab() {
+	einfo "Generating fstab"
+	install -m0644 -o root -g root "$GENTOO_INSTALL_REPO_DIR/configs/fstab" /etc/fstab \
+		|| die "Could not overwrite /etc/fstab"
+	echo "$(resolve_device_by_id "$DISK_ID_ROOT")    /            ext4    defaults,noatime,errors=remount-ro,discard                            0 1" >> /etc/fstab \
+		|| die "Could not append entry to fstab"
+	if [[ $IS_EFI == "true" ]]; then
+		echo "$(resolve_device_by_id "$DISK_ID_EFI")    /boot/efi    vfat    defaults,noatime,fmask=0022,dmask=0022,noexec,nodev,nosuid,discard    0 2" >> /etc/fstab \
+			|| die "Could not append entry to fstab"
+	else
+		echo "$(resolve_device_by_id "$DISK_ID_BIOS")    /boot        vfat    defaults,noatime,fmask=0022,dmask=0022,noexec,nodev,nosuid,discard    0 2" >> /etc/fstab \
+			|| die "Could not append entry to fstab"
+	fi
+	if [[ -v "DISK_ID_SWAP" ]]; then
+		echo "$(resolve_device_by_id "$DISK_ID_SWAP")    none         swap    defaults,discard                                                      0 0" >> /etc/fstab \
+			|| die "Could not append entry to fstab"
+	fi
+}
+
 install_ansible() {
 	einfo "Installing ansible"
 	try emerge --verbose app-admin/ansible
@@ -192,45 +229,18 @@ main_install_gentoo_in_chroot() {
 	# Configure basic system things like timezone, locale, ...
 	configure_base_system
 
-	# Prepare /etc/portage for autounmask
-	mkdir_or_die 0755 "/etc/portage/package.use"
-	touch_or_die 0644 "/etc/portage/package.use/zz-autounmask"
-	mkdir_or_die 0755 "/etc/portage/package.keywords"
-	touch_or_die 0644 "/etc/portage/package.keywords/zz-autounmask"
-
-	einfo "Temporarily installing mirrorselect"
-	try emerge --verbose --oneshot app-portage/mirrorselect
-
-	einfo "Selecting fastest portage mirrors"
-	try mirrorselect -s 4 -b 10 -D
-
-	einfo "Adding ~$GENTOO_ARCH to ACCEPT_KEYWORDS"
-	echo "ACCEPT_KEYWORDS=\"~$GENTOO_ARCH\"" >> /etc/portage/make.conf \
-		|| die "Could not modify /etc/portage/make.conf"
+	# Prepare portage environment
+	configure_portage
 
 	# Install git (for git portage overlays)
 	einfo "Installing git"
 	try emerge --verbose dev-vcs/git
 
+	# Install kernel and initramfs
 	install_kernel
 
 	# Generate a valid fstab file
-	einfo "Generating fstab"
-	install -m0644 -o root -g root "$GENTOO_INSTALL_REPO_DIR/configs/fstab" /etc/fstab \
-		|| die "Could not overwrite /etc/fstab"
-	echo "$(resolve_device_by_id "$DISK_ID_ROOT")    /            ext4    defaults,noatime,errors=remount-ro,discard                            0 1" >> /etc/fstab \
-		|| die "Could not append entry to fstab"
-	if [[ $IS_EFI == "true" ]]; then
-		echo "$(resolve_device_by_id "$DISK_ID_EFI")    /boot/efi    vfat    defaults,noatime,fmask=0022,dmask=0022,noexec,nodev,nosuid,discard    0 2" >> /etc/fstab \
-			|| die "Could not append entry to fstab"
-	else
-		echo "$(resolve_device_by_id "$DISK_ID_BIOS")    /boot        vfat    defaults,noatime,fmask=0022,dmask=0022,noexec,nodev,nosuid,discard    0 2" >> /etc/fstab \
-			|| die "Could not append entry to fstab"
-	fi
-	if [[ -v "DISK_ID_SWAP" ]]; then
-		echo "$(resolve_device_by_id "$DISK_ID_SWAP")    none         swap    defaults,discard                                                      0 0" >> /etc/fstab \
-			|| die "Could not append entry to fstab"
-	fi
+	generate_fstab
 
 	# Install and enable dhcpcd
 	einfo "Installing gentoolkit"

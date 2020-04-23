@@ -16,7 +16,7 @@ UUID_STORAGE_DIR="$TMP_DIR/uuids"
 # Backup dir for luks headers
 LUKS_HEADER_BACKUP_DIR="$TMP_DIR/luks-headers"
 # Backup dir for luks headers
-RESOLVABLE_MAP_DIR="$TMP_DIR/resolve-uuids"
+RESOLVABLE_MAP_DIR="$TMP_DIR/resolved-uuids"
 
 # Flag to track usage of raid (needed to check for mdadm existence)
 USED_RAID=false
@@ -26,15 +26,15 @@ USED_LUKS=false
 # An array of disk related actions to perform
 DISK_ACTIONS=()
 # An associative array from disk id to a resolvable string
-declare -Ax DISK_ID_TO_RESOLVABLE
+declare -A DISK_ID_TO_RESOLVABLE
 # An associative from uuid to device
-declare -Ax DISK_UUID_TO_DEVICE
+declare -A DISK_UUID_TO_DEVICE
 # An associative array from disk id to parent gpt disk id (only for partitions)
-declare -Ax DISK_ID_PART_TO_GPT_ID
+declare -A DISK_ID_PART_TO_GPT_ID
 # An associative array to check for existing ids (maps to uuids)
-declare -Ax DISK_ID_TO_UUID
+declare -A DISK_ID_TO_UUID
 # An associative set to check for correct usage of size=remaining in gpt tables
-declare -Ax DISK_GPT_HAD_SIZE_REMAINING
+declare -A DISK_GPT_HAD_SIZE_REMAINING
 
 only_one_of() {
 	local previous=""
