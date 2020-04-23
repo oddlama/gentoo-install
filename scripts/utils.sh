@@ -139,15 +139,67 @@ get_device_by_uuid() {
 }
 
 get_device_by_ptuuid() {
-	echo -n "${DISK_PTUUID_TO_DEVICE[${1,,}]}"
+	echo -n "${DISK_UUID_TO_DEVICE[${1,,}]}"
 }
 
 get_device_by_mdadm_uuid() {
-	echo -n "${DISK_MDADM_UUID_TO_DEVICE[${1,,}]}"
+	echo -n "${DISK_UUID_TO_DEVICE[${1,,}]}"
 }
 
 get_device_by_luks_uuid() {
 	echo -n "/dev/mapper/${1,,}"
+}
+
+create_resolve_entry() {
+	local id="$1"
+	local type="$2"
+	local arg="${3,,}"
+	local device="$4" # optional
+
+	case "$type" in
+		'partuuid') ;;
+		'ptuuid')   DISK_UUID_TO_DEVICE[$arg]="$device" ;;
+		'uuid')     ;;
+		'mdadm')    DISK_UUID_TO_DEVICE[$arg]="$device" ;;
+		'luks')     ;;
+		*) die "Cannot add resolvable entry for '$type:$arg' (unknown type)"
+	esac
+
+	DISK_ID_TO_RESOLVABLE[$id]="$type:$arg"
+	mkdir -p "$RESOLVABLE_MAP_DIR" \
+		|| die "Could not create resolveable map dir '$RESOLVABLE_MAP_DIR'"
+	echo -n "$type:$arg" > "$RESOLVABLE_MAP_DIR/$(base64 -w 0 <<< "$id")"
+}
+
+load_resolvable_entries() {
+	[[ -d $RESOLVABLE_MAP_DIR ]] \
+		|| return 0
+	local base_id
+	local id
+	local saved
+	for base_id in "$RESOLVABLE_MAP_DIR/"*; do
+		id="$(base64 -d <<< "$(basename "$base_id")")"
+		saved="$(cat "$base_id")"
+		DISK_ID_TO_RESOLVABLE[$id]="$saved"
+	done
+}
+
+resolve_device_by_id() {
+	local id="$1"
+	[[ -v DISK_ID_TO_RESOLVABLE[$id] ]] \
+		|| die "Cannot resolve id='$id' to a block device (no table entry)"
+
+	local type="${DISK_ID_TO_RESOLVABLE[$id]%%:*}"
+	local arg="${DISK_ID_TO_RESOLVABLE[$id]#*:}"
+
+	case "$type" in
+		'partuuid') get_device_by_partuuid   "$arg" ;;
+		'ptuuid')   get_device_by_ptuuid     "$arg" ;;
+		'uuid')     get_device_by_uuid       "$arg" ;;
+		'mdadm')    get_device_by_mdadm_uuid "$arg" ;;
+		'luks')     get_device_by_luks_uuid  "$arg" ;;
+		*) die "Cannot resolve '$type:$arg' to device (unknown type)"
+	esac
 }
 
 load_or_generate_uuid() {
@@ -216,7 +268,7 @@ parse_arguments() {
 
 		for a in "${!arguments[@]}"; do
 			[[ -v allowed_keys[$a] ]] \
-				|| die_trace 2 "Unkown argument '$a'"
+				|| die_trace 2 "Unknown argument '$a'"
 		done
 	fi
 }

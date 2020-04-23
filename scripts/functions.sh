@@ -59,6 +59,7 @@ check_config() {
 
 preprocess_config() {
 	check_config
+	load_resolvable_entries
 }
 
 prepare_installation_environment() {
@@ -115,24 +116,6 @@ summary_color_args() {
 	done
 }
 
-resolve_device_by_id() {
-	local id="$1"
-	[[ -v DISK_ID_TO_RESOLVABLE[$id] ]] \
-		|| die "Cannot resolve id='$id' to a block device (no table entry)"
-
-	local type="${DISK_ID_TO_RESOLVABLE[$id]%%:*}"
-	local arg="${DISK_ID_TO_RESOLVABLE[$id]#*:}"
-
-	case "$type" in
-		'partuuid') get_device_by_partuuid   "$arg" ;;
-		'ptuuid')   get_device_by_ptuuid     "$arg" ;;
-		'uuid')     get_device_by_uuid       "$arg" ;;
-		'mdadm')    get_device_by_mdadm_uuid "$arg" ;;
-		'luks')     get_device_by_luks_uuid  "$arg" ;;
-		*) die "Cannot resolve '$type:$arg' to device (unkown type)"
-	esac
-}
-
 disk_create_gpt() {
 	local new_id="${arguments[new_id]}"
 	if [[ $disk_action_summarize_only == true ]]; then
@@ -155,8 +138,7 @@ disk_create_gpt() {
 	fi
 
 	local ptuuid="${DISK_ID_TO_UUID[$new_id]}"
-	DISK_PTUUID_TO_DEVICE[${ptuuid,,}]="$device"
-	DISK_ID_TO_RESOLVABLE[$new_id]="ptuuid:$ptuuid"
+	create_resolve_entry "$new_id" ptuuid "$ptuuid" "$device"
 
 	einfo "Creating new gpt partition table ($new_id) on $device_desc"
 	sgdisk -Z -U "$ptuuid" "$device" >/dev/null \
@@ -193,7 +175,7 @@ disk_create_partition() {
 		*) ;;
 	esac
 
-	DISK_ID_TO_RESOLVABLE[$new_id]="partuuid:$partuuid"
+	create_resolve_entry "$new_id" partuuid "$partuuid"
 
 	einfo "Creating partition ($new_id) with type=$type, size=$size on $device"
 	# shellcheck disable=SC2086
@@ -233,8 +215,7 @@ disk_create_raid() {
 
 	local mddevice="/dev/md/$name"
 	local uuid="${DISK_ID_TO_UUID[$new_id]}"
-	DISK_MDADM_UUID_TO_DEVICE[${uuid,,}]="$mddevice"
-	DISK_ID_TO_RESOLVABLE[$new_id]="mdadm:$uuid"
+	create_resolve_entry "$new_id" mdadm "$uuid" "$mddevice"
 
 	einfo "Creating raid$level ($new_id) on $devices_desc"
 	mdadm \
@@ -259,7 +240,7 @@ disk_create_luks() {
 
 	local device="$(resolve_device_by_id "$id")"
 	local uuid="${DISK_ID_TO_UUID[$new_id]}"
-	DISK_ID_TO_RESOLVABLE[$new_id]="luks:$uuid"
+	create_resolve_entry "$new_id" luks "$uuid"
 
 	einfo "Creating luks ($new_id) on $device ($id)"
 	local keyfile
