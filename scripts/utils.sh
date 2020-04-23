@@ -145,7 +145,7 @@ get_device_by_ptuuid() {
 		|| die "Error while executing lsblk to find PTUUID=$ptuuid"
 	dev="$(grep "ptuuid=\"$ptuuid\" partuuid=\"\"" <<< "${dev,,}")" \
 		|| die "Could not find PTUUID=... in lsblk output"
-	dev="${dev%' ptuuid='*}"
+	dev="${dev%'" ptuuid='*}"
 	dev="${dev#'name="'}"
 	echo -n "$dev"
 }
