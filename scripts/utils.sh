@@ -281,7 +281,7 @@ parse_arguments() {
 						fi
 					done
 
-					[[ $has_opt == true ]] \
+					[[ $has_opt == "true" ]] \
 						|| die_trace 2 "Missing mandatory argument $m=..."
 					;;
 

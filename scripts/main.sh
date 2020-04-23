@@ -28,7 +28,7 @@ source "$GENTOO_INSTALL_REPO_DIR/scripts/utils.sh"
 source "$GENTOO_INSTALL_REPO_DIR/scripts/config.sh"
 source "$GENTOO_INSTALL_REPO_DIR/scripts/functions.sh"
 
-[[ $I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY == true ]] \
+[[ $I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY == "true" ]] \
 	|| die "You have not properly read the config. Set I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY=true to continue."
 
 preprocess_config
@@ -236,6 +236,12 @@ main_install_gentoo_in_chroot() {
 	einfo "Installing git"
 	try emerge --verbose dev-vcs/git
 
+	# Install mdadm if we used raid (needed for uuid resolving)
+	if [[ $USED_RAID == "true" ]]; then
+		einfo "Installing mdadm"
+		try emerge --verbose sys-fs/mdadm
+	fi
+
 	# Install kernel and initramfs
 	install_kernel
 
@@ -247,7 +253,7 @@ main_install_gentoo_in_chroot() {
 	try emerge --verbose app-portage/gentoolkit
 
 	# Install and enable sshd
-	if [[ $INSTALL_SSHD == true ]]; then
+	if [[ $INSTALL_SSHD == "true" ]]; then
 		install_sshd
 	fi
 
@@ -258,7 +264,7 @@ main_install_gentoo_in_chroot() {
 		|| die "Could not add dhcpcd to default services"
 
 	# Install ansible
-	if [[ $INSTALL_ANSIBLE == true ]]; then
+	if [[ $INSTALL_ANSIBLE == "true" ]]; then
 		install_ansible
 	fi
 

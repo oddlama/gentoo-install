@@ -49,8 +49,8 @@ check_config() {
 		IS_EFI=false
 	fi
 
-	if [[ $INSTALL_ANSIBLE == true ]]; then
-		[[ $INSTALL_SSHD == true ]] \
+	if [[ $INSTALL_ANSIBLE == "true" ]]; then
+		[[ $INSTALL_SSHD == "true" ]] \
 			|| die "You must enable INSTALL_SSHD for ansible"
 		[[ -n $ANSIBLE_SSH_AUTHORIZED_KEYS ]] \
 			|| die "Missing pubkey for ansible user"
@@ -76,9 +76,9 @@ prepare_installation_environment() {
 	check_has_program uuidgen
 	check_has_program wget
 
-	[[ $USED_RAID == true ]] \
+	[[ $USED_RAID == "true" ]] \
 		&& check_has_program mdadm
-	[[ $USED_LUKS == true ]] \
+	[[ $USED_LUKS == "true" ]] \
 		&& check_has_program cryptsetup
 
 	sync_time
@@ -118,7 +118,7 @@ summary_color_args() {
 
 disk_create_gpt() {
 	local new_id="${arguments[new_id]}"
-	if [[ $disk_action_summarize_only == true ]]; then
+	if [[ $disk_action_summarize_only == "true" ]]; then
 		if [[ -v arguments[id] ]]; then
 			add_summary_entry "${arguments[id]}" "$new_id" "gpt" "" ""
 		else
@@ -151,7 +151,7 @@ disk_create_partition() {
 	local id="${arguments[id]}"
 	local size="${arguments[size]}"
 	local type="${arguments[type]}"
-	if [[ $disk_action_summarize_only == true ]]; then
+	if [[ $disk_action_summarize_only == "true" ]]; then
 		add_summary_entry "$id" "$new_id" "part" "($type)" "$(summary_color_args size)"
 		return 0
 	fi
@@ -189,7 +189,7 @@ disk_create_raid() {
 	local level="${arguments[level]}"
 	local name="${arguments[name]}"
 	local ids="${arguments[ids]}"
-	if [[ $disk_action_summarize_only == true ]]; then
+	if [[ $disk_action_summarize_only == "true" ]]; then
 		local id
 		# Splitting is intentional here
 		# shellcheck disable=SC2086
@@ -233,7 +233,7 @@ disk_create_raid() {
 disk_create_luks() {
 	local new_id="${arguments[new_id]}"
 	local id="${arguments[id]}"
-	if [[ $disk_action_summarize_only == true ]]; then
+	if [[ $disk_action_summarize_only == "true" ]]; then
 		add_summary_entry "$id" "$new_id" "luks" "" ""
 		return 0
 	fi
@@ -277,7 +277,7 @@ disk_format() {
 	local id="${arguments[id]}"
 	local type="${arguments[type]}"
 	local label="${arguments[label]}"
-	if [[ $disk_action_summarize_only == true ]]; then
+	if [[ $disk_action_summarize_only == "true" ]]; then
 		add_summary_entry "${arguments[id]}" "__fs__${arguments[id]}" "${arguments[type]}" "(fs)" "$(summary_color_args label)"
 		return 0
 	fi
@@ -335,7 +335,7 @@ print_summary_tree_entry() {
 	local d="1"
 	local maxd="$((depth - 1))"
 	while [[ $d -lt $maxd ]]; do
-		if [[ ${summary_depth_continues[$d]} == true ]]; then
+		if [[ ${summary_depth_continues[$d]} == "true" ]]; then
 			indent_chars+='│ '
 		else
 			indent_chars+='  '
@@ -344,7 +344,7 @@ print_summary_tree_entry() {
 		d="$((d + 1))"
 	done
 	if [[ $maxd -gt 0 ]]; then
-		if [[ ${summary_depth_continues[$maxd]} == true ]]; then
+		if [[ ${summary_depth_continues[$maxd]} == "true" ]]; then
 			indent_chars+='├─'
 		else
 			indent_chars+='└─'
@@ -393,7 +393,7 @@ print_summary_tree() {
 		print_summary_tree_entry "$root"
 	fi
 
-	if [[ $has_children == true ]]; then
+	if [[ $has_children == "true" ]]; then
 		local count="$(tr ';' '\n' <<< "$children" | grep -c '\S')"
 		local idx=0
 		# Splitting is intentional here
@@ -404,7 +404,7 @@ print_summary_tree() {
 				&& summary_depth_continues[$depth]=false
 			print_summary_tree "$id"
 			# separate blocks by newline
-			[[ ${summary_depth_continues[0]} == true ]] && [[ $depth == 1 ]] && [[ $idx == "$count" ]] \
+			[[ ${summary_depth_continues[0]} == "true" ]] && [[ $depth == 1 ]] && [[ $idx == "$count" ]] \
 				&& elog
 		done
 	fi
@@ -632,7 +632,7 @@ gentoo_chroot() {
 		gentoo_chroot /bin/bash --init-file <(echo 'init_bash')
 	fi
 
-	[[ $EXECUTED_IN_CHROOT != true ]] \
+	[[ $EXECUTED_IN_CHROOT != "true" ]] \
 		|| die "Already in chroot"
 
 	gentoo_umount
