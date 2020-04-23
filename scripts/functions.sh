@@ -117,11 +117,11 @@ summary_color_args() {
 
 resolve_device_by_id() {
 	local id="$1"
-	[[ -v disk_id_to_resolvable[$id] ]] \
+	[[ -v DISK_ID_TO_RESOLVABLE[$id] ]] \
 		|| die "Cannot resolve id='$id' to a block device (no table entry)"
 
-	local type="${disk_id_to_resolvable[$id]%%:*}"
-	local arg="${disk_id_to_resolvable[$id]#*:}"
+	local type="${DISK_ID_TO_RESOLVABLE[$id]%%:*}"
+	local arg="${DISK_ID_TO_RESOLVABLE[$id]#*:}"
 
 	case "$type" in
 		'partuuid') get_device_by_partuuid   "$arg" ;;
@@ -156,7 +156,7 @@ disk_create_gpt() {
 
 	local ptuuid="${DISK_ID_TO_UUID[$new_id]}"
 	DISK_PTUUID_TO_DEVICE[${ptuuid,,}]="$device"
-	disk_id_to_resolvable[$new_id]="ptuuid:$ptuuid"
+	DISK_ID_TO_RESOLVABLE[$new_id]="ptuuid:$ptuuid"
 
 	einfo "Creating new gpt partition table ($new_id) on $device_desc"
 	sgdisk -Z -U "$ptuuid" "$device" >/dev/null \
@@ -193,7 +193,7 @@ disk_create_partition() {
 		*) ;;
 	esac
 
-	disk_id_to_resolvable[$new_id]="partuuid:$partuuid"
+	DISK_ID_TO_RESOLVABLE[$new_id]="partuuid:$partuuid"
 
 	einfo "Creating partition ($new_id) with type=$type, size=$size on $device"
 	# shellcheck disable=SC2086
@@ -234,7 +234,7 @@ disk_create_raid() {
 	local mddevice="/dev/md/$name"
 	local uuid="${DISK_ID_TO_UUID[$new_id]}"
 	DISK_MDADM_UUID_TO_DEVICE[${uuid,,}]="$mddevice"
-	disk_id_to_resolvable[$new_id]="mdadm:$uuid"
+	DISK_ID_TO_RESOLVABLE[$new_id]="mdadm:$uuid"
 
 	einfo "Creating raid$level ($new_id) on $devices_desc"
 	mdadm \
@@ -259,7 +259,7 @@ disk_create_luks() {
 
 	local device="$(resolve_device_by_id "$id")"
 	local uuid="${DISK_ID_TO_UUID[$new_id]}"
-	disk_id_to_resolvable[$new_id]="luks:$uuid"
+	DISK_ID_TO_RESOLVABLE[$new_id]="luks:$uuid"
 
 	einfo "Creating luks ($new_id) on $device ($id)"
 	local keyfile
@@ -430,8 +430,6 @@ print_summary_tree() {
 }
 
 apply_disk_actions() {
-	declare -A disk_id_to_resolvable
-
 	local param
 	local current_params=()
 	for param in "${DISK_ACTIONS[@]}"; do
