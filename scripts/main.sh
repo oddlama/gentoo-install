@@ -131,7 +131,7 @@ install_kernel_bios() {
 install_kernel() {
 	# Install vanilla kernel
 	einfo "Installing binary vanilla kernel"
-	try emerge --verbose sys-kernel/vanilla-kernel-bin
+	try emerge --verbose sys-kernel/gentoo-kernel-bin
 
 	if [[ $IS_EFI == "true" ]]; then
 		install_kernel_efi
