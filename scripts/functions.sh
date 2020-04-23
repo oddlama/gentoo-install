@@ -411,6 +411,11 @@ print_summary_tree() {
 }
 
 apply_disk_actions() {
+	# Clean old resolved ids
+	rm -rf "$RESOLVABLE_MAP_DIR" &>/dev/null
+	unset DISK_ID_TO_RESOLVABLE; declare -A -g DISK_ID_TO_RESOLVABLE
+	unset DISK_UUID_TO_DEVICE;   declare -A -g DISK_UUID_TO_DEVICE
+
 	local param
 	local current_params=()
 	for param in "${DISK_ACTIONS[@]}"; do

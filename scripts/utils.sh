@@ -158,29 +158,39 @@ create_resolve_entry() {
 
 	case "$type" in
 		'partuuid') ;;
-		'ptuuid')   DISK_UUID_TO_DEVICE[$arg]="$device" ;;
 		'uuid')     ;;
-		'mdadm')    DISK_UUID_TO_DEVICE[$arg]="$device" ;;
 		'luks')     ;;
+		'ptuuid')   ;& # fallthrough
+		'mdadm')
+			DISK_UUID_TO_DEVICE[$arg]="$device"
+			mkdir -p "$RESOLVABLE_MAP_DIR/DISK_UUID_TO_DEVICE" \
+				|| die "Could not create resolveable map dir '$RESOLVABLE_MAP_DIR'"
+			echo -n "$device" > "$RESOLVABLE_MAP_DIR/DISK_UUID_TO_DEVICE/$(base64 -w 0 <<< "$id")"
+			;;
 		*) die "Cannot add resolvable entry for '$type:$arg' (unknown type)"
 	esac
 
 	DISK_ID_TO_RESOLVABLE[$id]="$type:$arg"
-	mkdir -p "$RESOLVABLE_MAP_DIR" \
+	mkdir -p "$RESOLVABLE_MAP_DIR/DISK_ID_TO_RESOLVABLE" \
 		|| die "Could not create resolveable map dir '$RESOLVABLE_MAP_DIR'"
-	echo -n "$type:$arg" > "$RESOLVABLE_MAP_DIR/$(base64 -w 0 <<< "$id")"
+	echo -n "$type:$arg" > "$RESOLVABLE_MAP_DIR/DISK_ID_TO_RESOLVABLE/$(base64 -w 0 <<< "$id")"
 }
 
 load_resolvable_entries() {
 	[[ -d $RESOLVABLE_MAP_DIR ]] \
 		|| return 0
-	local base_id
-	local id
-	local saved
-	for base_id in "$RESOLVABLE_MAP_DIR/"*; do
-		id="$(base64 -d <<< "$(basename "$base_id")")"
-		saved="$(cat "$base_id")"
-		DISK_ID_TO_RESOLVABLE[$id]="$saved"
+	local base64_key
+	local key
+	local value
+	for base64_key in "$RESOLVABLE_MAP_DIR/DISK_ID_TO_RESOLVABLE/"*; do
+		key="$(base64 -d <<< "$(basename "$base64_key")")"
+		value="$(cat "$base64_key")"
+		DISK_ID_TO_RESOLVABLE[$key]="$value"
+	done
+	for base64_key in "$RESOLVABLE_MAP_DIR/DISK_UUID_TO_DEVICE/"*; do
+		key="$(base64 -d <<< "$(basename "$base64_key")")"
+		value="$(cat "$base64_key")"
+		DISK_UUID_TO_DEVICE[$key]="$value"
 	done
 }
 

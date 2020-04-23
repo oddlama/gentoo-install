@@ -27,14 +27,14 @@ USED_LUKS=false
 DISK_ACTIONS=()
 # An associative array from disk id to a resolvable string
 declare -A DISK_ID_TO_RESOLVABLE
+# An associative from uuid to device
+declare -A DISK_UUID_TO_DEVICE
 # An associative array from disk id to parent gpt disk id (only for partitions)
 declare -A DISK_ID_PART_TO_GPT_ID
 # An associative array to check for existing ids (maps to uuids)
 declare -A DISK_ID_TO_UUID
 # An associative set to check for correct usage of size=remaining in gpt tables
 declare -A DISK_GPT_HAD_SIZE_REMAINING
-# An associative from uuid to device
-declare -A DISK_UUID_TO_DEVICE
 
 only_one_of() {
 	local previous=""
