@@ -274,12 +274,17 @@ disk_create_luks() {
 			--pbkdf argon2id \
 			--iter-time 4000 \
 			--key-size 512 \
+			--batch-mode \
 			"$device" \
 		|| die "Could not create luks on '$device' ($id)"
 	mkdir -p "$LUKS_HEADER_BACKUP_DIR" \
 		|| die "Could not create luks header backup dir '$LUKS_HEADER_BACKUP_DIR'"
+	local header_file="$LUKS_HEADER_BACKUP_DIR/luks-header-$id-${uuid,,}.img"
+	[[ ! -e $header_file ]] \
+		|| rm "$header_file" \
+		|| die "Could not remove old luks header backup file '$header_file'"
 	cryptsetup luksHeaderBackup "$device" \
-			--header-backup-file "$LUKS_HEADER_BACKUP_DIR/luks-header-$id-${uuid,,}.img" \
+			--header-backup-file "$header_file" \
 		|| die "Could not backup luks header on '$device' ($id)"
 	cryptsetup open --type luks2 \
 			--key-file "$keyfile" \
