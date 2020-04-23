@@ -203,10 +203,10 @@ resolve_device_by_id() {
 
 	case "$type" in
 		'partuuid') get_device_by_partuuid    "$arg" ;;
-		'ptuuid')   get_device_by_ptuuid      "$arg" ;;
+		'ptuuid')   get_device_by_stored_uuid "$arg" ;;
 		'uuid')     get_device_by_uuid        "$arg" ;;
 		'mdadm')    get_device_by_stored_uuid "$arg" ;;
-		'luks')     get_device_by_stored_uuid "$arg" ;;
+		'luks')     get_device_by_luks_uuid   "$arg" ;;
 		*) die "Cannot resolve '$type:$arg' to device (unknown type)"
 	esac
 }
