@@ -138,11 +138,32 @@ get_device_by_uuid() {
 	get_device_by_blkid_field 'UUID' "$1"
 }
 
-get_device_by_stored_uuid() {
-	local key="${1,,}"
-	[[ -v "DISK_UUID_TO_DEVICE[$key]" ]] \
-		|| die "Could not resolve uuid $key to device (not stored)"
-	echo -n "${DISK_UUID_TO_DEVICE[$key]}"
+get_device_by_ptuuid() {
+	local ptuuid="${1,,}"
+	local dev
+	dev="$(lsblk --all --path --pairs --output NAME,PTUUID,PARTUUID)" \
+		|| die "Error while executing lsblk to find PTUUID=$ptuuid"
+	dev="$(grep "ptuuid=\"$ptuuid\" partuuid=\"\"" <<< "${dev,,}")" \
+		|| die "Could not find PTUUID=... in lsblk output"
+	dev="${dev%' ptuuid='*}"
+	dev="${dev#'name="'}"
+	echo -n "$dev"
+}
+
+get_device_by_mdadm_uuid() {
+	local mduuid="${1,,}"
+	mduuid="${mduuid//-/}"
+	mduuid="${mduuid:0:8}:${mduuid:8:8}:${mduuid:16:8}:${mduuid:24:8}"
+	local dev
+	dev="$(mdadm --examine --scan)" \
+		|| die "Error while executing mdadm to find array with UUID=$mduuid"
+	dev="$(grep "uuid=$mduuid" <<< "${dev,,}")" \
+		|| die "Could not find UUID=... in mdadm output"
+	dev="${dev%'metadata='*}"
+	dev="${dev#'array'}"
+	dev="${dev#"${dev%%[![:space:]]*}"}"
+	dev="${dev%"${dev##*[![:space:]]}"}"
+	echo -n "$dev"
 }
 
 get_device_by_luks_uuid() {
@@ -176,19 +197,6 @@ create_resolve_entry() {
 	local id="$1"
 	local type="$2"
 	local arg="${3,,}"
-	local device="$4" # optional
-
-	case "$type" in
-		'partuuid') ;;
-		'uuid')     ;;
-		'luks')     ;;
-		'ptuuid')   ;& # fallthrough
-		'mdadm')
-			DISK_UUID_TO_DEVICE[$arg]="$device"
-			save_map_entry DISK_UUID_TO_DEVICE "$arg" "$device"
-			;;
-		*) die "Cannot add resolvable entry for '$type:$arg' (unknown type)"
-	esac
 
 	DISK_ID_TO_RESOLVABLE[$id]="$type:$arg"
 	save_map_entry DISK_ID_TO_RESOLVABLE "$id" "$type:$arg"
@@ -201,9 +209,6 @@ load_resolvable_entries() {
 	lambda() {
 		DISK_ID_TO_RESOLVABLE[$1]="$2"
 	}; load_map_entries DISK_ID_TO_RESOLVABLE lambda
-	lambda() {
-		DISK_UUID_TO_DEVICE[$1]="$2"
-	}; load_map_entries DISK_UUID_TO_DEVICE lambda
 }
 
 resolve_device_by_id() {
@@ -215,11 +220,11 @@ resolve_device_by_id() {
 	local arg="${DISK_ID_TO_RESOLVABLE[$id]#*:}"
 
 	case "$type" in
-		'partuuid') get_device_by_partuuid    "$arg" ;;
-		'ptuuid')   get_device_by_stored_uuid "$arg" ;;
-		'uuid')     get_device_by_uuid        "$arg" ;;
-		'mdadm')    get_device_by_stored_uuid "$arg" ;;
-		'luks')     get_device_by_luks_uuid   "$arg" ;;
+		'partuuid') get_device_by_partuuid   "$arg" ;;
+		'ptuuid')   get_device_by_ptuuid     "$arg" ;;
+		'uuid')     get_device_by_uuid       "$arg" ;;
+		'mdadm')    get_device_by_mdadm_uuid "$arg" ;;
+		'luks')     get_device_by_luks_uuid  "$arg" ;;
 		*) die "Cannot resolve '$type:$arg' to device (unknown type)"
 	esac
 }

@@ -138,7 +138,7 @@ disk_create_gpt() {
 	fi
 
 	local ptuuid="${DISK_ID_TO_UUID[$new_id]}"
-	create_resolve_entry "$new_id" ptuuid "$ptuuid" "$device"
+	create_resolve_entry "$new_id" ptuuid "$ptuuid"
 
 	einfo "Creating new gpt partition table ($new_id) on $device_desc"
 	sgdisk -Z -U "$ptuuid" "$device" >/dev/null \
@@ -215,7 +215,7 @@ disk_create_raid() {
 
 	local mddevice="/dev/md/$name"
 	local uuid="${DISK_ID_TO_UUID[$new_id]}"
-	create_resolve_entry "$new_id" mdadm "$uuid" "$mddevice"
+	create_resolve_entry "$new_id" mdadm "$uuid"
 
 	einfo "Creating raid$level ($new_id) on $devices_desc"
 	mdadm \
@@ -451,7 +451,6 @@ apply_disk_configuration() {
 	# Clean old resolved ids
 	rm -rf "$RESOLVABLE_MAP_DIR" &>/dev/null
 	unset DISK_ID_TO_RESOLVABLE; declare -A -g DISK_ID_TO_RESOLVABLE
-	unset DISK_UUID_TO_DEVICE;   declare -A -g DISK_UUID_TO_DEVICE
 
 	summarize_disk_actions
 
