@@ -138,12 +138,11 @@ get_device_by_uuid() {
 	get_device_by_blkid_field 'UUID' "$1"
 }
 
-get_device_by_ptuuid() {
-	echo -n "${DISK_UUID_TO_DEVICE[${1,,}]}"
-}
-
-get_device_by_mdadm_uuid() {
-	echo -n "${DISK_UUID_TO_DEVICE[${1,,}]}"
+get_device_by_stored_uuid() {
+	local key="${1,,}"
+	[[ -v "DISK_UUID_TO_DEVICE[$key]" ]] \
+		|| die "Could not resolve uuid $key to device"
+	echo -n "${DISK_UUID_TO_DEVICE[$key]}"
 }
 
 get_device_by_luks_uuid() {
@@ -203,11 +202,11 @@ resolve_device_by_id() {
 	local arg="${DISK_ID_TO_RESOLVABLE[$id]#*:}"
 
 	case "$type" in
-		'partuuid') get_device_by_partuuid   "$arg" ;;
-		'ptuuid')   get_device_by_ptuuid     "$arg" ;;
-		'uuid')     get_device_by_uuid       "$arg" ;;
-		'mdadm')    get_device_by_mdadm_uuid "$arg" ;;
-		'luks')     get_device_by_luks_uuid  "$arg" ;;
+		'partuuid') get_device_by_partuuid    "$arg" ;;
+		'ptuuid')   get_device_by_ptuuid      "$arg" ;;
+		'uuid')     get_device_by_uuid        "$arg" ;;
+		'mdadm')    get_device_by_stored_uuid "$arg" ;;
+		'luks')     get_device_by_stored_uuid "$arg" ;;
 		*) die "Cannot resolve '$type:$arg' to device (unknown type)"
 	esac
 }

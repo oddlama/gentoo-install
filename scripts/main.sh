@@ -119,12 +119,12 @@ install_kernel_bios() {
 
 	# Install syslinux MBR record
 	einfo "Copying syslinux MBR record"
-	local biosdev="$(resolve_device_by_id "$DISK_ID_BIOS")"
 	local gptdev="$(resolve_device_by_id "${DISK_ID_PART_TO_GPT_ID[$DISK_ID_BIOS]}")"
 	try dd bs=440 conv=notrunc count=1 if=/usr/share/syslinux/gptmbr.bin of="$gptdev"
 
 	# Install syslinux
 	einfo "Installing syslinux"
+	local biosdev="$(resolve_device_by_id "$DISK_ID_BIOS")"
 	syslinux --install "$biosdev"
 }
 
