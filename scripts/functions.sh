@@ -59,7 +59,6 @@ check_config() {
 
 preprocess_config() {
 	check_config
-	load_resolvable_entries
 }
 
 prepare_installation_environment() {
@@ -138,7 +137,6 @@ disk_create_gpt() {
 	fi
 
 	local ptuuid="${DISK_ID_TO_UUID[$new_id]}"
-	create_resolve_entry "$new_id" ptuuid "$ptuuid"
 
 	einfo "Creating new gpt partition table ($new_id) on $device_desc"
 	sgdisk -Z -U "$ptuuid" "$device" >/dev/null \
@@ -174,8 +172,6 @@ disk_create_partition() {
 		'linux') type='8300' ;;
 		*) ;;
 	esac
-
-	create_resolve_entry "$new_id" partuuid "$partuuid"
 
 	einfo "Creating partition ($new_id) with type=$type, size=$size on $device"
 	# shellcheck disable=SC2086
@@ -215,7 +211,6 @@ disk_create_raid() {
 
 	local mddevice="/dev/md/$name"
 	local uuid="${DISK_ID_TO_UUID[$new_id]}"
-	create_resolve_entry "$new_id" mdadm "$uuid"
 
 	einfo "Creating raid$level ($new_id) on $devices_desc"
 	mdadm \
@@ -232,6 +227,7 @@ disk_create_raid() {
 
 disk_create_luks() {
 	local new_id="${arguments[new_id]}"
+	local name="${arguments[name]}"
 	local id="${arguments[id]}"
 	if [[ $disk_action_summarize_only == "true" ]]; then
 		add_summary_entry "$id" "$new_id" "luks" "" ""
@@ -240,7 +236,6 @@ disk_create_luks() {
 
 	local device="$(resolve_device_by_id "$id")"
 	local uuid="${DISK_ID_TO_UUID[$new_id]}"
-	create_resolve_entry "$new_id" luks "$uuid"
 
 	einfo "Creating luks ($new_id) on $device ($id)"
 	local keyfile
@@ -269,8 +264,8 @@ disk_create_luks() {
 		|| die "Could not backup luks header on '$device' ($id)"
 	cryptsetup open --type luks2 \
 			--key-file "$keyfile" \
-			"$device" "${uuid,,}" \
-		|| die "Could not open luks header on '$device' ($id)"
+			"$device" "$name" \
+		|| die "Could not open luks encrypted device '$device' ($id)"
 }
 
 disk_format() {

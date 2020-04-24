@@ -107,6 +107,46 @@ install_sshd() {
 		|| die "Could not create group 'sshusers'"
 }
 
+generate_initramfs() {
+	local output="$1"
+
+	# Generate initramfs
+	einfo "Generating initramfs"
+
+	local modules=()
+	[[ $USED_RAID == "true" ]] \
+		modules+=("mdraid")
+	[[ $USED_LUKS == "true" ]] \
+		modules+=("crypt crypt-gpg")
+
+	local kver="$(readlink /usr/src/linux)"
+	kver="${kver#linux-}"
+
+	# Generate initramfs
+	try dracut \
+		--conf          "/dev/null" \
+		--confdir       "/dev/null" \
+		--kver          "$kver" \
+		--no-compress \
+		--hostonly \
+		--hostonly-mode "strict" \
+		--no-hostonly-cmdline \
+		--no-hostonly-default-device \
+		--ro-mnt \
+		--modules       "bash ${modules[*]}" \
+		--force \
+		"$output"
+}
+
+get_cmdline() {
+	local cmdline=()
+	cmdline+=("root=UUID=$rootuuid")
+	# TODO in order....
+	cmdline+=("rd.md.uuid=$todo")
+	cmdline+=("rd.luks.uuid=$todo")
+	echo -n "${cmdline[*]}"
+}
+
 install_kernel_efi() {
 	try emerge --verbose sys-boot/efibootmgr
 
@@ -118,10 +158,11 @@ install_kernel_efi() {
 		|| die "Could not find kernel version"
 
 	mkdir_or_die 0755 "/boot/efi/EFI"
-	cp "/boot/initramfs-$kernel_version"* "/boot/efi/EFI/initramfs.img" \
-		|| die "Could not copy initramfs to EFI partition"
 	cp "/boot/vmlinuz-$kernel_version"* "/boot/efi/EFI/vmlinuz.efi" \
 		|| die "Could not copy kernel to EFI partition"
+
+	# Generate initramfs
+	generate_initramfs "/boot/efi/EFI/initramfs.img"
 
 	# Create boot entry
 	einfo "Creating efi boot entry"
@@ -129,7 +170,7 @@ install_kernel_efi() {
 	local efipartdev="$(resolve_device_by_id "$DISK_ID_EFI")"
 	local efipartnum="${efipartdev: -1}"
 	local gptdev="$(resolve_device_by_id "${DISK_ID_PART_TO_GPT_ID[$DISK_ID_EFI]}")"
-	try efibootmgr --verbose --create --disk "$gptdev" --part "$efipartnum" --label "gentoo" --loader '\EFI\vmlinuz.efi' --unicode "root=$linuxdev initrd=\\EFI\\initramfs.img"
+	try efibootmgr --verbose --create --disk "$gptdev" --part "$efipartnum" --label "gentoo" --loader '\EFI\vmlinuz.efi' --unicode 'initrd=\EFI\initramfs.img'
 }
 
 install_kernel_bios() {
@@ -140,6 +181,9 @@ install_kernel_bios() {
 	local gptdev="$(resolve_device_by_id "${DISK_ID_PART_TO_GPT_ID[$DISK_ID_BIOS]}")"
 	try dd bs=440 conv=notrunc count=1 if=/usr/share/syslinux/gptmbr.bin of="$gptdev"
 
+	# Generate initramfs
+	generate_initramfs "/boot/initramfs.img"
+
 	# Install syslinux
 	einfo "Installing syslinux"
 	local biosdev="$(resolve_device_by_id "$DISK_ID_BIOS")"
@@ -147,8 +191,11 @@ install_kernel_bios() {
 }
 
 install_kernel() {
+	einfo "Installing dracut"
+	try emerge --verbose sys-kernel/dracut
+
 	# Install vanilla kernel
-	einfo "Installing binary vanilla kernel"
+	einfo "Installing vanilla kernel"
 	try emerge --verbose sys-kernel/gentoo-kernel-bin
 
 	if [[ $IS_EFI == "true" ]]; then
@@ -240,6 +287,12 @@ main_install_gentoo_in_chroot() {
 	if [[ $USED_RAID == "true" ]]; then
 		einfo "Installing mdadm"
 		try emerge --verbose sys-fs/mdadm
+	fi
+
+	# Install cryptsetup if we used luks
+	if [[ $USED_LUKS == "true" ]]; then
+		einfo "Installing cryptsetup"
+		try emerge --verbose sys-fs/cryptsetup
 	fi
 
 	# Install kernel and initramfs

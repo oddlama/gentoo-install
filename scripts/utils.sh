@@ -166,31 +166,8 @@ get_device_by_mdadm_uuid() {
 	echo -n "$dev"
 }
 
-get_device_by_luks_uuid() {
-	echo -n "/dev/mapper/${1,,}"
-}
-
-save_map_entry() {
-	local mapname="$1"
-	local key="$2"
-	local value="$3"
-	mkdir -p "$RESOLVABLE_MAP_DIR/$mapname" \
-		|| die "Could not create '$RESOLVABLE_MAP_DIR/$mapname'"
-	echo -n "$value" > "$RESOLVABLE_MAP_DIR/$mapname/$(base64 -w 0 <<< "$key")"
-}
-
-load_map_entries() {
-	local mapname="$1"
-	local lambda="$2"
-
-	local base64_key
-	local key
-	local value
-	for base64_key in "$RESOLVABLE_MAP_DIR/$mapname/"*; do
-		key="$(base64 -d <<< "$(basename "$base64_key")")"
-		value="$(cat "$base64_key")"
-		"$lambda" "$key" "$value"
-	done
+get_device_by_luks_name() {
+	echo -n "/dev/mapper/$1"
 }
 
 create_resolve_entry() {
@@ -199,16 +176,6 @@ create_resolve_entry() {
 	local arg="${3,,}"
 
 	DISK_ID_TO_RESOLVABLE[$id]="$type:$arg"
-	save_map_entry DISK_ID_TO_RESOLVABLE "$id" "$type:$arg"
-}
-
-load_resolvable_entries() {
-	[[ -d $RESOLVABLE_MAP_DIR ]] \
-		|| return 0
-
-	lambda() {
-		DISK_ID_TO_RESOLVABLE[$1]="$2"
-	}; load_map_entries DISK_ID_TO_RESOLVABLE lambda
 }
 
 resolve_device_by_id() {
@@ -224,7 +191,7 @@ resolve_device_by_id() {
 		'ptuuid')   get_device_by_ptuuid     "$arg" ;;
 		'uuid')     get_device_by_uuid       "$arg" ;;
 		'mdadm')    get_device_by_mdadm_uuid "$arg" ;;
-		'luks')     get_device_by_luks_uuid  "$arg" ;;
+		'luks')     get_device_by_luks_name  "$arg" ;;
 		*) die "Cannot resolve '$type:$arg' to device (unknown type)"
 	esac
 }

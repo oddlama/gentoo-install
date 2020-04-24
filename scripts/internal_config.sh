@@ -110,6 +110,8 @@ create_gpt() {
 	[[ -v arguments[id] ]] \
 		&& verify_existing_id id
 
+	local new_id="${arguments[new_id]}"
+	create_resolve_entry "$new_id" ptuuid "${DISK_ID_TO_UUID[$new_id]}"
 	DISK_ACTIONS+=("action=create_gpt" "$@" ";")
 }
 
@@ -133,7 +135,9 @@ create_partition() {
 	[[ ${arguments[size]} == "remaining" ]] \
 		&& DISK_GPT_HAD_SIZE_REMAINING[${arguments[id]}]=true
 
-	DISK_ID_PART_TO_GPT_ID[${arguments[new_id]}]="${arguments[id]}"
+	local new_id="${arguments[new_id]}"
+	DISK_ID_PART_TO_GPT_ID[$new_id]="${arguments[id]}"
+	create_resolve_entry "$new_id" partuuid "${DISK_ID_TO_UUID[$new_id]}"
 	DISK_ACTIONS+=("action=create_partition" "$@" ";")
 }
 
@@ -153,6 +157,8 @@ create_raid() {
 	verify_option level 0 1 5 6
 	verify_existing_unique_ids ids
 
+	local new_id="${arguments[new_id]}"
+	create_resolve_entry "$new_id" mdadm "${DISK_ID_TO_UUID[$new_id]}"
 	DISK_ACTIONS+=("action=create_raid" "$@" ";")
 }
 
@@ -162,13 +168,16 @@ create_raid() {
 create_luks() {
 	USED_LUKS=true
 
-	local known_arguments=('+new_id' '+id')
+	local known_arguments=('+new_id' '+name' '+id')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
 
 	create_new_id new_id
 	verify_existing_id id
 
+	local new_id="${arguments[new_id]}"
+	local name="${arguments[name]}"
+	create_resolve_entry "$new_id" luks "$name"
 	DISK_ACTIONS+=("action=create_luks" "$@" ";")
 }
 
@@ -271,7 +280,7 @@ create_raid0_luks_layout() {
 	[[ $size_swap != "false" ]] && \
 	create_raid new_id=part_raid_swap name="swap" level=0 ids="$(expand_ids '^part_swap_dev[[:digit:]]$')"
 	create_raid new_id=part_raid_root name="root" level=0 ids="$(expand_ids '^part_root_dev[[:digit:]]$')"
-	create_luks new_id=part_luks_root id=part_raid_root
+	create_luks new_id=part_luks_root name="root" id=part_raid_root
 
 	format id="part_${type}_dev0" type="$type" label="$type"
 	[[ $size_swap != "false" ]] && \
