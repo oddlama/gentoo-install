@@ -38,8 +38,9 @@ create_default_disk_layout swap=8GiB /dev/sdX
 # but create two raid0s for all swap partitions and all root partitions
 # respectively. Create luks on the root raid.
 # Hint: You will get N times the swap amount, so be sure to divide beforehand.
-#create_raid0_luks_layout swap=4GiB /dev/sd{X,Y}
-#create_raid0_luks_layout swap=0 type=bios /dev/sd{X,Y}
+#create_raid0_luks_layout swap=4GiB /dev/sd{X,Y}           # EFI
+#create_raid0_luks_layout swap=4GiB type=bios /dev/sd{X,Y} # BIOS
+#create_raid0_luks_layout swap=0 type=bios /dev/sd{X,Y}    # BIOS no swap
 
 ################################################
 # System configuration
@@ -91,8 +92,8 @@ STAGE3_BASENAME="stage3-$GENTOO_ARCH-hardened+nomultilib"
 ################################################
 # Additional (optional) configuration
 
-# List of additional packages to install (will be directly passed to emerge)
-ADDITIONAL_PACKAGES="app-editors/neovim"
+# Array of additional packages to install
+ADDITIONAL_PACKAGES=("app-editors/neovim")
 # Install and enable dhcpcd
 INSTALL_DHCPCD=true
 # Install and configure sshd (a reasonably secure config is provided, which

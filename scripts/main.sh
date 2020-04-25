@@ -329,10 +329,10 @@ main_install_gentoo_in_chroot() {
 	fi
 
 	# Install additional packages, if any.
-	if [[ -n $ADDITIONAL_PACKAGES ]]; then
+	if [[ ${#ADDITIONAL_PACKAGES[@]} -gt 0 ]]; then
 		einfo "Installing additional packages"
 		# shellcheck disable=SC2086
-		try emerge --verbose --autounmask-continue=y -- $ADDITIONAL_PACKAGES
+		try emerge --verbose --autounmask-continue=y -- "${ADDITIONAL_PACKAGES[@]}"
 	fi
 
 	if ask "Do you want to assign a root password now?"; then
