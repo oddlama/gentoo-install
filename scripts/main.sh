@@ -185,8 +185,8 @@ install_kernel_bios() {
 	kernel_file="$(find "/boot" -name "vmlinuz-*" -printf '%f\n' | sort -V | tail -n 1)" \
 		|| die "Could not list newest kernel file"
 
-	ln -s "$kernel_file" "/boot/vmlinuz-current" \
-		|| die "Could create link to current kernel"
+	cp "/boot/$kernel_file" "/boot/vmlinuz-current" \
+		|| die "Could copy kernel to /boot/vmlinuz-current"
 
 	# Generate initramfs
 	generate_initramfs "/boot/initramfs.img"
