@@ -158,8 +158,9 @@ create_raid() {
 	verify_existing_unique_ids ids
 
 	local new_id="${arguments[new_id]}"
-	create_resolve_entry "$new_id" mdadm "${DISK_ID_TO_UUID[$new_id]}"
-	DISK_DRACUT_CMDLINE+=("rd.md.uuid=$(uuid_to_mduuid "$new_id")")
+	local uuid="${DISK_ID_TO_UUID[$new_id]}"
+	create_resolve_entry "$new_id" mdadm "$uuid"
+	DISK_DRACUT_CMDLINE+=("rd.md.uuid=$(uuid_to_mduuid "$uuid")")
 	DISK_ACTIONS+=("action=create_raid" "$@" ";")
 }
 
@@ -179,8 +180,9 @@ create_luks() {
 	local id="${arguments[id]}"
 	local new_id="${arguments[new_id]}"
 	local name="${arguments[name]}"
+	local uuid="${DISK_ID_TO_UUID[$new_id]}"
 	create_resolve_entry "$new_id" luks "$name"
-	DISK_DRACUT_CMDLINE+=("rd.luks.uuid=$id")
+	DISK_DRACUT_CMDLINE+=("rd.luks.uuid=$uuid")
 	DISK_ACTIONS+=("action=create_luks" "$@" ";")
 }
 
