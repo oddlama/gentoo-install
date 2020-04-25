@@ -139,9 +139,7 @@ generate_initramfs() {
 }
 
 get_cmdline() {
-	local rootdev="$(resolve_device_by_id "$DISK_ID_ROOT")"
-	local rootuuid="$(get_blkid_field_by_device 'UUID' "$rootdev")"
-	echo -n "${DISK_DRACUT_CMDLINE[*]} root=UUID=$rootuuid"
+	echo -n "${DISK_DRACUT_CMDLINE[*]} root=UUID=$(get_blkid_uuid_for_id "$DISK_ID_ROOT")"
 }
 
 install_kernel_efi() {
@@ -221,22 +219,23 @@ install_kernel() {
 	fi
 }
 
+add_fstab_entry() {
+	printf '%-46s  %-24s  %-6s  %-96s %s' "$1" "$2" "$3" "$4" "$5" >> /etc/fstab \
+		|| die "Could not append entry to fstab"
+}
+
 generate_fstab() {
 	einfo "Generating fstab"
 	install -m0644 -o root -g root "$GENTOO_INSTALL_REPO_DIR/configs/fstab" /etc/fstab \
 		|| die "Could not overwrite /etc/fstab"
-	echo "$(resolve_device_by_id "$DISK_ID_ROOT")    /            ext4    defaults,noatime,errors=remount-ro,discard                            0 1" >> /etc/fstab \
-		|| die "Could not append entry to fstab"
+	add_fstab_entry "UUID=$(get_blkid_uuid_for_id "$DISK_ID_ROOT")" "/" "ext4" "defaults,noatime,errors=remount-ro,discard" "0 1"
 	if [[ $IS_EFI == "true" ]]; then
-		echo "$(resolve_device_by_id "$DISK_ID_EFI")    /boot/efi    vfat    defaults,noatime,fmask=0022,dmask=0022,noexec,nodev,nosuid,discard    0 2" >> /etc/fstab \
-			|| die "Could not append entry to fstab"
+		add_fstab_entry "UUID=$(get_blkid_uuid_for_id "$DISK_ID_EFI")" "/boot/efi" "vfat" "defaults,noatime,fmask=0022,dmask=0022,noexec,nodev,nosuid,discard" "0 2"
 	else
-		echo "$(resolve_device_by_id "$DISK_ID_BIOS")    /boot        vfat    defaults,noatime,fmask=0022,dmask=0022,noexec,nodev,nosuid,discard    0 2" >> /etc/fstab \
-			|| die "Could not append entry to fstab"
+		add_fstab_entry "UUID=$(get_blkid_uuid_for_id "$DISK_ID_BIOS")" "/boot" "vfat" "defaults,noatime,fmask=0022,dmask=0022,noexec,nodev,nosuid,discard" "0 2"
 	fi
 	if [[ -v "DISK_ID_SWAP" ]]; then
-		echo "$(resolve_device_by_id "$DISK_ID_SWAP")    none         swap    defaults,discard                                                      0 0" >> /etc/fstab \
-			|| die "Could not append entry to fstab"
+		add_fstab_entry "$(resolve_device_by_id "$DISK_ID_SWAP")" "none" "swap" "defaults,discard" "0 0"
 	fi
 }
 

@@ -130,6 +130,12 @@ get_blkid_field_by_device() {
 	echo -n "$val"
 }
 
+get_blkid_uuid_for_id() {
+	local dev="$(resolve_device_by_id "$1")"
+	local uuid="$(get_blkid_field_by_device 'UUID' "$dev")"
+	echo -n "$uuid"
+}
+
 get_device_by_blkid_field() {
 	local blkid_field="$1"
 	local field_value="$2"
