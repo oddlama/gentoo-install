@@ -183,7 +183,7 @@ install_kernel_bios() {
 	# Install syslinux
 	einfo "Installing syslinux"
 	local biosdev="$(resolve_device_by_id "$DISK_ID_BIOS")"
-	syslinux --install "$biosdev"
+	syslinux --directory syslinux --install "$biosdev"
 
 	# Create syslinux.cfg
 	cat >/boot/syslinux/syslinux.cfg <<EOF
