@@ -128,12 +128,9 @@ generate_initramfs() {
 		--confdir       "/dev/null" \
 		--kver          "$kver" \
 		--no-compress \
-		--hostonly \
-		--hostonly-mode "strict" \
-		--no-hostonly-cmdline \
-		--no-hostonly-default-device \
+		--no-hostonly \
 		--ro-mnt \
-		--modules       "bash ${modules[*]}" \
+		--add           "bash ${modules[*]}" \
 		--force \
 		"$output"
 }
@@ -172,8 +169,8 @@ PROMPT 0
 TIMEOUT 0
 
 LABEL gentoo
-    LINUX ../vmlinuz-current
-	APPEND initrd=initramfs.img $(get_cmdline)
+	LINUX ../vmlinuz-current
+	APPEND initrd=../initramfs.img $(get_cmdline)
 EOF
 }
 
