@@ -139,12 +139,9 @@ generate_initramfs() {
 }
 
 get_cmdline() {
-	local cmdline=()
-	cmdline+=("root=UUID=$rootuuid")
-	# TODO in order....
-	cmdline+=("rd.md.uuid=$todo")
-	cmdline+=("rd.luks.uuid=$todo")
-	echo -n "${cmdline[*]}"
+	local rootdev="$(resolve_device_by_id "$DISK_ID_ROOT")"
+	local rootuuid="$(get_blkid_field_by_device 'UUID' "$rootdev")"
+	echo -n "${DISK_DRACUT_CMDLINE[*]} root=UUID=$rootuuid"
 }
 
 install_kernel_efi() {
@@ -166,11 +163,10 @@ install_kernel_efi() {
 
 	# Create boot entry
 	einfo "Creating efi boot entry"
-	local linuxdev="$(resolve_device_by_id "$DISK_ID_ROOT")"
 	local efipartdev="$(resolve_device_by_id "$DISK_ID_EFI")"
 	local efipartnum="${efipartdev: -1}"
 	local gptdev="$(resolve_device_by_id "${DISK_ID_PART_TO_GPT_ID[$DISK_ID_EFI]}")"
-	try efibootmgr --verbose --create --disk "$gptdev" --part "$efipartnum" --label "gentoo" --loader '\EFI\vmlinuz.efi' --unicode 'initrd=\EFI\initramfs.img'
+	try efibootmgr --verbose --create --disk "$gptdev" --part "$efipartnum" --label "gentoo" --loader '\EFI\vmlinuz.efi' --unicode 'initrd=\EFI\initramfs.img'" $(get_cmdline)"
 }
 
 install_kernel_bios() {
@@ -188,6 +184,17 @@ install_kernel_bios() {
 	einfo "Installing syslinux"
 	local biosdev="$(resolve_device_by_id "$DISK_ID_BIOS")"
 	syslinux --install "$biosdev"
+
+	# Create syslinux.cfg
+	cat >/boot/syslinux/syslinux.cfg <<EOF
+DEFAULT gentoo
+PROMPT 0
+TIMEOUT 0
+
+LABEL gentoo
+    LINUX ../vmlinuz-gentoo
+	APPEND initrd=initramfs.img $(get_cmdline)
+EOF
 }
 
 install_kernel() {

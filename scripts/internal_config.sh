@@ -25,6 +25,8 @@ USED_LUKS=false
 
 # An array of disk related actions to perform
 DISK_ACTIONS=()
+# An array of dracut parameters needed to boot the selected configuration
+DISK_DRACUT_CMDLINE=()
 # An associative array from disk id to a resolvable string
 declare -A DISK_ID_TO_RESOLVABLE
 # An associative array from disk id to parent gpt disk id (only for partitions)
@@ -159,6 +161,7 @@ create_raid() {
 
 	local new_id="${arguments[new_id]}"
 	create_resolve_entry "$new_id" mdadm "${DISK_ID_TO_UUID[$new_id]}"
+	DISK_DRACUT_CMDLINE+=("rd.md.uuid=$(uuid_to_mduuid "$new_id")")
 	DISK_ACTIONS+=("action=create_raid" "$@" ";")
 }
 
@@ -175,9 +178,11 @@ create_luks() {
 	create_new_id new_id
 	verify_existing_id id
 
+	local id="${arguments[id]}"
 	local new_id="${arguments[new_id]}"
 	local name="${arguments[name]}"
 	create_resolve_entry "$new_id" luks "$name"
+	DISK_DRACUT_CMDLINE+=("rd.luks.uuid=$id")
 	DISK_ACTIONS+=("action=create_luks" "$@" ";")
 }
 

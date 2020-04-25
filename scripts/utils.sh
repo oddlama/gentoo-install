@@ -116,17 +116,31 @@ download() {
 	wget --quiet --https-only --secure-protocol=PFS --show-progress -O "$2" -- "$1"
 }
 
+get_blkid_field_by_device() {
+	local blkid_field="$1"
+	local device="$2"
+	blkid -g \
+		|| die "Error while executing blkid -g"
+	local val
+	val="$(blkid -o export "$device")" \
+		|| die "Error while executing blkid '$device'"
+	val="$(grep -- "$blkid_field" <<< "$val")" \
+		|| die "Could not find $blkid_field=... in blkid output"
+	val="${val#"$blkid_field="}"
+	echo -n "$val"
+}
+
 get_device_by_blkid_field() {
 	local blkid_field="$1"
 	local field_value="$2"
 	blkid -g \
-		|| die "Error while executing blkid"
+		|| die "Error while executing blkid -g"
 	local dev
 	dev="$(blkid -o export -t "$blkid_field=$field_value")" \
 		|| die "Error while executing blkid to find $blkid_field=$field_value"
 	dev="$(grep DEVNAME <<< "$dev")" \
 		|| die "Could not find DEVNAME=... in blkid output"
-	dev="${dev:8}"
+	dev="${dev#"DEVNAME="}"
 	echo -n "$dev"
 }
 
@@ -150,10 +164,15 @@ get_device_by_ptuuid() {
 	echo -n "$dev"
 }
 
-get_device_by_mdadm_uuid() {
+uuid_to_mduuid() {
 	local mduuid="${1,,}"
 	mduuid="${mduuid//-/}"
 	mduuid="${mduuid:0:8}:${mduuid:8:8}:${mduuid:16:8}:${mduuid:24:8}"
+	echo -n "$mduuid"
+}
+
+get_device_by_mdadm_uuid() {
+	local mduuid="$(uuid_to_mduuid "$1")"
 	local dev
 	dev="$(mdadm --examine --scan)" \
 		|| die "Error while executing mdadm to find array with UUID=$mduuid"
