@@ -185,20 +185,20 @@ install_kernel_bios() {
 	kernel_file="$(find "/boot" -name "vmlinuz-*" -printf '%f\n' | sort -V | tail -n 1)" \
 		|| die "Could not list newest kernel file"
 
-	cp "/boot/$kernel_file" "/boot/vmlinuz-current" \
-		|| die "Could copy kernel to /boot/vmlinuz-current"
+	cp "/boot/$kernel_file" "/boot/bios/vmlinuz-current" \
+		|| die "Could copy kernel to /boot/bios/vmlinuz-current"
 
 	# Generate initramfs
-	generate_initramfs "/boot/initramfs.img"
+	generate_initramfs "/boot/bios/initramfs.img"
 
 	# Install syslinux
 	einfo "Installing syslinux"
 	local biosdev="$(resolve_device_by_id "$DISK_ID_BIOS")"
-	mkdir_or_die 0700 "/boot/syslinux"
+	mkdir_or_die 0700 "/boot/bios/syslinux"
 	try syslinux --directory syslinux --install "$biosdev"
 
 	# Create syslinux.cfg
-	echo -n "$(generate_syslinux_cfg)" > /boot/syslinux/syslinux.cfg \
+	echo -n "$(generate_syslinux_cfg)" > /boot/bios/syslinux/syslinux.cfg \
 		|| die "Could save generated syslinux.cfg"
 
 	# Install syslinux MBR record
@@ -232,7 +232,7 @@ generate_fstab() {
 	if [[ $IS_EFI == "true" ]]; then
 		add_fstab_entry "UUID=$(get_blkid_uuid_for_id "$DISK_ID_EFI")" "/boot/efi" "vfat" "defaults,noatime,fmask=0022,dmask=0022,noexec,nodev,nosuid,discard" "0 2"
 	else
-		add_fstab_entry "UUID=$(get_blkid_uuid_for_id "$DISK_ID_BIOS")" "/boot" "vfat" "defaults,noatime,fmask=0022,dmask=0022,noexec,nodev,nosuid,discard" "0 2"
+		add_fstab_entry "UUID=$(get_blkid_uuid_for_id "$DISK_ID_BIOS")" "/boot/bios" "vfat" "defaults,noatime,fmask=0022,dmask=0022,noexec,nodev,nosuid,discard" "0 2"
 	fi
 	if [[ -v "DISK_ID_SWAP" ]]; then
 		add_fstab_entry "$(resolve_device_by_id "$DISK_ID_SWAP")" "none" "swap" "defaults,discard" "0 0"
@@ -279,9 +279,9 @@ main_install_gentoo_in_chroot() {
 		einfo "Mounting efi partition"
 		mount_by_id "$DISK_ID_EFI" "/boot/efi"
 	else
-		# Mount boot partition
-		einfo "Mounting boot partition"
-		mount_by_id "$DISK_ID_BIOS" "/boot"
+		# Mount bios partition
+		einfo "Mounting bios partition"
+		mount_by_id "$DISK_ID_BIOS" "/boot/bios"
 	fi
 
 	# Sync portage
