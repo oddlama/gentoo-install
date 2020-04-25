@@ -443,10 +443,6 @@ summarize_disk_actions() {
 }
 
 apply_disk_configuration() {
-	# Clean old resolved ids
-	rm -rf "$RESOLVABLE_MAP_DIR" &>/dev/null
-	unset DISK_ID_TO_RESOLVABLE; declare -A -g DISK_ID_TO_RESOLVABLE
-
 	summarize_disk_actions
 
 	ask "Do you really want to apply this disk configuration?" \
