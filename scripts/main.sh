@@ -220,7 +220,7 @@ install_kernel() {
 }
 
 add_fstab_entry() {
-	printf '%-46s  %-24s  %-6s  %-96s %s' "$1" "$2" "$3" "$4" "$5" >> /etc/fstab \
+	printf '%-46s  %-24s  %-6s  %-96s %s\n' "$1" "$2" "$3" "$4" "$5" >> /etc/fstab \
 		|| die "Could not append entry to fstab"
 }
 

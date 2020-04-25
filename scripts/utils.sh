@@ -124,7 +124,7 @@ get_blkid_field_by_device() {
 	local val
 	val="$(blkid -o export "$device")" \
 		|| die "Error while executing blkid '$device'"
-	val="$(grep -- "$blkid_field" <<< "$val")" \
+	val="$(grep -- "^$blkid_field=" <<< "$val")" \
 		|| die "Could not find $blkid_field=... in blkid output"
 	val="${val#"$blkid_field="}"
 	echo -n "$val"
