@@ -148,14 +148,12 @@ install_kernel_efi() {
 	try emerge --verbose sys-boot/efibootmgr
 
 	# Copy kernel to EFI
-	local kernel_version
-	kernel_version="$(find "/boot" -name "vmlinuz-*" -printf '%f\n' | sort -V | tail -n 1)" \
+	local kernel_file
+	kernel_file="$(find "/boot" -name "vmlinuz-*" -printf '%f\n' | sort -V | tail -n 1)" \
 		|| die "Could not list newest kernel file"
-	kernel_version="${kernel_version#vmlinuz-}" \
-		|| die "Could not find kernel version"
 
 	mkdir_or_die 0755 "/boot/efi/EFI"
-	cp "/boot/vmlinuz-$kernel_version"* "/boot/efi/EFI/vmlinuz.efi" \
+	cp "/boot/$kernel_file" "/boot/efi/EFI/vmlinuz.efi" \
 		|| die "Could not copy kernel to EFI partition"
 
 	# Generate initramfs
@@ -169,13 +167,28 @@ install_kernel_efi() {
 	try efibootmgr --verbose --create --disk "$gptdev" --part "$efipartnum" --label "gentoo" --loader '\EFI\vmlinuz.efi' --unicode 'initrd=\EFI\initramfs.img'" $(get_cmdline)"
 }
 
+generate_syslinux_cfg() {
+	cat <<EOF
+DEFAULT gentoo
+PROMPT 0
+TIMEOUT 0
+
+LABEL gentoo
+    LINUX ../vmlinuz-current
+	APPEND initrd=initramfs.img $(get_cmdline)
+EOF
+}
+
 install_kernel_bios() {
 	try emerge --verbose sys-boot/syslinux
 
-	# Install syslinux MBR record
-	einfo "Copying syslinux MBR record"
-	local gptdev="$(resolve_device_by_id "${DISK_ID_PART_TO_GPT_ID[$DISK_ID_BIOS]}")"
-	try dd bs=440 conv=notrunc count=1 if=/usr/share/syslinux/gptmbr.bin of="$gptdev"
+	# Link kernel to known name
+	local kernel_file
+	kernel_file="$(find "/boot" -name "vmlinuz-*" -printf '%f\n' | sort -V | tail -n 1)" \
+		|| die "Could not list newest kernel file"
+
+	ln -s "$kernel_file" "/boot/vmlinuz-current" \
+		|| die "Could create link to current kernel"
 
 	# Generate initramfs
 	generate_initramfs "/boot/initramfs.img"
@@ -183,27 +196,23 @@ install_kernel_bios() {
 	# Install syslinux
 	einfo "Installing syslinux"
 	local biosdev="$(resolve_device_by_id "$DISK_ID_BIOS")"
-	syslinux --directory syslinux --install "$biosdev"
+	mkdir_or_die 0700 "/boot/syslinux"
+	try syslinux --directory syslinux --install "$biosdev"
 
 	# Create syslinux.cfg
-	cat >/boot/syslinux/syslinux.cfg <<EOF
-DEFAULT gentoo
-PROMPT 0
-TIMEOUT 0
+	echo -n "$(generate_syslinux_cfg)" > /boot/syslinux/syslinux.cfg \
+		|| die "Could save generated syslinux.cfg"
 
-LABEL gentoo
-    LINUX ../vmlinuz-gentoo
-	APPEND initrd=initramfs.img $(get_cmdline)
-EOF
+	# Install syslinux MBR record
+	einfo "Copying syslinux MBR record"
+	local gptdev="$(resolve_device_by_id "${DISK_ID_PART_TO_GPT_ID[$DISK_ID_BIOS]}")"
+	try dd bs=440 conv=notrunc count=1 if=/usr/share/syslinux/gptmbr.bin of="$gptdev"
 }
 
 install_kernel() {
-	einfo "Installing dracut"
-	try emerge --verbose sys-kernel/dracut
-
 	# Install vanilla kernel
-	einfo "Installing vanilla kernel"
-	try emerge --verbose sys-kernel/gentoo-kernel-bin
+	einfo "Installing vanilla kernel and related tools"
+	try emerge --verbose sys-kernel/dracut sys-kernel/gentoo-kernel-bin
 
 	if [[ $IS_EFI == "true" ]]; then
 		install_kernel_efi
