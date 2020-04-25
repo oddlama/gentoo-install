@@ -115,9 +115,9 @@ generate_initramfs() {
 
 	local modules=()
 	[[ $USED_RAID == "true" ]] \
-		modules+=("mdraid")
+		&& modules+=("mdraid")
 	[[ $USED_LUKS == "true" ]] \
-		modules+=("crypt crypt-gpg")
+		&& modules+=("crypt crypt-gpg")
 
 	local kver="$(readlink /usr/src/linux)"
 	kver="${kver#linux-}"
