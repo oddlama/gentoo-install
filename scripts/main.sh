@@ -232,7 +232,7 @@ generate_fstab() {
 		add_fstab_entry "UUID=$(get_blkid_uuid_for_id "$DISK_ID_BIOS")" "/boot/bios" "vfat" "defaults,noatime,fmask=0177,dmask=0077,noexec,nodev,nosuid,discard" "0 2"
 	fi
 	if [[ -v "DISK_ID_SWAP" ]]; then
-		add_fstab_entry "$(resolve_device_by_id "$DISK_ID_SWAP")" "none" "swap" "defaults,discard" "0 0"
+		add_fstab_entry "UUID=$(get_blkid_uuid_for_id "$DISK_ID_SWAP")" "none" "swap" "defaults,discard" "0 0"
 	fi
 }
 
