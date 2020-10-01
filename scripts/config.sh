@@ -30,8 +30,9 @@ luks_getkeyfile() {
 
 # Create default scheme (efi/boot, (optional swap), root)
 # To disable swap, set swap=false
-#EFI:  create_default_disk_layout swap=8GiB /dev/sdX
-#BIOS: create_default_disk_layout swap=8GiB type=bios /dev/sdX
+# To disable encryted root, set luks=false
+#EFI:  create_default_disk_layout luks=true root_type=btrfs swap=8GiB /dev/sdX
+#BIOS: create_default_disk_layout luks=true root_type=btrfs swap=8GiB type=bios /dev/sdX
 create_default_disk_layout swap=8GiB /dev/sdX
 
 # Create default scheme from above on each given device,
@@ -52,11 +53,12 @@ create_default_disk_layout swap=8GiB /dev/sdX
 HOSTNAME="gentoo"
 
 # The timezone for the new system
-TIMEZONE="Europe/Berlin"
+TIMEZONE="Europe/London"
+#TIMEZONE="Europe/Berlin"
 
 # The default keymap for the system
-KEYMAP="de-latin1-nodeadkeys"
-#KEYMAP="us"
+KEYMAP="us"
+#KEYMAP="de-latin1-nodeadkeys"
 
 # A list of additional locales to generate. You should only
 # add locales here if you really need them and want to localize
@@ -85,7 +87,8 @@ GENTOO_MIRROR="https://mirror.eu.oneandone.net/linux/distributions/gentoo/gentoo
 GENTOO_ARCH="amd64"
 
 # The stage3 tarball to install
-STAGE3_BASENAME="stage3-$GENTOO_ARCH-hardened+nomultilib"
+STAGE3_BASENAME="stage3-$GENTOO_ARCH-systemd"
+#STAGE3_BASENAME="stage3-$GENTOO_ARCH-hardened+nomultilib"
 #STAGE3_BASENAME="stage3-$GENTOO_ARCH-hardened-selinux+nomultilib"
 
 

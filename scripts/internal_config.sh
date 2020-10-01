@@ -188,7 +188,7 @@ create_luks() {
 
 # Named arguments:
 # id:     Id of the device / partition created earlier
-# type:   One of (bios, efi, swap, ext4)
+# type:   One of (bios, efi, swap, ext4, btrfs)
 # label:  The label for the formatted disk
 format() {
 	local known_arguments=('+id' '+type' '?label')
@@ -196,7 +196,7 @@ format() {
 	declare -A arguments; parse_arguments "$@"
 
 	verify_existing_id id
-	verify_option type bios efi swap ext4
+	verify_option type bios efi swap ext4 btrfs
 
 	DISK_ACTIONS+=("action=format" "$@" ";")
 }
@@ -212,8 +212,10 @@ expand_ids() {
 
 # Example 1: Single disk, 3 partitions (efi, swap, root)
 # Parameters:
-#   swap=<size>      create a swap partition with given size, or no swap if set to false
-#   type=[efi|bios]  defaults to efi. Selects the boot type.
+#   swap=<size>           create a swap partition with given size, or no swap if set to false
+#   type=[efi|bios]       defaults to efi. Selects the boot type.
+#   luks=[true|false]     encrypt root partition
+#   root_fs=[ext4|btrfs]  root fs
 create_default_disk_layout() {
 	local known_arguments=('+swap' '?type')
 	local extra_arguments=()
@@ -224,6 +226,8 @@ create_default_disk_layout() {
 	local device="${extra_arguments[0]}"
 	local size_swap="${arguments[swap]}"
 	local type="${arguments[type]}"
+	local use_luks="${arguments[luks]}"
+	local root_fs="${arguments[root_fs]}"
 	local efi=true
 	case "$type" in
 		'bios')   efi=false type=bios ;;
@@ -237,10 +241,16 @@ create_default_disk_layout() {
 	create_partition new_id=part_swap    id=gpt size="$size_swap" type=swap
 	create_partition new_id=part_root    id=gpt size=remaining    type=linux
 
+	local root_id="part_root"
+	if [[ "$use_luks" == "true" ]]; then
+		create_luks new_id=part_luks_root name="root" id=part_root
+		root_id="part_luks_root"
+	fi
+
 	format id="part_$type" type="$type" label="$type"
 	[[ $size_swap != "false" ]] && \
 	format id=part_swap type=swap label=swap
-	format id=part_root type=ext4 label=root
+	format id="$root_id" type="$root_fs" label=root
 
 	if [[ $type == "efi" ]]; then
 		DISK_ID_EFI="part_$type"
@@ -248,7 +258,7 @@ create_default_disk_layout() {
 		DISK_ID_BIOS="part_$type"
 	fi
 	DISK_ID_SWAP=part_swap
-	DISK_ID_ROOT=part_root
+	DISK_ID_ROOT="$root_id"
 }
 
 # Example 2: Multiple disks, with raid 0 and luks
@@ -258,6 +268,7 @@ create_default_disk_layout() {
 # Parameters:
 #   swap=<size>      create a swap partition with given size, or no swap if set to false
 #   type=[efi|bios]  defaults to efi. Selects the boot type.
+#   root_fs=[ext4|btrfs]  root fs
 create_raid0_luks_layout() {
 	local known_arguments=('+swap' '?type')
 	local extra_arguments=()
@@ -267,6 +278,7 @@ create_raid0_luks_layout() {
 		|| die_trace 1 "Expected at least one positional argument (the devices)"
 	local size_swap="${arguments[swap]}"
 	local type="${arguments[type]}"
+	local root_fs="${arguments[root_fs]}"
 	local efi=true
 	case "$type" in
 		'bios')   efi=false type=bios ;;
@@ -290,7 +302,7 @@ create_raid0_luks_layout() {
 	format id="part_${type}_dev0" type="$type" label="$type"
 	[[ $size_swap != "false" ]] && \
 	format id=part_raid_swap type=swap label=swap
-	format id=part_luks_root type=ext4 label=root
+	format id=part_luks_root type="$root_fs" label=root
 
 	if [[ $type == "efi" ]]; then
 		DISK_ID_EFI="part_${type}_dev0"

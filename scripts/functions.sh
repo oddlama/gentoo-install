@@ -307,6 +307,15 @@ disk_format() {
 					|| die "Could not format device '$device' ($id)"
 			fi
 			;;
+		'btrfs')
+			if [[ -v "arguments[label]" ]]; then
+				mkfs.btrfs -q -L "$label" "$device" \
+					|| die "Could not format device '$device' ($id)"
+			else
+				mkfs.btrfs -q "$device" \
+					|| die "Could not format device '$device' ($id)"
+			fi
+			;;
 		*) die "Unknown filesystem type" ;;
 	esac
 }
