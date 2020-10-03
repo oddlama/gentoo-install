@@ -363,6 +363,7 @@ create_btrfs_raid_layout() {
 	local size_swap="${arguments[swap]}"
 	local raid_type="${arguments[raid_type]:-stripe}"
 	local type="${arguments[type]}"
+	local use_luks="${arguments[luks]:-false}"
 	local efi=true
 	case "$type" in
 		'bios')   efi=false type=bios ;;
