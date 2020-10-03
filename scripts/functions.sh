@@ -250,10 +250,10 @@ disk_create_luks() {
 
 	local uuid="${DISK_ID_TO_UUID[$new_id]}"
 
-	einfo "Creating luks ($new_id) on $device ($id)"
+	einfo "Creating luks ($new_id) on $device_desc"
 	local keyfile
 	keyfile="$(luks_getkeyfile "$new_id")" \
-		|| die "Error in luks_getkeyfile for id=$id"
+		|| die "Error in luks_getkeyfile for $device_desc"
 	cryptsetup luksFormat \
 			--type luks2 \
 			--uuid "$uuid" \
@@ -265,7 +265,7 @@ disk_create_luks() {
 			--key-size 512 \
 			--batch-mode \
 			"$device" \
-		|| die "Could not create luks on '$device' ($id)"
+		|| die "Could not create luks on $device_desc"
 	mkdir -p "$LUKS_HEADER_BACKUP_DIR" \
 		|| die "Could not create luks header backup dir '$LUKS_HEADER_BACKUP_DIR'"
 	local header_file="$LUKS_HEADER_BACKUP_DIR/luks-header-$id-${uuid,,}.img"
@@ -274,11 +274,11 @@ disk_create_luks() {
 		|| die "Could not remove old luks header backup file '$header_file'"
 	cryptsetup luksHeaderBackup "$device" \
 			--header-backup-file "$header_file" \
-		|| die "Could not backup luks header on '$device' ($id)"
+		|| die "Could not backup luks header on $device_desc"
 	cryptsetup open --type luks2 \
 			--key-file "$keyfile" \
 			"$device" "$name" \
-		|| die "Could not open luks encrypted device '$device' ($id)"
+		|| die "Could not open luks encrypted device $device_desc"
 }
 
 disk_create_dummy() {
