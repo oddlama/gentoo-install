@@ -405,5 +405,5 @@ create_btrfs_raid_layout() {
 	fi
 	[[ $size_swap != "false" ]] && \
 	DISK_ID_SWAP=part_swap_dev0
-	DISK_ID_ROOT="${root_ids[0]}"
+	DISK_ID_ROOT="$root_id"
 }
