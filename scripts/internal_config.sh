@@ -48,15 +48,6 @@ only_one_of() {
 	done
 }
 
-create_new_id_directly() {
-	local id="$1"
-	[[ $id == *';'* ]] \
-		&& die_trace 2 "Identifier contains invalid character ';'"
-	[[ ! -v DISK_ID_TO_UUID[$id] ]] \
-		|| die_trace 2 "Identifier '$id' already exists"
-	DISK_ID_TO_UUID[$id]="$(load_or_generate_uuid "$(base64 -w 0 <<< "$id")")"
-}
-
 create_new_id() {
 	local id="${arguments[$1]}"
 	[[ $id == *';'* ]] \
@@ -194,6 +185,23 @@ create_luks() {
 	create_resolve_entry "$new_id" luks "$name"
 	DISK_DRACUT_CMDLINE+=("rd.luks.uuid=$uuid")
 	DISK_ACTIONS+=("action=create_luks" "$@" ";")
+}
+
+# Named arguments:
+# new_id:  Id for the new luks
+# device:  The device
+create_dummy() {
+	local known_arguments=('+new_id' '+device')
+	local extra_arguments=()
+	declare -A arguments; parse_arguments "$@"
+
+	create_new_id new_id
+
+	local new_id="${arguments[new_id]}"
+	local device="${arguments[device]}"
+	local uuid="${DISK_ID_TO_UUID[$new_id]}"
+	create_resolve_entry_device "$new_id" "$device"
+	DISK_ACTIONS+=("action=create_dummy" "$@" ";")
 }
 
 # Named arguments:
@@ -387,8 +395,7 @@ create_btrfs_raid_layout() {
 		for i in "${!extra_arguments[@]}"; do
 			[[ $i != 0 ]] || continue
 			dev_id="root_dev$i"
-			create_new_id_directly "$dev_id"
-			create_resolve_entry_device "$dev_id" "${extra_arguments[$i]}"
+			create_dummy new_id="$dev_id" device="${extra_arguments[$i]}"
 			root_ids="${root_ids}$dev_id;"
 		done
 	fi

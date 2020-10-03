@@ -281,6 +281,15 @@ disk_create_luks() {
 		|| die "Could not open luks encrypted device '$device' ($id)"
 }
 
+disk_create_dummy() {
+	local new_id="${arguments[new_id]}"
+	local device="${arguments[device]}"
+	if [[ $disk_action_summarize_only == "true" ]]; then
+		add_summary_entry __root__ "$new_id" "$device" "" ""
+		return 0
+	fi
+}
+
 init_btrfs() {
 	local device="$1"
 	local desc="$2"
@@ -391,12 +400,13 @@ apply_disk_action() {
 	unset known_arguments
 	unset arguments; declare -A arguments; parse_arguments "$@"
 	case "${arguments[action]}" in
-		'create_gpt')       disk_create_gpt       ;;
-		'create_partition') disk_create_partition ;;
-		'create_raid')      disk_create_raid      ;;
-		'create_luks')      disk_create_luks      ;;
-		'format')           disk_format           ;;
-		'format_btrfs')     disk_format_btrfs     ;;
+		'create_gpt')        disk_create_gpt       ;;
+		'create_partition')  disk_create_partition ;;
+		'create_raid')       disk_create_raid      ;;
+		'create_luks')       disk_create_luks      ;;
+		'create_dummy')      disk_create_dummy     ;;
+		'format')            disk_format           ;;
+		'format_btrfs')      disk_format_btrfs     ;;
 		*) echo "Ignoring invalid action: ${arguments[action]}" ;;
 	esac
 }
