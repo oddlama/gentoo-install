@@ -101,6 +101,10 @@ STAGE3_BASENAME="stage3-$GENTOO_ARCH-systemd"
 #STAGE3_BASENAME="stage3-$GENTOO_ARCH-hardened+nomultilib"
 #STAGE3_BASENAME="stage3-$GENTOO_ARCH-hardened-selinux+nomultilib"
 
+# Set to true if the tarball is based on systemd. In this case
+# we need to use slightly different utilities to setup the base system.
+SYSTEMD=true
+
 
 ################################################
 # Additional (optional) configuration

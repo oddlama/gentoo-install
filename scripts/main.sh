@@ -51,29 +51,61 @@ install_stage3() {
 }
 
 configure_base_system() {
-	# Set hostname
-	einfo "Selecting hostname"
-	sed -i "/hostname=/c\\hostname=\"$HOSTNAME\"" /etc/conf.d/hostname \
-		|| die "Could not sed replace in /etc/conf.d/hostname"
-
-	# Set timezone
-	einfo "Selecting timezone"
-	echo "$TIMEZONE" > /etc/timezone \
-		|| die "Could not write /etc/timezone"
-	try emerge -v --config sys-libs/timezone-data
-
-	# Set keymap
-	einfo "Selecting keymap"
-	sed -i "/keymap=/c\\keymap=\"$KEYMAP\"" /etc/conf.d/keymaps \
-		|| die "Could not sed replace in /etc/conf.d/keymaps"
-
-	# Set locale
-	einfo "Selecting locale"
+	einfo "Generating locales"
 	echo "$LOCALES" > /etc/locale.gen \
 		|| die "Could not write /etc/locale.gen"
 	locale-gen \
 		|| die "Could not generate locales"
-	try eselect locale set "$LOCALE"
+
+	if [[ $SYSTEMD == "true" ]]; then
+		einfo "Setting machine-id"
+		systemd-machine-id-setup \
+			|| die "Could not setup systemd machine id"
+
+		# Set hostname
+		einfo "Selecting hostname"
+		hostnamectl set-hostname "$HOSTNAME" \
+			|| die "Could not set hostname"
+
+		# Set timezone
+		einfo "Selecting timezone"
+		timedatectl set-timezone "$TIMEZONE" \
+			|| die "Could not set timezone"
+
+		einfo "Setting time to UTC"
+		timedatectl set-local-rtc 0 \
+			|| die "Could not set local rtc to UTC"
+
+		# Set keymap
+		einfo "Selecting keymap"
+		localectl set-keymap "$KEYMAP" \
+			|| die "Could not set keymap"
+
+		# Set locale
+		einfo "Selecting locale"
+		localectl set-locale LANG="$LOCALE" \
+			|| die "Could not set locale"
+	else
+		# Set hostname
+		einfo "Selecting hostname"
+		sed -i "/hostname=/c\\hostname=\"$HOSTNAME\"" /etc/conf.d/hostname \
+			|| die "Could not sed replace in /etc/conf.d/hostname"
+
+		# Set timezone
+		einfo "Selecting timezone"
+		echo "$TIMEZONE" > /etc/timezone \
+			|| die "Could not write /etc/timezone"
+		try emerge -v --config sys-libs/timezone-data
+
+		# Set keymap
+		einfo "Selecting keymap"
+		sed -i "/keymap=/c\\keymap=\"$KEYMAP\"" /etc/conf.d/keymaps \
+			|| die "Could not sed replace in /etc/conf.d/keymaps"
+
+		# Set locale
+		einfo "Selecting locale"
+		try eselect locale set "$LOCALE"
+	fi
 
 	# Update environment
 	env_update
