@@ -48,6 +48,15 @@ only_one_of() {
 	done
 }
 
+create_new_id_directly() {
+	local id="$1"
+	[[ $id == *';'* ]] \
+		&& die_trace 2 "Identifier contains invalid character ';'"
+	[[ ! -v DISK_ID_TO_UUID[$id] ]] \
+		|| die_trace 2 "Identifier '$id' already exists"
+	DISK_ID_TO_UUID[$id]="$(load_or_generate_uuid "$(base64 -w 0 <<< "$id")")"
+}
+
 create_new_id() {
 	local id="${arguments[$1]}"
 	[[ $id == *';'* ]] \
@@ -98,8 +107,8 @@ verify_option() {
 }
 
 # Named arguments:
-# new_id:    Id for the new gpt table
-# device:  The operand block device
+# new_id:     Id for the new gpt table
+# device|id:  The operand block device or previously allocated id
 create_gpt() {
 	local known_arguments=('+new_id' '+device|id')
 	local extra_arguments=()
@@ -170,14 +179,15 @@ create_raid() {
 create_luks() {
 	USED_LUKS=true
 
-	local known_arguments=('+new_id' '+name' '+id')
+	local known_arguments=('+new_id' '+name' '+device|id')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
 
+	only_one_of device id
 	create_new_id new_id
-	verify_existing_id id
+	[[ -v arguments[id] ]] \
+		&& verify_existing_id id
 
-	local id="${arguments[id]}"
 	local new_id="${arguments[new_id]}"
 	local name="${arguments[name]}"
 	local uuid="${DISK_ID_TO_UUID[$new_id]}"
@@ -201,6 +211,19 @@ format() {
 	DISK_ACTIONS+=("action=format" "$@" ";")
 }
 
+# Named arguments:
+# ids:     List of ids for devices / partitions created earlier. Must contain at least 1 element.
+# label:   The label for the formatted disk
+format_btrfs() {
+	local known_arguments=('+ids' '?label')
+	local extra_arguments=()
+	declare -A arguments; parse_arguments "$@"
+
+	verify_existing_unique_ids ids
+
+	DISK_ACTIONS+=("action=format_btrfs" "$@" ";")
+}
+
 # Returns a comma separated list of all registered ids matching the given regex.
 expand_ids() {
 	local regex="$1"
@@ -213,11 +236,11 @@ expand_ids() {
 # Example 1: Single disk, 3 partitions (efi, swap, root)
 # Parameters:
 #   swap=<size>           create a swap partition with given size, or no swap if set to false
-#   type=[efi|bios]       defaults to efi. Selects the boot type.
-#   luks=[true|false]     encrypt root partition
+#   type=[efi|bios]       Selects the boot type. Defaults to efi.
+#   luks=[true|false]     Encrypt root partition. Defaults to false.
 #   root_fs=[ext4|btrfs]  root fs
 create_default_disk_layout() {
-	local known_arguments=('+swap' '?type')
+	local known_arguments=('+swap' '?type' '?use_luks' '?root_fs')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
 
@@ -226,8 +249,8 @@ create_default_disk_layout() {
 	local device="${extra_arguments[0]}"
 	local size_swap="${arguments[swap]}"
 	local type="${arguments[type]}"
-	local use_luks="${arguments[luks]}"
-	local root_fs="${arguments[root_fs]}"
+	local use_luks="${arguments[luks]:-false}"
+	local root_fs="${arguments[root_fs]:-ext4}"
 	local efi=true
 	case "$type" in
 		'bios')   efi=false type=bios ;;
@@ -236,7 +259,7 @@ create_default_disk_layout() {
 	esac
 
 	create_gpt new_id=gpt device="$device"
-	create_partition new_id="part_$type" id=gpt size=128MiB       type="$type"
+	create_partition new_id="part_$type" id=gpt size=256MiB       type="$type"
 	[[ $size_swap != "false" ]] && \
 	create_partition new_id=part_swap    id=gpt size="$size_swap" type=swap
 	create_partition new_id=part_root    id=gpt size=remaining    type=linux
@@ -266,11 +289,11 @@ create_default_disk_layout() {
 # - swap: raid 0 → fs
 # - root: raid 0 → luks → fs
 # Parameters:
-#   swap=<size>      create a swap partition with given size, or no swap if set to false
-#   type=[efi|bios]  defaults to efi. Selects the boot type.
+#   swap=<size>           create a swap partition with given size, or no swap if set to false
+#   type=[efi|bios]       Selects the boot type. Defaults to efi.
 #   root_fs=[ext4|btrfs]  root fs
 create_raid0_luks_layout() {
-	local known_arguments=('+swap' '?type')
+	local known_arguments=('+swap' '?type' '?root_fs')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
 
@@ -278,7 +301,7 @@ create_raid0_luks_layout() {
 		|| die_trace 1 "Expected at least one positional argument (the devices)"
 	local size_swap="${arguments[swap]}"
 	local type="${arguments[type]}"
-	local root_fs="${arguments[root_fs]}"
+	local root_fs="${arguments[root_fs]:-ext4}"
 	local efi=true
 	case "$type" in
 		'bios')   efi=false type=bios ;;
@@ -288,7 +311,7 @@ create_raid0_luks_layout() {
 
 	for i in "${!extra_arguments[@]}"; do
 		create_gpt new_id="gpt_dev${i}" device="${extra_arguments[$i]}"
-		create_partition new_id="part_${type}_dev${i}" id="gpt_dev${i}" size=128MiB       type="$type"
+		create_partition new_id="part_${type}_dev${i}" id="gpt_dev${i}" size=256MiB       type="$type"
 		[[ $size_swap != "false" ]] && \
 		create_partition new_id="part_swap_dev${i}"    id="gpt_dev${i}" size="$size_swap" type=raid
 		create_partition new_id="part_root_dev${i}"    id="gpt_dev${i}" size=remaining    type=raid
@@ -312,4 +335,72 @@ create_raid0_luks_layout() {
 	[[ $size_swap != "false" ]] && \
 	DISK_ID_SWAP=part_raid_swap
 	DISK_ID_ROOT=part_luks_root
+}
+
+# Example 3: Multiple disks, up to 3 partitions on first disk (efi, maybe swap, dm-crypt for btrfs).
+# Additional devices will be first encrypted and then put directly into btrfs array.
+# Parameters:
+#   swap=<size>                Create a swap partition with given size, or no swap if set to false
+#   type=[efi|bios]            Selects the boot type. Defaults to efi.
+#   luks=[true|false]          Encrypt root partitions / devices? Defaults to false.
+#   raid_type=[stripe|mirror]  Select raid type. Defaults to stripe.
+create_luks_btrfs_raid_layout() {
+	local known_arguments=('+swap' '?type' '?raid_type' '?use_luks')
+	local extra_arguments=()
+	declare -A arguments; parse_arguments "$@"
+
+	[[ ${#extra_arguments[@]} -gt 0 ]] \
+		|| die_trace 1 "Expected at least one positional argument (the devices)"
+	local device="${extra_arguments[0]}"
+	local size_swap="${arguments[swap]}"
+	local raid_type="${arguments[raid_type]:-stripe}"
+	local type="${arguments[type]}"
+	local efi=true
+	case "$type" in
+		'bios')   efi=false type=bios ;;
+		'efi'|'') efi=true  type=efi  ;;
+		*)        die_trace 1 "Invalid argument type=$type, must be one of (bios, efi)" ;;
+	esac
+
+	# Create layout on first disk
+	create_gpt new_id="gpt_dev0" device="${extra_arguments[0]}"
+	create_partition new_id="part_${type}_dev0" id="gpt_dev0" size=256MiB       type="$type"
+	[[ $size_swap != "false" ]] && \
+	create_partition new_id="part_swap_dev0"    id="gpt_dev0" size="$size_swap" type=raid
+	create_partition new_id="part_root_dev0"    id="gpt_dev0" size=remaining    type=raid
+
+	local root_ids=""
+	if [[ "$use_luks" == "true" ]]; then
+		create_luks new_id=luks_dev0 name="luks_root_0" id=part_root_dev0
+		root_ids="${root_ids}luks_dev0;"
+		for i in "${!extra_arguments[@]}"; do
+			[[ $i != 0 ]] || continue
+			create_luks new_id="luks_dev$i" name="luks_root_$i" device="${extra_arguments[$i]}"
+			root_ids="${root_ids}luks_dev$i;"
+		done
+	else
+		local dev_id=""
+		root_ids="${root_ids}part_root_dev0;"
+		for i in "${!extra_arguments[@]}"; do
+			[[ $i != 0 ]] || continue
+			dev_id="root_dev$i"
+			create_new_id_directly "$dev_id"
+			create_resolve_entry_device "$dev_id" "${extra_arguments[$i]}"
+			root_ids="${root_ids}$dev_id;"
+		done
+	fi
+
+	format id="part_${type}_dev0" type="$type" label="$type"
+	[[ $size_swap != "false" ]] && \
+	format id="part_swap_dev0" type=swap label=swap
+	format_btrfs ids="$root_ids" label=root
+
+	if [[ $type == "efi" ]]; then
+		DISK_ID_EFI="part_${type}_dev0"
+	else
+		DISK_ID_BIOS="part_${type}_dev0"
+	fi
+	[[ $size_swap != "false" ]] && \
+	DISK_ID_SWAP=part_swap_dev0
+	DISK_ID_ROOT="${root_ids[0]}"
 }

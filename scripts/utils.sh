@@ -203,6 +203,13 @@ create_resolve_entry() {
 	DISK_ID_TO_RESOLVABLE[$id]="$type:$arg"
 }
 
+create_resolve_entry_device() {
+	local id="$1"
+	local dev="$2"
+
+	DISK_ID_TO_RESOLVABLE[$id]="device:$dev"
+}
+
 resolve_device_by_id() {
 	local id="$1"
 	[[ -v DISK_ID_TO_RESOLVABLE[$id] ]] \
@@ -217,6 +224,7 @@ resolve_device_by_id() {
 		'uuid')     get_device_by_uuid       "$arg" ;;
 		'mdadm')    get_device_by_mdadm_uuid "$arg" ;;
 		'luks')     get_device_by_luks_name  "$arg" ;;
+		'device')   echo -n "$arg" ;;
 		*) die "Cannot resolve '$type:$arg' to device (unknown type)"
 	esac
 }

@@ -31,17 +31,27 @@ luks_getkeyfile() {
 # Create default scheme (efi/boot, (optional swap), root)
 # To disable swap, set swap=false
 # To disable encryted root, set luks=false
-#EFI:  create_default_disk_layout luks=true root_type=btrfs swap=8GiB /dev/sdX
-#BIOS: create_default_disk_layout luks=true root_type=btrfs swap=8GiB type=bios /dev/sdX
-create_default_disk_layout swap=8GiB /dev/sdX
+#create_default_disk_layout luks=true root_type=btrfs swap=8GiB /dev/sdX            # EFI
+#create_default_disk_layout luks=true root_type=btrfs swap=8GiB type=bios /dev/sdX  # BIOS
+#create_default_disk_layout swap=8GiB /dev/sdX
 
 # Create default scheme from above on each given device,
 # but create two raid0s for all swap partitions and all root partitions
 # respectively. Create luks on the root raid.
 # Hint: You will get N times the swap amount, so be sure to divide beforehand.
-#create_raid0_luks_layout swap=4GiB /dev/sd{X,Y}           # EFI
-#create_raid0_luks_layout swap=4GiB type=bios /dev/sd{X,Y} # BIOS
-#create_raid0_luks_layout swap=0 type=bios /dev/sd{X,Y}    # BIOS no swap
+#create_raid0_luks_layout swap=4GiB /dev/sd{X,Y}             # EFI
+#create_raid0_luks_layout swap=4GiB type=bios /dev/sd{X,Y}   # BIOS
+#create_raid0_luks_layout swap=false type=bios /dev/sd{X,Y}  # BIOS no swap
+
+# Create default scheme from above on first given device,
+# encrypt and use the root partition of this first disk plus
+# encrypt and use the rest of the devices to create a btrfs raid
+# array of specified type. By default is uses striping. Specify
+# raid_type=mirror for raid1.
+# Hint: Swap will only be on the first disk.
+create_btrfs_raid_layout swap=8GiB luks=true /dev/sd{X,Y}                    # EFI
+#create_btrfs_raid_layout swap=8GiB type=bios luks=true /dev/sd{X,Y}         # BIOS
+#create_btrfs_raid_layout swap=false type=bios raid_type=mirror /dev/sd{X,Y} # BIOS, raid1, no luks, no swap
 
 ################################################
 # System configuration

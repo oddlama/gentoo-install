@@ -68,6 +68,7 @@ prepare_installation_environment() {
 	check_has_program hwclock
 	check_has_program lsblk
 	check_has_program ntpd
+	check_has_program btrfs
 	check_has_program partprobe
 	check_has_program python3
 	check_has_program rhash
@@ -228,13 +229,25 @@ disk_create_raid() {
 disk_create_luks() {
 	local new_id="${arguments[new_id]}"
 	local name="${arguments[name]}"
-	local id="${arguments[id]}"
 	if [[ $disk_action_summarize_only == "true" ]]; then
-		add_summary_entry "$id" "$new_id" "luks" "" ""
+		if [[ -v arguments[id] ]]; then
+			add_summary_entry "${arguments[id]}" "$new_id" "luks" "" ""
+		else
+			add_summary_entry __root__ "$new_id" "${arguments[device]}" "(luks)" ""
+		fi
 		return 0
 	fi
 
-	local device="$(resolve_device_by_id "$id")"
+	local device
+	local device_desc=""
+	if [[ -v arguments[id] ]]; then
+		device="$(resolve_device_by_id "${arguments[id]}")"
+		device_desc="$device ($id)"
+	else
+		device="${arguments[device]}"
+		device_desc="$device"
+	fi
+
 	local uuid="${DISK_ID_TO_UUID[$new_id]}"
 
 	einfo "Creating luks ($new_id) on $device ($id)"
@@ -266,6 +279,21 @@ disk_create_luks() {
 			--key-file "$keyfile" \
 			"$device" "$name" \
 		|| die "Could not open luks encrypted device '$device' ($id)"
+}
+
+init_btrfs() {
+	local device="$1"
+	local desc="$2"
+	mkdir -p /btrfs \
+		|| die "Could not create /btrfs directory"
+	mount "$device" /btrfs \
+		|| die "Could not mount $desc to /btrfs"
+	btrfs subvolume create /btrfs/root \
+		|| die "Could not create btrfs subvolume /root on $desc"
+	btrfs subvolume set-default /btrfs/root \
+		|| die "Could not set default btrfs subvolume to /root on $desc"
+	umount /btrfs \
+		|| die "Could not unmount btrfs on $desc"
 }
 
 disk_format() {
@@ -315,9 +343,48 @@ disk_format() {
 				mkfs.btrfs -q "$device" \
 					|| die "Could not format device '$device' ($id)"
 			fi
+
+			init_btrfs "$device" "'$device' ($id)"
 			;;
 		*) die "Unknown filesystem type" ;;
 	esac
+}
+
+disk_format_btrfs() {
+	local ids="${arguments[ids]}"
+	local label="${arguments[label]}"
+	if [[ $disk_action_summarize_only == "true" ]]; then
+		local id
+		# Splitting is intentional here
+		# shellcheck disable=SC2086
+		for id in ${ids//';'/ }; do
+			add_summary_entry "$id" "__fs__$id" "btrfs" "(fs)" "$(summary_color_args label)"
+		done
+		return 0
+	fi
+
+	local devices_desc=""
+	local devices=()
+	local id
+	# Splitting is intentional here
+	# shellcheck disable=SC2086
+	for id in ${ids//';'/ }; do
+		local dev="$(resolve_device_by_id "$id")"
+		devices+=("$dev")
+		devices_desc+="$dev ($id), "
+	done
+	devices_desc="${devices_desc:0:-2}"
+
+	einfo "Creating btrfs on $devices_desc"
+	if [[ -v "arguments[label]" ]]; then
+		mkfs.btrfs -q -L "$label" "${devices[@]}" \
+			|| die "Could not create btrfs on $devices_desc"
+	else
+		mkfs.btrfs -q "${devices[@]}" \
+			|| die "Could not create btrfs on $devices_desc"
+	fi
+
+	init_btrfs "${devices[0]}" "btrfs array ($devices_desc)"
 }
 
 apply_disk_action() {
@@ -329,6 +396,7 @@ apply_disk_action() {
 		'create_raid')      disk_create_raid      ;;
 		'create_luks')      disk_create_luks      ;;
 		'format')           disk_format           ;;
+		'format_btrfs')     disk_format_btrfs     ;;
 		*) echo "Ignoring invalid action: ${arguments[action]}" ;;
 	esac
 }

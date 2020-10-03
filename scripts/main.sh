@@ -195,7 +195,7 @@ install_kernel_bios() {
 	try syslinux --directory syslinux --install "$biosdev"
 
 	# Create syslinux.cfg
-	echo "$(generate_syslinux_cfg)" > /boot/bios/syslinux/syslinux.cfg \
+	generate_syslinux_cfg > /boot/bios/syslinux/syslinux.cfg \
 		|| die "Could save generated syslinux.cfg"
 
 	# Install syslinux MBR record
