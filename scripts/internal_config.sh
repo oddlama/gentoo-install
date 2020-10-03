@@ -240,7 +240,7 @@ expand_ids() {
 #   luks=[true|false]     Encrypt root partition. Defaults to false.
 #   root_fs=[ext4|btrfs]  root fs
 create_default_disk_layout() {
-	local known_arguments=('+swap' '?type' '?use_luks' '?root_fs')
+	local known_arguments=('+swap' '?type' '?luks' '?root_fs')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
 
@@ -344,8 +344,8 @@ create_raid0_luks_layout() {
 #   type=[efi|bios]            Selects the boot type. Defaults to efi.
 #   luks=[true|false]          Encrypt root partitions / devices? Defaults to false.
 #   raid_type=[stripe|mirror]  Select raid type. Defaults to stripe.
-create_luks_btrfs_raid_layout() {
-	local known_arguments=('+swap' '?type' '?raid_type' '?use_luks')
+create_btrfs_raid_layout() {
+	local known_arguments=('+swap' '?type' '?raid_type' '?luks')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
 
@@ -369,9 +369,11 @@ create_luks_btrfs_raid_layout() {
 	create_partition new_id="part_swap_dev0"    id="gpt_dev0" size="$size_swap" type=raid
 	create_partition new_id="part_root_dev0"    id="gpt_dev0" size=remaining    type=raid
 
+	local root_id
 	local root_ids=""
 	if [[ "$use_luks" == "true" ]]; then
 		create_luks new_id=luks_dev0 name="luks_root_0" id=part_root_dev0
+		root_id="luks_dev0"
 		root_ids="${root_ids}luks_dev0;"
 		for i in "${!extra_arguments[@]}"; do
 			[[ $i != 0 ]] || continue
@@ -380,6 +382,7 @@ create_luks_btrfs_raid_layout() {
 		done
 	else
 		local dev_id=""
+		root_id="part_root_dev0"
 		root_ids="${root_ids}part_root_dev0;"
 		for i in "${!extra_arguments[@]}"; do
 			[[ $i != 0 ]] || continue
