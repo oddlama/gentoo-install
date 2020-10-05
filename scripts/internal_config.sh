@@ -290,6 +290,16 @@ create_default_disk_layout() {
 	fi
 	DISK_ID_SWAP=part_swap
 	DISK_ID_ROOT="$root_id"
+
+	if [[ $root_fs == "btrfs" ]]; then
+		DISK_ID_ROOT_TYPE="btrfs"
+		DISK_ID_ROOT_MOUNT_OPTS="defaults,noatime,compress=zstd,subvol=/root"
+	elif [[ $root_fs == "btrfs" ]]; then
+		DISK_ID_ROOT_TYPE="ext4"
+		DISK_ID_ROOT_MOUNT_OPTS="defaults,noatime,errors=remount-ro,discard"
+	else
+		die "Unsupported root filesystem type"
+	fi
 }
 
 # Example 2: Multiple disks, with raid 0 and luks
@@ -343,6 +353,16 @@ create_raid0_luks_layout() {
 	[[ $size_swap != "false" ]] && \
 	DISK_ID_SWAP=part_raid_swap
 	DISK_ID_ROOT=part_luks_root
+
+	if [[ $root_fs == "btrfs" ]]; then
+		DISK_ID_ROOT_TYPE="btrfs"
+		DISK_ID_ROOT_MOUNT_OPTS="defaults,noatime,compress=zstd,subvol=/root"
+	elif [[ $root_fs == "btrfs" ]]; then
+		DISK_ID_ROOT_TYPE="ext4"
+		DISK_ID_ROOT_MOUNT_OPTS="defaults,noatime,errors=remount-ro,discard"
+	else
+		die "Unsupported root filesystem type"
+	fi
 }
 
 # Example 3: Multiple disks, up to 3 partitions on first disk (efi, maybe swap, dm-crypt for btrfs).
@@ -414,4 +434,6 @@ create_btrfs_raid_layout() {
 	[[ $size_swap != "false" ]] && \
 	DISK_ID_SWAP=part_swap_dev0
 	DISK_ID_ROOT="$root_id"
+	DISK_ID_ROOT_TYPE="btrfs"
+	DISK_ID_ROOT_MOUNT_OPTS="defaults,noatime,compress=zstd,subvol=/root"
 }
