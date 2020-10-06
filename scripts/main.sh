@@ -64,27 +64,28 @@ configure_base_system() {
 
 		# Set hostname
 		einfo "Selecting hostname"
-		hostnamectl set-hostname "$HOSTNAME" \
-			|| die "Could not set hostname"
+		echo "$HOSTNAME" > /etc/hostname
+		#hostnamectl set-hostname "$HOSTNAME" \
+		#	|| die "Could not set hostname"
 
-		# Set timezone
-		einfo "Selecting timezone"
-		timedatectl set-timezone "$TIMEZONE" \
-			|| die "Could not set timezone"
+		## Set timezone
+		#einfo "Selecting timezone"
+		#timedatectl set-timezone "$TIMEZONE" \
+		#	|| die "Could not set timezone"
 
-		einfo "Setting time to UTC"
-		timedatectl set-local-rtc 0 \
-			|| die "Could not set local rtc to UTC"
+		#einfo "Setting time to UTC"
+		#timedatectl set-local-rtc 0 \
+		#	|| die "Could not set local rtc to UTC"
 
-		# Set keymap
-		einfo "Selecting keymap"
-		localectl set-keymap "$KEYMAP" \
-			|| die "Could not set keymap"
+		## Set keymap
+		#einfo "Selecting keymap"
+		#localectl set-keymap "$KEYMAP" \
+		#	|| die "Could not set keymap"
 
-		# Set locale
-		einfo "Selecting locale"
-		localectl set-locale LANG="$LOCALE" \
-			|| die "Could not set locale"
+		## Set locale
+		#einfo "Selecting locale"
+		#localectl set-locale LANG="$LOCALE" \
+		#	|| die "Could not set locale"
 	else
 		# Set hostname
 		einfo "Selecting hostname"
@@ -296,10 +297,10 @@ install_ansible() {
 main_install_gentoo_in_chroot() {
 	[[ $# == 0 ]] || die "Too many arguments"
 
-	# Lock the root password, making the account unaccessible for the
-	# period of installation, except by chrooting
-	einfo "Locking root account"
-	passwd -l root \
+	# Remove the root password, making the account accessible for automated
+	# tasks during the period of installation.
+	einfo "Clearing root password"
+	passwd -d root \
 		|| die "Could not change root password"
 
 	if [[ $IS_EFI == "true" ]]; then
