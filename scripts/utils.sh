@@ -159,10 +159,12 @@ get_device_by_uuid() {
 }
 
 get_device_by_ptuuid() {
+	echo "get_device_by_ptuuid '$ptuuid'"
 	local ptuuid="${1,,}"
 	local dev
 	dev="$(lsblk --all --path --pairs --output NAME,PTUUID,PARTUUID)" \
 		|| die "Error while executing lsblk to find PTUUID=$ptuuid"
+	echo "lsblkout: $dev"
 	dev="$(grep "ptuuid=\"$ptuuid\" partuuid=\"\"" <<< "${dev,,}")" \
 		|| die "Could not find PTUUID=... in lsblk output"
 	dev="${dev%'" ptuuid='*}"
