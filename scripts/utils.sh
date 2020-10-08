@@ -158,13 +158,20 @@ get_device_by_uuid() {
 	get_device_by_blkid_field 'UUID' "$1"
 }
 
+cache_lsblk_output() {
+	CACHED_LSBLK_OUTPUT="$(lsblk --all --path --pairs --output NAME,PTUUID,PARTUUID)" \
+		|| die "Error while executing lsblk to cache output"
+}
+
 get_device_by_ptuuid() {
-	echo "get_device_by_ptuuid '$ptuuid'"
 	local ptuuid="${1,,}"
 	local dev
-	dev="$(lsblk --all --path --pairs --output NAME,PTUUID,PARTUUID)" \
-		|| die "Error while executing lsblk to find PTUUID=$ptuuid"
-	echo "lsblkout: $dev"
+	if [[ -n $CACHED_LSBLK_OUTPUT ]]; then
+		dev="$CACHED_LSBLK_OUTPUT"
+	else
+		dev="$(lsblk --all --path --pairs --output NAME,PTUUID,PARTUUID)" \
+			|| die "Error while executing lsblk to find PTUUID=$ptuuid"
+	fi
 	dev="$(grep "ptuuid=\"$ptuuid\" partuuid=\"\"" <<< "${dev,,}")" \
 		|| die "Could not find PTUUID=... in lsblk output"
 	dev="${dev%'" ptuuid='*}"

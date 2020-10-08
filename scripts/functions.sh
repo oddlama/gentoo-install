@@ -735,10 +735,14 @@ gentoo_chroot() {
 			mount --make-rslave "$ROOT_MOUNTPOINT/dev"; } || exit 1
 	) || die "Could not mount virtual filesystems"
 
+	# Cache lsblk output, because apparently it doesn't work correctly in chroot (returns almost no info for devices, e.g. empty uuids)
+	cache_lsblk_output
+
 	# Execute command
 	einfo "Chrooting..."
 	EXECUTED_IN_CHROOT=true \
-		TMP_DIR=$TMP_DIR \
+		TMP_DIR="$TMP_DIR" \
+		CACHED_LSBLK_OUTPUT="$CACHED_LSBLK_OUTPUT" \
 		exec chroot -- "$ROOT_MOUNTPOINT" "$GENTOO_INSTALL_REPO_DIR/scripts/main_chroot.sh" "$@" \
 			|| die "Failed to chroot into '$ROOT_MOUNTPOINT'"
 }
