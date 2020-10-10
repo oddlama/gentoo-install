@@ -111,8 +111,6 @@ SYSTEMD=true
 
 # Array of additional packages to install
 ADDITIONAL_PACKAGES=("app-editors/neovim")
-# Install and enable dhcpcd
-INSTALL_DHCPCD=true
 # Install and configure sshd (a reasonably secure config is provided, which
 # only allows the use of ed25519 keys, and requires pubkey authentication)
 INSTALL_SSHD=true

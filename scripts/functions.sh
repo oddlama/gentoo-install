@@ -746,3 +746,13 @@ gentoo_chroot() {
 		exec chroot -- "$ROOT_MOUNTPOINT" "$GENTOO_INSTALL_REPO_DIR/scripts/main_chroot.sh" "$@" \
 			|| die "Failed to chroot into '$ROOT_MOUNTPOINT'"
 }
+
+enable_service() {
+	if [[ $SYSTEMD == "true" ]]; then
+		systemctl enable "$1" \
+			|| die "Could not enable $1 service"
+	else
+		rc-update add "$1" default \
+			|| die "Could not add $1 to default services"
+	fi
+}

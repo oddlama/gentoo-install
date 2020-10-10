@@ -134,8 +134,7 @@ install_sshd() {
 	einfo "Installing sshd"
 	install -m0600 -o root -g root "$GENTOO_INSTALL_REPO_DIR/configs/sshd_config" /etc/ssh/sshd_config \
 		|| die "Could not install /etc/ssh/sshd_config"
-	rc-update add sshd default \
-		|| die "Could not add sshd to default services"
+	enable_service sshd
 	groupadd -r sshusers \
 		|| die "Could not create group 'sshusers'"
 }
@@ -346,7 +345,7 @@ main_install_gentoo_in_chroot() {
 	# Generate a valid fstab file
 	generate_fstab
 
-	# Install and enable dhcpcd
+	# Install gentoolkit
 	einfo "Installing gentoolkit"
 	try emerge --verbose app-portage/gentoolkit
 
@@ -355,11 +354,13 @@ main_install_gentoo_in_chroot() {
 		install_sshd
 	fi
 
-	# Install and enable dhcpcd
-	einfo "Installing dhcpcd"
-	try emerge --verbose net-misc/dhcpcd
-	rc-update add dhcpcd default \
-		|| die "Could not add dhcpcd to default services"
+	if [[ $SYSTEMD != "true" ]]; then
+		# Install and enable dhcpcd
+		einfo "Installing dhcpcd"
+		try emerge --verbose net-misc/dhcpcd
+
+		enable_service dhcpcd
+	fi
 
 	# Install ansible
 	if [[ $INSTALL_ANSIBLE == "true" ]]; then
