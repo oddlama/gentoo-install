@@ -20,6 +20,8 @@ LUKS_HEADER_BACKUP_DIR="$TMP_DIR/luks-headers"
 USED_RAID=false
 # Flag to track usage of luks (needed to check for cryptsetup existence)
 USED_LUKS=false
+# Flag to track usage of btrfs
+USED_BTRFS=false
 
 # An array of disk related actions to perform
 DISK_ACTIONS=()
@@ -206,7 +208,7 @@ create_dummy() {
 
 # Named arguments:
 # id:     Id of the device / partition created earlier
-# type:   One of (bios, efi, swap, ext4, btrfs)
+# type:   One of (bios, efi, swap, ext4)
 # label:  The label for the formatted disk
 format() {
 	local known_arguments=('+id' '+type' '?label')
@@ -214,7 +216,7 @@ format() {
 	declare -A arguments; parse_arguments "$@"
 
 	verify_existing_id id
-	verify_option type bios efi swap ext4 btrfs
+	verify_option type bios efi swap ext4
 
 	DISK_ACTIONS+=("action=format" "$@" ";")
 }
@@ -223,7 +225,9 @@ format() {
 # ids:     List of ids for devices / partitions created earlier. Must contain at least 1 element.
 # label:   The label for the formatted disk
 format_btrfs() {
-	local known_arguments=('+ids' '?label')
+	USED_BTRFS=true
+
+	local known_arguments=('+ids' '?raid_type' '?label')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
 
@@ -371,7 +375,7 @@ create_raid0_luks_layout() {
 #   swap=<size>                Create a swap partition with given size, or no swap if set to false
 #   type=[efi|bios]            Selects the boot type. Defaults to efi.
 #   luks=[true|false]          Encrypt root partitions / devices? Defaults to false.
-#   raid_type=[stripe|mirror]  Select raid type. Defaults to stripe.
+#   raid_type=[raid0|raid1]    Select raid type. Defaults to raid0.
 create_btrfs_raid_layout() {
 	local known_arguments=('+swap' '?type' '?raid_type' '?luks')
 	local extra_arguments=()
@@ -381,7 +385,7 @@ create_btrfs_raid_layout() {
 		|| die_trace 1 "Expected at least one positional argument (the devices)"
 	local device="${extra_arguments[0]}"
 	local size_swap="${arguments[swap]}"
-	local raid_type="${arguments[raid_type]:-stripe}"
+	local raid_type="${arguments[raid_type]:-raid0}"
 	local type="${arguments[type]}"
 	local use_luks="${arguments[luks]:-false}"
 	local efi=true
@@ -424,7 +428,7 @@ create_btrfs_raid_layout() {
 	format id="part_${type}_dev0" type="$type" label="$type"
 	[[ $size_swap != "false" ]] && \
 	format id="part_swap_dev0" type=swap label=swap
-	format_btrfs ids="$root_ids" label=root
+	format_btrfs ids="$root_ids" label=root raid_type="$raid_type"
 
 	if [[ $type == "efi" ]]; then
 		DISK_ID_EFI="part_${type}_dev0"

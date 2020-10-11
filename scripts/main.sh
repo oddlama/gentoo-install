@@ -150,6 +150,8 @@ generate_initramfs() {
 		&& modules+=("mdraid")
 	[[ $USED_LUKS == "true" ]] \
 		&& modules+=("crypt crypt-gpg")
+	[[ $USED_BTRFS == "true" ]] \
+		&& modules+=("btrfs")
 
 	local kver="$(readlink /usr/src/linux)"
 	kver="${kver#linux-}"
@@ -162,6 +164,7 @@ generate_initramfs() {
 		--no-compress \
 		--no-hostonly \
 		--ro-mnt \
+		--omit          "systemd" \
 		--add           "bash ${modules[*]}" \
 		--force \
 		"$output"
@@ -337,6 +340,12 @@ main_install_gentoo_in_chroot() {
 	if [[ $USED_LUKS == "true" ]]; then
 		einfo "Installing cryptsetup"
 		try emerge --verbose sys-fs/cryptsetup
+	fi
+
+	# Install btrfs-progs if we used btrfs
+	if [[ $USED_BTRFS == "true" ]]; then
+		einfo "Installing btrfs-progs"
+		try emerge --verbose sys-fs/btrfs-progs
 	fi
 
 	# Install kernel and initramfs

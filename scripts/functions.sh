@@ -362,6 +362,7 @@ disk_format() {
 disk_format_btrfs() {
 	local ids="${arguments[ids]}"
 	local label="${arguments[label]}"
+	local raid_type="${arguments[raid_type]}"
 	if [[ $disk_action_summarize_only == "true" ]]; then
 		local id
 		# Splitting is intentional here
@@ -384,14 +385,19 @@ disk_format_btrfs() {
 	done
 	devices_desc="${devices_desc:0:-2}"
 
-	einfo "Creating btrfs on $devices_desc"
-	if [[ -v "arguments[label]" ]]; then
-		mkfs.btrfs -q -L "$label" "${devices[@]}" \
-			|| die "Could not create btrfs on $devices_desc"
-	else
-		mkfs.btrfs -q "${devices[@]}" \
-			|| die "Could not create btrfs on $devices_desc"
+	# Collect extra arguments
+	extra_args=()
+	if [[ -v "arguments[raid_type]" ]]; then
+		extra_args+=("-d" "$raid_type")
 	fi
+
+	if [[ -v "arguments[label]" ]]; then
+		extra_args+=("-L" "$label")
+	fi
+
+	einfo "Creating btrfs on $devices_desc"
+	mkfs.btrfs -q "${extra_args[@]}" "${devices[@]}" \
+		|| die "Could not create btrfs on $devices_desc"
 
 	init_btrfs "${devices[0]}" "btrfs array ($devices_desc)"
 }
