@@ -371,6 +371,14 @@ main_install_gentoo_in_chroot() {
 		enable_service dhcpcd
 	fi
 
+	if [[ $SYSTEMD == "true" ]]; then
+		# Enable systemd networking and dhcp
+		enable_service systemd-networkd
+		enable_service systemd-resolved
+		echo -n "[Match]\nName=en*\n\n[Network]\nDHCP=yes" > /etc/systemd/network/20-wired-dhcp.network \
+			|| die "Could not write dhcp network config to '/etc/systemd/network/20-wired-dhcp.network'"
+	fi
+
 	# Install ansible
 	if [[ $INSTALL_ANSIBLE == "true" ]]; then
 		install_ansible
