@@ -69,6 +69,7 @@ configure_base_system() {
 		#	|| die "Could not set hostname"
 
 		## Set timezone
+		# TODO use systemd-nspawn to start instead of chroot, then we can use these utils.
 		#einfo "Selecting timezone"
 		#timedatectl set-timezone "$TIMEZONE" \
 		#	|| die "Could not set timezone"
