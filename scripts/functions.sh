@@ -387,7 +387,7 @@ disk_format_btrfs() {
 
 	# Collect extra arguments
 	extra_args=()
-	if [[ -v "arguments[raid_type]" ]]; then
+	if [[ "${#devices}" -gt 1 ]] && [[ -v "arguments[raid_type]" ]]; then
 		extra_args+=("-d" "$raid_type")
 	fi
 

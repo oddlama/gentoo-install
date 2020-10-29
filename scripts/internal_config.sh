@@ -216,7 +216,12 @@ format() {
 	declare -A arguments; parse_arguments "$@"
 
 	verify_existing_id id
-	verify_option type bios efi swap ext4
+	verify_option type bios efi swap ext4 btrfs
+
+	local type="${arguments[type]}"
+	if [[ "$type" == "btrfs" ]]; then
+		USED_BTRFS=true
+	fi
 
 	DISK_ACTIONS+=("action=format" "$@" ";")
 }
@@ -399,8 +404,8 @@ create_btrfs_raid_layout() {
 	create_gpt new_id="gpt_dev0" device="${extra_arguments[0]}"
 	create_partition new_id="part_${type}_dev0" id="gpt_dev0" size=256MiB       type="$type"
 	[[ $size_swap != "false" ]] && \
-	create_partition new_id="part_swap_dev0"    id="gpt_dev0" size="$size_swap" type=raid
-	create_partition new_id="part_root_dev0"    id="gpt_dev0" size=remaining    type=raid
+	create_partition new_id="part_swap_dev0"    id="gpt_dev0" size="$size_swap" type=swap
+	create_partition new_id="part_root_dev0"    id="gpt_dev0" size=remaining    type=linux
 
 	local root_id
 	local root_ids=""
