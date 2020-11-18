@@ -378,6 +378,10 @@ main_install_gentoo_in_chroot() {
 		enable_service systemd-resolved
 		echo -n "[Match]\nName=en*\n\n[Network]\nDHCP=yes" > /etc/systemd/network/20-wired-dhcp.network \
 			|| die "Could not write dhcp network config to '/etc/systemd/network/20-wired-dhcp.network'"
+		chown root:systemd-network /etc/systemd/network/20-wired-dhcp.network \
+			|| die "Could not change owner of '/etc/systemd/network/20-wired-dhcp.network'"
+		chmod 640 /etc/systemd/network/20-wired-dhcp.network \
+			|| die "Could not change owner of '/etc/systemd/network/20-wired-dhcp.network'"
 	fi
 
 	# Install ansible
