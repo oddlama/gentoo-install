@@ -31,8 +31,8 @@ luks_getkeyfile() {
 # Create default scheme (efi/boot, (optional swap), root)
 # To disable swap, set swap=false
 # To disable encryted root, set luks=false
-#create_default_disk_layout luks=true root_type=btrfs swap=8GiB /dev/sdX            # EFI
-#create_default_disk_layout luks=true root_type=btrfs swap=8GiB type=bios /dev/sdX  # BIOS
+#create_default_disk_layout luks=true root_fs=btrfs swap=8GiB /dev/sdX            # EFI
+#create_default_disk_layout luks=true root_fs=btrfs swap=8GiB type=bios /dev/sdX  # BIOS
 #create_default_disk_layout swap=8GiB /dev/sdX
 
 # Create default scheme from above on each given device,
