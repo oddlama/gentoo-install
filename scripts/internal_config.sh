@@ -303,7 +303,7 @@ create_default_disk_layout() {
 	if [[ $root_fs == "btrfs" ]]; then
 		DISK_ID_ROOT_TYPE="btrfs"
 		DISK_ID_ROOT_MOUNT_OPTS="defaults,noatime,compress-force=zstd,subvol=/root"
-	elif [[ $root_fs == "btrfs" ]]; then
+	elif [[ $root_fs == "ext4" ]]; then
 		DISK_ID_ROOT_TYPE="ext4"
 		DISK_ID_ROOT_MOUNT_OPTS="defaults,noatime,errors=remount-ro,discard"
 	else
