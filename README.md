@@ -4,12 +4,12 @@ This script performs a reasonably minimal installation of gentoo. An EFI system 
 recommended, but legacy BIOS boot is also supported. The script supports both systemd (default)
 and OpenRC as the init system. The main performed steps are:
 
-#. Partitioning
-#. Download & verify stage3 tarball
-#. Extract stage3
-#. Initialize portage
-#. Install kernel
-#. Install additional software
+1. Partitioning
+1. Download & verify stage3 tarball
+1. Extract stage3
+1. Initialize portage
+1. Install kernel
+1. Install additional software
 
 The system will use `sys-kernel/gentoo-kernel-bin`, which should be suitable
 to boot most systems out of the box. I strongly recommend you to replace this kernel
@@ -30,18 +30,18 @@ allow for a convenient setup of the new system afterwards.
 
 Here is a more complete overview of what this script does:
 
-#. Partition disks (supports gpt, raid, luks)
-#. Download and cryptographically verify the newest stage3 tarball
-#. Extract the stage3 tarball
-#. Sync portage tree
-#. Configure portage (create zz-autounmask files, configure MAKEOPTS, EMERGE_DEFAULT_OPTS)
-#. Select the fastest gentoo mirrors
-#. Configure the base system
-#. Install git (so you can add your portage overlays later)
-#. Install `sys-kernel/gentoo-kernel-bin` (until you replace it)
-#. Create efibootmgr entry or install syslinux depending on whether your system uses EFI
-#. Generate a basic fstab
-#. Ask for a root password
+1. Partition disks (supports gpt, raid, luks)
+1. Download and cryptographically verify the newest stage3 tarball
+1. Extract the stage3 tarball
+1. Sync portage tree
+1. Configure portage (create zz-autounmask files, configure MAKEOPTS, EMERGE_DEFAULT_OPTS)
+1. Select the fastest gentoo mirrors
+1. Configure the base system
+1. Install git (so you can add your portage overlays later)
+1. Install `sys-kernel/gentoo-kernel-bin` (until you replace it)
+1. Create efibootmgr entry or install syslinux depending on whether your system uses EFI
+1. Generate a basic fstab
+1. Ask for a root password
 
 Also, optionally the following will be done:
 
