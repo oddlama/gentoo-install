@@ -5,6 +5,8 @@ source "$GENTOO_INSTALL_REPO_DIR/scripts/internal_config.sh" || exit 1
 ################################################
 # Disk configuration
 
+# TODO us layout maybe config
+# TODO better explanation for normal password
 # This function will be called when the key for a luks device is needed.
 # Parameters:
 #	$1 will be the id of the luks device as given in `create_luks new_id=<id> ...`.
