@@ -26,7 +26,7 @@ USED_BTRFS=false
 # An array of disk related actions to perform
 DISK_ACTIONS=()
 # An array of dracut parameters needed to boot the selected configuration
-DISK_DRACUT_CMDLINE=()
+DISK_DRACUT_CMDLINE=("rd.vconsole.keymap=$KEYMAP_INITRAMFS")
 # An associative array from disk id to a resolvable string
 declare -A DISK_ID_TO_RESOLVABLE
 # An associative array from disk id to parent gpt disk id (only for partitions)
@@ -252,11 +252,11 @@ expand_ids() {
 
 # Example 1: Single disk, 3 partitions (efi, swap, root)
 # Parameters:
-#   swap=<size>           create a swap partition with given size, or no swap if set to false
-#   type=[efi|bios]       Selects the boot type. Defaults to efi.
-#   luks=[true|false]     Encrypt root partition. Defaults to false.
-#   root_fs=[ext4|btrfs]  root fs
-create_default_disk_layout() {
+#   swap=<size>           Create a swap partition with given size, or no swap at all if set to false
+#   type=[efi|bios]       Selects the boot type. Defaults to efi if not given.
+#   luks=[true|false]     Encrypt root partition. Defaults to false if not given.
+#   root_fs=[ext4|btrfs]  Root filesystem
+create_single_disk_layout() {
 	local known_arguments=('+swap' '?type' '?luks' '?root_fs')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
@@ -316,9 +316,9 @@ create_default_disk_layout() {
 # - swap: raid 0 → fs
 # - root: raid 0 → luks → fs
 # Parameters:
-#   swap=<size>           create a swap partition with given size, or no swap if set to false
-#   type=[efi|bios]       Selects the boot type. Defaults to efi.
-#   root_fs=[ext4|btrfs]  root fs
+#   swap=<size>           Create a swap partition with given size for each disk, or no swap at all if set to false
+#   type=[efi|bios]       Selects the boot type. Defaults to efi if not given.
+#   root_fs=[ext4|btrfs]  Root filesystem
 create_raid0_luks_layout() {
 	local known_arguments=('+swap' '?type' '?root_fs')
 	local extra_arguments=()
@@ -377,9 +377,9 @@ create_raid0_luks_layout() {
 # Example 3: Multiple disks, up to 3 partitions on first disk (efi, maybe swap, dm-crypt for btrfs).
 # Additional devices will be first encrypted and then put directly into btrfs array.
 # Parameters:
-#   swap=<size>                Create a swap partition with given size, or no swap if set to false
-#   type=[efi|bios]            Selects the boot type. Defaults to efi.
-#   luks=[true|false]          Encrypt root partitions / devices? Defaults to false.
+#   swap=<size>                Create a swap partition with given size, or no swap at all if set to false
+#   type=[efi|bios]            Selects the boot type. Defaults to efi if not given.
+#   luks=[true|false]          Encrypt root partition and btrfs devices. Defaults to false if not given.
 #   raid_type=[raid0|raid1]    Select raid type. Defaults to raid0.
 create_btrfs_raid_layout() {
 	local known_arguments=('+swap' '?type' '?raid_type' '?luks')

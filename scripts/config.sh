@@ -5,55 +5,125 @@ source "$GENTOO_INSTALL_REPO_DIR/scripts/internal_config.sh" || exit 1
 ################################################
 # Disk configuration
 
-# TODO us layout maybe config
-# TODO better explanation for normal password
-# This function will be called when the key for a luks device is needed.
+# Below you will see examples of how to use the provided default partitioning schemes.
+# Generally these should be sufficient for most system setups.
+#
+# You can also create your own scheme using the functions provided in internal_config.sh,
+# if you need something tailored to your specific system. Generally supported is
+# any combination of RAID0/1, luks, btrfs and the usual filesystems (ext4, fat)
+# Have a look at the implementation of the default schemes, but be aware that you
+# most likely don't want to implement your own scheme.
+#
+# Be sure to only define one layout!
+
+# 1. create_single_disk_layout
+#
+# This layout creates the most common partitioning scheme on a single disk, i.e.
+# one boot, one swap and one root partition. Swap can be disabled and the root
+# partition can be luks encrypted. This is probably the layout you are most familiar with.
+#
 # Parameters:
-#	$1 will be the id of the luks device as given in `create_luks new_id=<id> ...`.
-# Example: Keyfile
-#   1. Generate a 512-bit (or anything < 8MiB) keyfile with
-#      `dd if=/dev/urandom bs=1024 count=1 of=/path/to/keyfile`
-#   2. Copy the keyfile somewhere safe, but don't delete the original,
-#      which we will use in the live environment.
-#   3. Use `echo -n /path/to/keyfile` below.
-# Example: GPG Smartcard
-#   Same as above, but do not store a copy of the keyfile and instead store a
-#   gpg encrypted copy: `cat /path/to/keyfile | gpg --symmetric --cipher-algo AES256 --s2k-digest-algo SHA512 --output /my/permanent/storage/luks-key.gpg`
+#   swap=<size>           Create a swap partition with given size, or no swap at all if set to false
+#   type=[efi|bios]       Selects the boot type. Defaults to efi if not given.
+#   luks=[true|false]     Encrypt root partition. Defaults to false if not given.
+#   root_fs=[ext4|btrfs]  Root filesystem
+#create_single_disk_layout swap=8GiB type=efi luks=true root_fs=ext4 /dev/sdX
+
+# 2. create_raid0_luks_layout
+#
+# This layout creates the single disk layout on multiple disks and combines
+# the swap and root partitions in separate raid0 arrays. Useful if you e.g. have
+# several nvme drives and want greater speed. Only one boot partition will actually
+# be used though.
+#
+# Parameters:
+#   swap=<size>           Create a swap partition with given size for each disk, or no swap at all if set to false
+#   type=[efi|bios]       Selects the boot type. Defaults to efi if not given.
+#   root_fs=[ext4|btrfs]  Root filesystem
+# Careful: You will get N times the swap amount, so be sure to divide beforehand.
+#create_raid0_luks_layout swap=4GiB type=efi root_fs=ext4 /dev/sd{X,Y}
+
+# 3. create_btrfs_raid_layout
+#
+# This layout is the same as the single_disk_layout, but uses btrfs as the root
+# filesystem and allows you to put additional disks into the btrfs device pool.
+# Only the first disk will have boot and swap partitions, the other disks will
+# directly be used in the btrfs device pool. If encryption is enabled, all disks
+# must be encrypted separately, as btrfs doesn't support encryption itself.
+# Also works with a single device.
+#
+# Parameters:
+#   swap=<size>                Create a swap partition with given size, or no swap at all if set to false
+#   type=[efi|bios]            Selects the boot type. Defaults to efi if not given.
+#   luks=[true|false]          Encrypt root partition and btrfs devices. Defaults to false if not given.
+#   raid_type=[raid0|raid1]    Select raid type. Defaults to raid0.
+#create_btrfs_raid_layout swap=8GiB luks=false raid_type=raid0 /dev/sd{X,Y}
+create_btrfs_raid_layout swap=8GiB luks=true /dev/sdX
+
+
+################################################
+# LUKS configuration
+
+# If you have selected a disk layout that uses encryption with luks,
+# you need to define the encryption key. If you have not used an encrypted
+# layout, you can skip this section and leave the defaults.
+#
+# ######## Example: Password
+#
+# If you want a standard password, you should do the following:
+#   1. echo -n "mypassword" > /tmp/mylukskey
+#   2. Adjust the function below to return the path: echo -n "/tmp/mylukskey"
+#
+# By default, the selected KEYMAP will also be applied in the initramfs.
+# If you want to be sure, use a longer password but without special characters
+# so that you could also type it without your selected keymap on the default layout.
+#
+# ######## Example: Keyfile
+#
+# If you want to generate a strong password and use it as a keyfile,
+# you can do so by generating a keyfile from /dev/urandom. I would suggest piping
+# it into base64 afterwards, to avoid problems with special characters in different
+# initramfs implementations and to allow manual typing for rescue purposes.
+#
+# Be aware that the initramfs generated by this script will always ask for a passphrase.
+# If you want to use the keyfile on a USB stick or want an even more advanced setup, you
+# will have to make these modifications yourself. This basically means adjusting
+# the initramfs cmdline, which you can do here with the following statement:
+#   DISK_DRACUT_CMDLINE+=("rd.luks.keyfile=whatever")
+#
+# You can also adjust the boot entry manually after the installation is complete,
+# as you can always use the keyfile in a live system. This might be easier if you
+# are currently not sure what options you need exactly.
+#
+# To generate a strong keyfile, wh
+#
+#   1. Generating a 512-bit (or anything < 8MiB) keyfile with
+#      `dd if=/dev/urandom bs=1024 count=1 | base64 -w0 > /path/to/keyfile`
+#   2. Now remember the path and also copy the keyfile somewhere safe so you can
+#      unlock your machine later.
+#   3. Enter path to keyfile in the function below
+#
+# ######## Example: GPG encrypted keyfile
+#
+# Same procedure as for the keyfile, but encrypt it after generation with gpg:
+#   `cat /path/to/keyfile | gpg --symmetric --cipher-algo AES256 --s2k-digest-algo SHA512 --output /my/permanent/storage/luks-key.gpg`
+# Unfortunately, getting GPG to work properly in the initramfs
+# is currently nontrivial and therefore not part of this script.
+# Feel free to experiment though.
+
+
+# This function will be called when the key for a luks device is needed.
+# Theoretically you can give every encrypted partition it's own key,
+# but most likely you will only have one partition.
+# By default this function returns the same keyfile for all partitions.
+# If you want to make this more granular, run the install script and
+# select here based on the id reported in the partitioning overview.
 luks_getkeyfile() {
 	case "$1" in
 		#'my_luks_partition') echo -n '/path/to/my_luks_partition_keyfile' ;;
 		*) echo -n "/path/to/luks-keyfile" ;;
 	esac
 }
-
-# Below you can see examples of how to use the two provided default schemes.
-# See the respective functions in internal_config.sh if you
-# want to use a different disk configuration.
-
-# Create default scheme (efi/boot, (optional swap), root)
-# To disable swap, set swap=false
-# To disable encryted root, set luks=false
-#create_default_disk_layout luks=true root_fs=btrfs swap=8GiB /dev/sdX            # EFI
-#create_default_disk_layout luks=true root_fs=btrfs swap=8GiB type=bios /dev/sdX  # BIOS
-#create_default_disk_layout swap=8GiB /dev/sdX
-
-# Create default scheme from above on each given device,
-# but create two raid0s for all swap partitions and all root partitions
-# respectively. Create luks on the root raid.
-# Hint: You will get N times the swap amount, so be sure to divide beforehand.
-#create_raid0_luks_layout swap=4GiB /dev/sd{X,Y}             # EFI
-#create_raid0_luks_layout swap=4GiB type=bios /dev/sd{X,Y}   # BIOS
-#create_raid0_luks_layout swap=false type=bios /dev/sd{X,Y}  # BIOS no swap
-
-# Create default scheme from above on first given device,
-# encrypt and use the root partition of this first disk plus
-# encrypt and use the rest of the devices to create a btrfs raid
-# array of specified type. By default is uses striping. Specify
-# raid_type=mirror for raid1.
-# Hint: Swap will only be on the first disk.
-create_btrfs_raid_layout swap=8GiB luks=true /dev/sd{X,Y}                    # EFI
-#create_btrfs_raid_layout swap=8GiB type=bios luks=true /dev/sd{X,Y}         # BIOS
-#create_btrfs_raid_layout swap=false type=bios raid_type=mirror /dev/sd{X,Y} # BIOS, raid1, no luks, no swap
 
 ################################################
 # System configuration
@@ -71,6 +141,9 @@ TIMEZONE="Europe/London"
 # The default keymap for the system
 KEYMAP="us"
 #KEYMAP="de-latin1-nodeadkeys"
+
+# Use the same keymap in the initramfs
+KEYMAP_INITRAMFS="$KEYMAP"
 
 # A list of additional locales to generate. You should only
 # add locales here if you really need them and want to localize
