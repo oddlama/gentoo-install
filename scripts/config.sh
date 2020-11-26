@@ -23,7 +23,8 @@ source "$GENTOO_INSTALL_REPO_DIR/scripts/internal_config.sh" || exit 1
 # partition can be luks encrypted. This is probably the layout you are most familiar with.
 #
 # Parameters:
-#   swap=<size>           Create a swap partition with given size, or no swap at all if set to false
+#   swap=<size>           Create a swap partition with given size, or no swap
+#                         at all if set to false
 #   type=[efi|bios]       Selects the boot type. Defaults to efi if not given.
 #   luks=[true|false]     Encrypt root partition. Defaults to false if not given.
 #   root_fs=[ext4|btrfs]  Root filesystem
@@ -37,7 +38,8 @@ source "$GENTOO_INSTALL_REPO_DIR/scripts/internal_config.sh" || exit 1
 # be used though.
 #
 # Parameters:
-#   swap=<size>           Create a swap partition with given size for each disk, or no swap at all if set to false
+#   swap=<size>           Create a swap partition with given size for each disk,
+#                         or no swap at all if set to false
 #   type=[efi|bios]       Selects the boot type. Defaults to efi if not given.
 #   root_fs=[ext4|btrfs]  Root filesystem
 # Careful: You will get N times the swap amount, so be sure to divide beforehand.
@@ -53,9 +55,11 @@ source "$GENTOO_INSTALL_REPO_DIR/scripts/internal_config.sh" || exit 1
 # Also works with a single device.
 #
 # Parameters:
-#   swap=<size>                Create a swap partition with given size, or no swap at all if set to false
+#   swap=<size>                Create a swap partition with given size, or no swap
+#                              at all if set to false
 #   type=[efi|bios]            Selects the boot type. Defaults to efi if not given.
-#   luks=[true|false]          Encrypt root partition and btrfs devices. Defaults to false if not given.
+#   luks=[true|false]          Encrypt root partition and btrfs devices. Defaults
+#                              to false if not given.
 #   raid_type=[raid0|raid1]    Select raid type. Defaults to raid0.
 #create_btrfs_raid_layout swap=8GiB luks=false raid_type=raid0 /dev/sd{X,Y}
 create_btrfs_raid_layout swap=8GiB luks=true /dev/sdX
@@ -108,7 +112,7 @@ create_btrfs_raid_layout swap=8GiB luks=true /dev/sdX
 # Same procedure as for the keyfile, but encrypt it after generation with gpg:
 #   `cat /path/to/keyfile | gpg --symmetric --cipher-algo AES256 --s2k-digest-algo SHA512 --output /my/permanent/storage/luks-key.gpg`
 # Unfortunately, getting GPG to work properly in the initramfs
-# is currently nontrivial and therefore not part of this script.
+# isn't as easy, so it's currently not part of this script, but might be later.
 # Feel free to experiment though.
 
 
