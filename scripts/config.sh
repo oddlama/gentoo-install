@@ -176,6 +176,15 @@ STAGE3_BASENAME="stage3-$GENTOO_ARCH-systemd"
 #STAGE3_BASENAME="stage3-$GENTOO_ARCH-hardened+nomultilib"
 #STAGE3_BASENAME="stage3-$GENTOO_ARCH-hardened-selinux+nomultilib"
 
+# If set to true, the best best gentoo mirrors will be selected
+# automatically by app-portage/mirrorselect
+SELECT_MIRRORS=true
+
+# If set to true, mirrorselect will download a large 100kb file
+# from each mirror for more accurate test results. This can
+# take significantly longer (~5-10min).
+SELECT_MIRRORS_LARGE_FILE=false
+
 # Set to true if the tarball is based on systemd. In this case
 # we need to use slightly different utilities to setup the base system.
 SYSTEMD=true

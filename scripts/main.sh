@@ -120,15 +120,20 @@ configure_portage() {
 	mkdir_or_die 0755 "/etc/portage/package.keywords"
 	touch_or_die 0644 "/etc/portage/package.keywords/zz-autounmask"
 
-	einfo "Temporarily installing mirrorselect"
-	try emerge --verbose --oneshot app-portage/mirrorselect
+	if [[ $SELECT_MIRRORS == "true" ]]; then
+		einfo "Temporarily installing mirrorselect"
+		try emerge --verbose --oneshot app-portage/mirrorselect
 
-	einfo "Selecting fastest portage mirrors"
-	try mirrorselect -s 4 -b 10 -D
+		einfo "Selecting fastest portage mirrors"
+		mirrorselect_params=("-s" "4" "-b" "10")
+		[[ $SELECT_MIRRORS_LARGE_FILE == "true" ]] \
+			&& mirrorselect_params+=("-D")
+		try mirrorselect "${mirrorselect_params[@]}"
 
-	einfo "Adding ~$GENTOO_ARCH to ACCEPT_KEYWORDS"
-	echo "ACCEPT_KEYWORDS=\"~$GENTOO_ARCH\"" >> /etc/portage/make.conf \
-		|| die "Could not modify /etc/portage/make.conf"
+		einfo "Adding ~$GENTOO_ARCH to ACCEPT_KEYWORDS"
+		echo "ACCEPT_KEYWORDS=\"~$GENTOO_ARCH\"" >> /etc/portage/make.conf \
+			|| die "Could not modify /etc/portage/make.conf"
+	fi
 }
 
 install_sshd() {
