@@ -64,12 +64,23 @@ configure_base_system() {
 
 		# Set hostname
 		einfo "Selecting hostname"
-		echo "$HOSTNAME" > /etc/hostname
+		echo "$HOSTNAME" > /etc/hostname \
+			|| die "Could not write /etc/hostname"
+
+		# Set keymap
+		einfo "Selecting keymap"
+		echo "KEYMAP=$KEYMAP" > /etc/vconsole.conf \
+			|| die "Could not write /etc/vconsole.conf"
+
+		einfo "Selecting timezone"
+		ln -sfn "../usr/share/zoneinfo/$TIMEZONE" /etc/localtime \
+			|| die "Could not change /etc/localtime link"
+
+		# TODO use systemd-nspawn to start instead of chroot, then we can use these utils.
 		#hostnamectl set-hostname "$HOSTNAME" \
 		#	|| die "Could not set hostname"
 
 		## Set timezone
-		# TODO use systemd-nspawn to start instead of chroot, then we can use these utils.
 		#einfo "Selecting timezone"
 		#timedatectl set-timezone "$TIMEZONE" \
 		#	|| die "Could not set timezone"
