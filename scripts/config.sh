@@ -97,8 +97,8 @@ create_btrfs_raid_layout swap=8GiB luks=true /dev/sdX
 #
 # To generate a strong keyfile, wh
 #
-#   1. Generating a 512-bit (or anything < 8MiB) keyfile with
-#      `dd if=/dev/urandom bs=1024 count=1 | base64 -w0 > /path/to/keyfile`
+#   1. Generating a strong keyfile with (resulting file must be < 8MiB)
+#      `head -c1024 /dev/urandom | base64 -w0 > /path/to/keyfile`
 #   2. Now remember the path and also copy the keyfile somewhere safe so you can
 #      unlock your machine later.
 #   3. Enter path to keyfile in the function below
@@ -150,7 +150,7 @@ KEYMAP_INITRAMFS="$KEYMAP"
 # your system. Otherwise, leave this list empty, and use C.utf8.
 LOCALES=""
 # The locale to set for the system. Be careful, this setting differs from the LOCALES
-# list entries (e.g. .UTF-8 vs .utf8). Use the name as shown in `eselect locale`
+# list entries (e.g. .UTF-8 vs .utf8). Use the name as shown in `eselect locale`.
 LOCALE="C.utf8"
 # For a german system you could use:
 # LOCALES="
@@ -195,11 +195,13 @@ SYSTEMD=true
 
 # Array of additional packages to install
 ADDITIONAL_PACKAGES=("app-editors/neovim")
+
 # Install and configure sshd (a reasonably secure config is provided, which
 # only allows the use of ed25519 keys, and requires pubkey authentication)
 INSTALL_SSHD=true
+
 # Install ansible, and add a user for it. This requires INSTALL_SSHD=true
-INSTALL_ANSIBLE=true
+INSTALL_ANSIBLE=false
 # The home directory for the ansible user
 ANSIBLE_HOME="/var/lib/ansible"
 # An ssh key to add to the .authorized_keys file for the ansible user.
