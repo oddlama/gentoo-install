@@ -297,6 +297,7 @@ create_single_disk_layout() {
 	else
 		DISK_ID_BIOS="part_$type"
 	fi
+	[[ $size_swap != "false" ]] && \
 	DISK_ID_SWAP=part_swap
 	DISK_ID_ROOT="$root_id"
 
