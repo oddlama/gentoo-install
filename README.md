@@ -92,7 +92,7 @@ to add the user to that group. Be aware that root login is always denied.
 ### (Optional) Ansible
 
 This script can install ansible, create a system user for ansible and add an ssh key of
-you choice to the `.authorized_keys` file. This allows you to directly use ansible when
+your choice to the `.authorized_keys` file. This allows you to directly use ansible when
 the new system is up to configure the rest of the system. The ansible user will be added to
 the sshusers group.
 
