@@ -1,41 +1,4 @@
-#!/bin/bash
-set -o pipefail
-
-################################################
-# Initialize script environment
-
-# Find the directory this script is stored in. (from: http://stackoverflow.com/questions/59895)
-get_source_dir() {
-	local source="${BASH_SOURCE[0]}"
-	while [[ -h $source ]]
-	do
-		local tmp="$(cd -P "$(dirname "${source}")" && pwd)"
-		source="$(readlink "${source}")"
-		[[ $source != /* ]] && source="${tmp}/${source}"
-	done
-
-	echo -n "$(realpath "$(dirname "${source}")")"
-}
-
-export GENTOO_INSTALL_REPO_DIR_ORIGINAL="$(dirname "$(get_source_dir)")"
-export GENTOO_INSTALL_REPO_DIR="$GENTOO_INSTALL_REPO_DIR_ORIGINAL"
-export GENTOO_INSTALL_REPO_SCRIPT_ACTIVE=true
-export GENTOO_INSTALL_REPO_SCRIPT_PID=$$
-
-umask 0077
-
-source "$GENTOO_INSTALL_REPO_DIR/scripts/utils.sh"
-source "$GENTOO_INSTALL_REPO_DIR/scripts/config.sh"
-source "$GENTOO_INSTALL_REPO_DIR/scripts/functions.sh"
-
-[[ $I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY == "true" ]] \
-	|| die "You have not properly read the config. Set I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY=true to continue."
-
-preprocess_config
-
-mkdir_or_die 0755 "$TMP_DIR"
-[[ $EUID == 0 ]] \
-	|| die "Must be root"
+source "$GENTOO_INSTALL_REPO_DIR/scripts/protection.sh" || exit 1
 
 
 ################################################
@@ -433,35 +396,15 @@ main_install() {
 
 	[[ $IS_EFI == "true" ]] \
 		&& mount_efivars
-	gentoo_chroot "$GENTOO_INSTALL_REPO_BIND/scripts/main.sh" install_gentoo_in_chroot
+	gentoo_chroot "$GENTOO_INSTALL_REPO_BIND/scripts/main.sh" __install_gentoo_in_chroot
 	gentoo_umount
 }
 
 main_chroot() {
 	gentoo_chroot "$@"
+	gentoo_umount
 }
 
 main_umount() {
 	gentoo_umount
 }
-
-
-################################################
-# Main dispatch
-
-# Instantly kill when pressing ctrl-c
-trap 'kill "$GENTOO_INSTALL_REPO_SCRIPT_PID"' INT
-
-SCRIPT_ALIAS="$(basename "$0")"
-if [[ $SCRIPT_ALIAS == main.sh ]]; then
-	SCRIPT_ALIAS="$1"
-	shift
-fi
-
-case "$SCRIPT_ALIAS" in
-	"chroot") main_chroot "$@" ;;
-	"install") main_install "$@" ;;
-	"install_gentoo_in_chroot") main_install_gentoo_in_chroot "$@" ;;
-	"umount") main_umount "$@" ;;
-	*) die "Invalid alias '$SCRIPT_ALIAS' was used to execute this script" ;;
-esac

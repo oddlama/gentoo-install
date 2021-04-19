@@ -5,7 +5,7 @@ elog() {
 }
 
 einfo() {
-	echo "[[1;32m+[m] $*"
+	echo "[[1;32m+[m] [1;33m$*[m"
 }
 
 ewarn() {
@@ -13,12 +13,13 @@ ewarn() {
 }
 
 eerror() {
-	echo " [1;31m* ERROR:[m $*" >&2
+	echo "[1;31merror:[m $*" >&2
 }
 
 die() {
 	eerror "$*"
-	kill "$GENTOO_INSTALL_REPO_SCRIPT_PID"
+	[[ $$ == $GENTOO_INSTALL_REPO_SCRIPT_PID ]] \
+		|| kill "$GENTOO_INSTALL_REPO_SCRIPT_PID"
 	exit 1
 }
 

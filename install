@@ -1,1 +1,110 @@
-scripts/main.sh
+#!/bin/bash
+set -o pipefail
+
+################################################
+# Initialize script environment
+
+# Find the directory this script is stored in. (from: http://stackoverflow.com/questions/59895)
+get_source_dir() {
+	local source="${BASH_SOURCE[0]}"
+	while [[ -h $source ]]
+	do
+		local tmp="$(cd -P "$(dirname "${source}")" && pwd)"
+		source="$(readlink "${source}")"
+		[[ $source != /* ]] && source="${tmp}/${source}"
+	done
+
+	echo -n "$(realpath "$(dirname "${source}")")"
+}
+
+export GENTOO_INSTALL_REPO_DIR_ORIGINAL="$(get_source_dir)"
+export GENTOO_INSTALL_REPO_DIR="$GENTOO_INSTALL_REPO_DIR_ORIGINAL"
+export GENTOO_INSTALL_REPO_SCRIPT_ACTIVE=true
+export GENTOO_INSTALL_REPO_SCRIPT_PID=$$
+
+umask 0077
+
+source "$GENTOO_INSTALL_REPO_DIR/scripts/utils.sh"
+source "$GENTOO_INSTALL_REPO_DIR/scripts/internal_config.sh"
+source "$GENTOO_INSTALL_REPO_DIR/scripts/functions.sh"
+source "$GENTOO_INSTALL_REPO_DIR/scripts/main.sh"
+
+
+################################################
+# Main dispatch
+
+# Instantly kill when pressing ctrl-c
+trap 'kill "$GENTOO_INSTALL_REPO_SCRIPT_PID"' INT
+
+ACTION=""
+CONFIG="$GENTOO_INSTALL_REPO_DIR/config.sh"
+
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+		""|"help"|"--help"|"-help"|"-h")
+			echo "Usage: $0 [opts]... <action>"
+			echo "Performs a minimal gentoo installation. See https://github.com/oddlama/gentoo-install"
+			echo "for more information."
+			echo "                           location (config.sh)"
+			echo "Options:"
+			echo "  -c, --config <CONFIG>    Use the given configuration file instead of the default"
+			echo "                           location (config.sh)"
+			echo ""
+			echo "Actions:"
+			echo "  -i, --install            Installs gentoo using the configuration"
+			echo "                           provided in config.sh"
+			echo "  -R, --chroot             Chroot into an existing system. The root filesystem"
+			echo "                           is mounted automatically based on the partition"
+			echo "                           UUIDs (generated when installing for the first time),"
+			echo "                           and unmounted when the chroot exits"
+			echo "  -u, --umount             Try to unmount all associated mountpoints. (Only needed"
+			echo "                           if anything gets forcefully interrupted)"
+			exit 0
+			;;
+		"-c"|"--config")
+			[[ -f "$2" ]] \
+				|| die "Config file not found: '$2'"
+			CONFIG="$(realpath "$2" 2>/dev/null)"
+			shift
+			;;
+		"-R"|"--chroot")
+			[[ -z $ACTION ]] || die "Multiple actions given"
+			ACTION="chroot"
+			;;
+		"-i"|"--install")
+			[[ -z $ACTION ]] || die "Multiple actions given"
+			ACTION="install"
+			;;
+		"-u"|"--umount"|"--unmount")
+			[[ -z $ACTION ]] || die "Multiple actions given"
+			ACTION="umount"
+			;;
+		"__install_gentoo_in_chroot")
+			ACTION="__install_gentoo_in_chroot"
+			;;
+		*) die "Invalid option '$1'" ;;
+	esac
+	shift
+done
+
+# Load config
+[[ -z "${CONFIG%%$GENTOO_INSTALL_REPO_DIR*}" ]] \
+	|| die "Configuration file must be inside the installation directory. This is needed so it is accessible from within the chroot environment."
+
+source "$CONFIG"
+[[ $I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY == "true" ]] \
+	|| die "You have not properly read the config. Edit the config file and set I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY=true to continue."
+
+preprocess_config
+[[ $EUID == 0 ]] \
+	|| die "Must be root"
+
+mkdir_or_die 0755 "$TMP_DIR"
+
+case "$ACTION" in
+	"chroot")  main_chroot "$@" ;;
+	"install") main_install "$@" ;;
+	"umount")  main_umount "$@" ;;
+	"__install_gentoo_in_chroot") main_install_gentoo_in_chroot "$@" ;;
+	*) die "Invalid action '$ACTION'" ;;
+esac

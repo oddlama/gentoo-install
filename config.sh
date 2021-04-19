@@ -1,7 +1,3 @@
-source "$GENTOO_INSTALL_REPO_DIR/scripts/protection.sh" || exit 1
-source "$GENTOO_INSTALL_REPO_DIR/scripts/internal_config.sh" || exit 1
-
-
 ################################################
 # Disk configuration
 
@@ -10,7 +6,7 @@ source "$GENTOO_INSTALL_REPO_DIR/scripts/internal_config.sh" || exit 1
 #
 # You can also create your own scheme using the functions provided in internal_config.sh,
 # if you need something tailored to your specific system. Generally supported is
-# any combination of RAID0/1, luks, btrfs and the usual filesystems (ext4, fat)
+# any combination of RAID0/1, luks, zfs, btrfs and the usual filesystems (ext4, fat)
 # Have a look at the implementation of the default schemes, but be aware that you
 # most likely don't want to implement your own scheme.
 #
