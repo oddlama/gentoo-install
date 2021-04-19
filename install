@@ -37,7 +37,7 @@ source "$GENTOO_INSTALL_REPO_DIR/scripts/main.sh"
 trap 'kill "$GENTOO_INSTALL_REPO_SCRIPT_PID"' INT
 
 ACTION=""
-CONFIG="$GENTOO_INSTALL_REPO_DIR/config.sh"
+CONFIG="$GENTOO_INSTALL_REPO_DIR/gentoo.conf"
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
@@ -45,14 +45,13 @@ while [[ $# -gt 0 ]]; do
 			echo "Usage: $0 [opts]... <action>"
 			echo "Performs a minimal gentoo installation. See https://github.com/oddlama/gentoo-install"
 			echo "for more information."
-			echo "                           location (config.sh)"
+			echo ""
 			echo "Options:"
 			echo "  -c, --config <CONFIG>    Use the given configuration file instead of the default"
-			echo "                           location (config.sh)"
+			echo "                           location (gentoo.conf)"
 			echo ""
 			echo "Actions:"
-			echo "  -i, --install            Installs gentoo using the configuration"
-			echo "                           provided in config.sh"
+			echo "  -i, --install            Installs gentoo as configured"
 			echo "  -R, --chroot             Chroot into an existing system. The root filesystem"
 			echo "                           is mounted automatically based on the partition"
 			echo "                           UUIDs (generated when installing for the first time),"
