@@ -116,6 +116,10 @@ or should consider:
   - Set `FEATURES="buildpkg"` if you want to build binary packages
 * Use a safe umask like `umask 0077`
 
+## Acknowledgements
+
+This installer bundles a statically linked copy of newt
+
 ## References
 
 * [Sakaki's EFI Install Guide](https://wiki.gentoo.org/wiki/Sakaki%27s_EFI_Install_Guide)

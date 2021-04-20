@@ -130,8 +130,6 @@ generate_initramfs() {
 		&& modules+=("mdraid")
 	[[ $USED_LUKS == "true" ]] \
 		&& modules+=("crypt crypt-gpg")
-	[[ $USED_ZFS == "true" ]] \
-		&& modules+=("zfs")
 	[[ $USED_BTRFS == "true" ]] \
 		&& modules+=("btrfs")
 
