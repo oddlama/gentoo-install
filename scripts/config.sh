@@ -20,6 +20,8 @@ LUKS_HEADER_BACKUP_DIR="$TMP_DIR/luks-headers"
 USED_RAID=false
 # Flag to track usage of luks (needed to check for cryptsetup existence)
 USED_LUKS=false
+# Flag to track usage of zfs
+USED_ZFS=false
 # Flag to track usage of btrfs
 USED_BTRFS=false
 

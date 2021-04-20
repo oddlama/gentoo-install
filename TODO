@@ -1,6 +1,6 @@
 - root authorized_keys support
 - generalize ansible -> any infrastructure management by allowing only root ssh login.
 - zfs support
-- dracut -> genkernel
 - save meta information to /var/db/gentoo-install
 - systemd settings pls
+- (dracut -> genkernel, or better?)

@@ -18,7 +18,7 @@ to detect and manage your kernel configuration, have a look at [autokernel](http
 
 ## Quick start
 
-Edit `scripts/config.sh` and execute `./install` in any live system.
+Edit `gentoo.conf` and execute `./install -i` in any live system.
 You can review the partitioning that will be applied before anything critical is done.
 Afterwards, this will apply the partitioning scheme and properly
 install the selected stage3 gentoo system. By default, the new system will use
@@ -61,10 +61,10 @@ Installing gentoo with this script is simple.
    I recommend using a live system where you can quickly install new software.
    Any [Arch Linux](https://www.archlinux.org/download/) live iso works fine.
 2. Clone this repository
-3. Edit `scripts/config.sh`, and particularily pay attention to
+3. Edit `gentoo.conf`, and particularily pay attention to
    the device which will be partitioned. The script will ask for confirmation
-   before partitioning, but better be safe there.
-4. Execute `./install`. The script will tell you if your live
+   before doing any partitioning - but better be safe there.
+4. Execute `./install -i`. The script will tell you if your live
    system is missing any required software.
 
 The script should be able to run without any user supervision after partitioning, but depending
@@ -73,7 +73,7 @@ to emerge. The critical commands will ask you what to do in case of a failure.
 
 ### Config
 
-The config file `scripts/config.sh` allows you to adjust some parameters of the installation.
+The config file `gentoo.conf` allows you to adjust some parameters of the installation.
 The most important ones will probably be the device to partition, and the stage3 tarball name
 to install. By default you will get the hardened nomultilib profile without systemd.
 

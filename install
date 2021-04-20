@@ -25,7 +25,7 @@ export GENTOO_INSTALL_REPO_SCRIPT_PID=$$
 umask 0077
 
 source "$GENTOO_INSTALL_REPO_DIR/scripts/utils.sh"
-source "$GENTOO_INSTALL_REPO_DIR/scripts/internal_config.sh"
+source "$GENTOO_INSTALL_REPO_DIR/scripts/config.sh"
 source "$GENTOO_INSTALL_REPO_DIR/scripts/functions.sh"
 source "$GENTOO_INSTALL_REPO_DIR/scripts/main.sh"
 
