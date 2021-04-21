@@ -96,15 +96,14 @@ MENU_ITEMS=(
 	"KEYFILE"
 )
 
+SELECTED_MENU_ITEM=""
+
 function HOSTNAME_tag()   { echo "Hostname"; }
 function HOSTNAME_label() { echo "($HOSTNAME)"; }
-function HOSTNAME_help()  { echo "Enter the desired system hostname here, be aware that when creating mdadm raid arrays, this value will be recorded in metadata block. If you change it later, you should also update the metadata."; }
+function HOSTNAME_help()  { echo "Enter the desired system hostname here. Be aware that when creating mdadm raid arrays, this value will be recorded in metadata block. If you change it later, you should also update the metadata."; }
 function HOSTNAME_menu()  {
 	local sel
 	sel="$(dialog --clear \
-		--help-button --help-label "Menu" \
-		--ok-label "Next" --cancel-label "Exit" \
-		--extra-button --extra-label "Back" \
 		--title "Select hostname" \
 		--inputbox "Enter the hostname for your new system." \
 		8 72 "$HOSTNAME" 3>&2 2>&1 1>&3 3>&-)"
@@ -124,24 +123,51 @@ function KEYMAP_help()  { echo "The default vconsole keymap for the system."; }
 function KEYMAP_menu()  {
 	local items=()
 	local map
+	local default_item="${1-$KEYMAP}"
 	for map in $(find /usr/share/keymaps/ /usr/share/kbd/keymaps/ -type f -iname '*.map.gz' -printf "%f\n" 2>/dev/null | sort -u); do
 		map="${map%%.map.gz}"
-		if [[ $map == $KEYMAP ]]; then
-			items+=("${map}" "off")
+		if [[ $map == $default_item ]]; then
+			items+=("$map" "on")
 		else
-			items+=("${map}" "off")
+			items+=("$map" "off")
 		fi
 	done
 
 	local sel
 	sel="$(dialog --clear \
-		--help-button --help-label "Menu" \
-		--ok-label "Next" --cancel-label "Exit" \
-		--extra-button --extra-label "Back" \
 		--noitem \
 		--title "Select keymap" \
-		--radiolist "Select which keymap to use in the vconsole." \
+		--help-button \
+		--help-label "Select/OK" \
+		--help-status \
+		--default-item "$default_item" \
+		--default-button help \
+		--radiolist "Select which keymap to use in the vconsole. Use <space> to select the keymap and enter to accept your choice." \
 		16 72 8 "${items[@]}" 3>&2 2>&1 1>&3 3>&-)"
+
+	local diag_exit="$?"
+	if [[ $diag_exit == 0 ]]; then
+		# <OK>
+		KEYMAP="$sel"
+	elif [[ $diag_exit == 1 ]]; then
+		# <Cancel>
+		true
+	elif [[ $diag_exit == 2 ]]; then
+		# <Select/OK>
+		local sel="${sel#HELP }"
+		local sel_cur="${sel% *}"
+		local sel_radio="${sel#* }"
+		if [[ $sel_cur == $sel_radio ]]; then
+			# <OK>
+			KEYMAP="$sel_cur"
+		else
+			# <Select>
+			KEYMAP_menu "$sel_cur"
+		fi
+	else
+		# <ESC><ESC>
+		true
+	fi
 }
 
 function LOCALE_tag()   { echo "Locale"; }
@@ -296,22 +322,27 @@ function menu() {
 		--title "Gentoo configuration ($RELA_CONFIG_FILE)" \
 		--extra-button --extra-label "Exit" \
 		--help-button \
+		--default-item "$SELECTED_MENU_ITEM" \
 		--ok-label "Select" --cancel-label "Save" \
-		--menu "This is the gentoo configuration menu. Read and adjust all options below carefully. Save your desired configuration and run ./install afterwards. Use the help if you want further information for any item." \
+		--menu "This is the gentoo configuration menu. Read and adjust all options below carefully. Save your desired configuration and run ./install afterwards. Use <Help> if you want further information on any option." \
 		20 72 12 "${tag_item_list[@]}" 3>&2 2>&1 1>&3 3>&-)"
 
 	local diag_exit="$?"
 	if [[ $diag_exit == 0 ]]; then
 		# <Select>
-		"${reverse_lookup[$sel]}_menu"
+		SELECTED_MENU_ITEM="$sel"
+		"${reverse_lookup[$SELECTED_MENU_ITEM]}_menu"
 	elif [[ $diag_exit == 1 ]]; then
 		# <Save>
+		SELECTED_MENU_ITEM="$sel"
 		menu_save_as
 	elif [[ $diag_exit == 2 ]]; then
 		# <Help>
-		msgbox_help "$("${reverse_lookup[${sel#HELP }]}_help")"
+		SELECTED_MENU_ITEM="${sel#HELP }"
+		msgbox_help "$("${reverse_lookup[$SELECTED_MENU_ITEM]}_help")"
 	else
 		# Exit (<ESC><ESC>, <Exit>)
+		SELECTED_MENU_ITEM="${sel-$SELECTED_MENU_ITEM}"
 		menu_exit
 		true
 	fi
