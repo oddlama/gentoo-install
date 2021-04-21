@@ -18,6 +18,7 @@ function get_source_dir() {
 	echo -n "$(realpath "$(dirname "${source}")")"
 }
 
+export ACTUAL_WORKING_DIRECTORY="$(realpath "$(pwd)")"
 export GENTOO_INSTALL_REPO_DIR_ORIGINAL="$(get_source_dir)"
 export GENTOO_INSTALL_REPO_DIR="$GENTOO_INSTALL_REPO_DIR_ORIGINAL"
 export GENTOO_INSTALL_REPO_SCRIPT_ACTIVE=true
@@ -66,7 +67,7 @@ while [[ $# -gt 0 ]]; do
 		"-c"|"--config")
 			[[ -f "$2" ]] \
 				|| die "Config file not found: '$2'"
-			CONFIG="$(realpath "$2" 2>/dev/null)"
+			CONFIG="$(cd "$ACTUAL_WORKING_DIRECTORY"; realpath --relative-to="$GENTOO_INSTALL_REPO_DIR" "$2" 2>/dev/null)"
 			shift
 			;;
 		"-R"|"--chroot")

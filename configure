@@ -18,8 +18,28 @@ function get_source_dir() {
 	echo -n "$(realpath "$(dirname "${source}")")"
 }
 
-GENTOO_INSTALL_REPO_DIR="$(get_source_dir)"
-cd "$GENTOO_INSTALL_REPO_DIR" || { echo "Could not change into directory '$GENTOO_INSTALL_REPO_DIR'"; exit 1; }
+export GENTOO_INSTALL_REPO_DIR="$(get_source_dir)"
+export GENTOO_INSTALL_REPO_SCRIPT_ACTIVE=true
+
+source "$GENTOO_INSTALL_REPO_DIR/scripts/utils.sh"
+
+# Remember actual config file path
+CONFIG_FILE="$(realpath "${1-"gentoo.conf"}" 2>/dev/null)"
+RELA_CONFIG_FILE="$(realpath --relative-to="$(pwd)" "$CONFIG_FILE" 2>/dev/null)"
+
+# Check if help is requested
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+		""|"help"|"--help"|"-help"|"-h")
+			echo "Usage: $0 [config]"
+			echo "Starts the gentoo configurator. If no file is given, it defaults to 'gentoo.conf'."
+			echo "If the file doesn't exist, the configurator loads default values, otherwise, the"
+			echo "the configuration is loaded into the configurator."
+			exit 0
+			;;
+	esac
+	shift
+done
 
 # TODO check install dialog
 echo "Please install dialog on your system to use the configurator"
@@ -28,11 +48,11 @@ echo "Please install dialog on your system to use the configurator"
 ################################################
 # Configuration storage
 
-SAVE_AS_FILENAME="${1-"gentoo.conf"}"
-if [[ -e "$SAVE_AS_FILENAME" ]]; then
+SAVE_AS_FILENAME="$RELA_CONFIG_FILE"
+if [[ -e "$CONFIG_FILE" ]]; then
 	# Load settings
 	UNSAVED_CHANGES=false
-	source "$SAVE_AS_FILENAME"
+	source "$CONFIG_FILE" || die "Could not load given configuration."
 else
 	# Default settings
 	UNSAVED_CHANGES=true
@@ -224,7 +244,7 @@ function menu_exit() {
 		local diag_exit="$?"
 		if [[ $diag_exit == 0 ]]; then
 			# <Save>
-			save "gentoo.conf"
+			save "$CONFIG_FILE"
 			exit 0
 		elif [[ $diag_exit == 1 ]]; then
 			# <Discard>
@@ -273,7 +293,7 @@ function menu() {
 
 	local sel
 	sel="$(dialog --clear \
-		--title "Gentoo configuration" \
+		--title "Gentoo configuration ($RELA_CONFIG_FILE)" \
 		--extra-button --extra-label "Exit" \
 		--help-button \
 		--ok-label "Select" --cancel-label "Save" \
