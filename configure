@@ -1,8 +1,25 @@
 #!/bin/bash
 set -o pipefail
 
+
 ################################################
-# Script setup
+# Initialize script environment
+
+# Find the directory this script is stored in. (from: http://stackoverflow.com/questions/59895)
+function get_source_dir() {
+	local source="${BASH_SOURCE[0]}"
+	while [[ -h $source ]]
+	do
+		local tmp="$(cd -P "$(dirname "${source}")" && pwd)"
+		source="$(readlink "${source}")"
+		[[ $source != /* ]] && source="${tmp}/${source}"
+	done
+
+	echo -n "$(realpath "$(dirname "${source}")")"
+}
+
+GENTOO_INSTALL_REPO_DIR="$(get_source_dir)"
+cd "$GENTOO_INSTALL_REPO_DIR" || { echo "Could not change into directory '$GENTOO_INSTALL_REPO_DIR'"; exit 1; }
 
 # TODO check install dialog
 echo "Please install dialog on your system to use the configurator"
@@ -11,33 +28,40 @@ echo "Please install dialog on your system to use the configurator"
 ################################################
 # Configuration storage
 
-UNSAVED_CHANGES=false
-SAVE_AS_FILENAME="gentoo.conf"
+SAVE_AS_FILENAME="${1-"gentoo.conf"}"
+if [[ -e "$SAVE_AS_FILENAME" ]]; then
+	# Load settings
+	UNSAVED_CHANGES=false
+	source "$SAVE_AS_FILENAME"
+else
+	# Default settings
+	UNSAVED_CHANGES=true
 
-HOSTNAME="gentoo"
-# TODO get from current system
-TIMEZONE="Europe/London"
-KEYMAP="us"
-KEYMAP_INITRAMFS="$KEYMAP"
-LOCALES=""
-LOCALE="C.utf8"
-
-
-GENTOO_MIRROR="https://mirror.eu.oneandone.net/linux/distributions/gentoo/gentoo"
-GENTOO_ARCH="amd64"
-STAGE3_BASENAME="stage3-$GENTOO_ARCH-systemd"
-
-SELECT_MIRRORS=true
-SELECT_MIRRORS_LARGE_FILE=false
-
-INIT_SYSTEM=systemd
+	HOSTNAME="gentoo"
+	# TODO get from current system
+	TIMEZONE="Europe/London"
+	KEYMAP="us"
+	KEYMAP_INITRAMFS="$KEYMAP"
+	LOCALES=""
+	LOCALE="C.utf8"
 
 
+	GENTOO_MIRROR="https://mirror.eu.oneandone.net/linux/distributions/gentoo/gentoo"
+	GENTOO_ARCH="amd64"
+	STAGE3_BASENAME="stage3-$GENTOO_ARCH-systemd"
 
-ADDITIONAL_PACKAGES=("app-editors/neovim")
-INSTALL_SSHD=true
+	SELECT_MIRRORS=true
+	SELECT_MIRRORS_LARGE_FILE=false
 
-ROOT_SSH_AUTHORIZED_KEYS=""
+	INIT_SYSTEM=systemd
+
+
+
+	ADDITIONAL_PACKAGES=("app-editors/neovim")
+	INSTALL_SSHD=true
+
+	ROOT_SSH_AUTHORIZED_KEYS=""
+fi
 
 
 ################################################
@@ -54,6 +78,7 @@ MENU_ITEMS=(
 
 function HOSTNAME_tag()   { echo "Hostname"; }
 function HOSTNAME_label() { echo "($HOSTNAME)"; }
+function HOSTNAME_help()  { echo "Enter the desired system hostname here, be aware that when creating mdadm raid arrays, this value will be recorded in metadata block. If you change it later, you should also update the metadata."; }
 function HOSTNAME_menu()  {
 	local sel
 	sel="$(dialog --clear \
@@ -68,10 +93,14 @@ function HOSTNAME_menu()  {
 
 function TIMEZONE_tag()   { echo "Timezone"; }
 function TIMEZONE_label() { echo "($TIMEZONE)"; }
-function TIMEZONE_help()  { echo "ajajaejaejgj jagj etjghoajf iajgpiajroianer goinaeirogn oairg arga lnaorignap ojkjaprogj iarrgona og"; }
+function TIMEZONE_help()  { echo "The timezone for the new system."; }
+function TIMEZONE_menu()  {
+	true
+}
 
 function KEYMAP_tag()   { echo "Keymap"; }
 function KEYMAP_label() { echo "($KEYMAP)"; }
+function KEYMAP_help()  { echo "The default vconsole keymap for the system."; }
 function KEYMAP_menu()  {
 	local items=()
 	local map
@@ -97,12 +126,24 @@ function KEYMAP_menu()  {
 
 function LOCALE_tag()   { echo "Locale"; }
 function LOCALE_label() { echo "($LOCALE)"; }
+function LOCALE_help()  { echo "The locale to set for the new system. Be careful, the available options deviate from the corresponding names in the list of locales which is used by locale-gen. For example the locale 'en_US.utf8' is called 'en_US.UTF-8' in /etc/locale.gen). Use the name as shown in `eselect locale` here."; }
+function LOCALE_menu()  {
+	true
+}
 
 function INIT_SYSTEM_tag()   { echo "Init system"; }
 function INIT_SYSTEM_label() { echo "($INIT_SYSTEM)"; }
+function INIT_SYSTEM_help()  { echo ""; }
+function INIT_SYSTEM_menu()  {
+	true
+}
 
 function KEYFILE_tag()   { echo "Key file"; }
 function KEYFILE_label() { echo "($KEYFILE)"; }
+function KEYFILE_help()  { echo ""; }
+function KEYFILE_menu()  {
+	true
+}
 
 
 ################################################
@@ -111,6 +152,58 @@ function KEYFILE_label() { echo "($KEYFILE)"; }
 # $1: filename
 function save() {
 	echo save to "$1"
+cat > "$1" <<EOF
+# vim: set ft=sh ts=4 sw=4 sts=-1 noet:
+# This file will be interpreted by /bin/bash.
+
+################################################
+# Disk configuration
+
+create_btrfs_raid_layout swap=8GiB luks=true /dev/sdX
+luks_getkeyfile() {
+	case "\$1" in
+		#'my_luks_partition') echo -n '/path/to/my_luks_partition_keyfile' ;;
+		*) echo -n "/path/to/luks-keyfile" ;;
+	esac
+}
+
+
+################################################
+# System configuration
+
+HOSTNAME=${HOSTNAME@Q}
+TIMEZONE=${TIMEZONE@Q}
+KEYMAP=${KEYMAP@Q}
+KEYMAP_INITRAMFS=${KEYMAP_INITRAMFS@Q}
+
+LOCALES=${LOCALES@Q}
+LOCALE=${LOCALE@Q}
+
+
+################################################
+# Gentoo configuration
+
+GENTOO_MIRROR="https://mirror.eu.oneandone.net/linux/distributions/gentoo/gentoo"
+GENTOO_ARCH="amd64"
+STAGE3_BASENAME="stage3-$GENTOO_ARCH-systemd"
+SELECT_MIRRORS=true
+SELECT_MIRRORS_LARGE_FILE=false
+SYSTEMD=true
+
+
+################################################
+# Additional (optional) configuration
+
+ADDITIONAL_PACKAGES=("app-editors/neovim")
+INSTALL_SSHD=true
+ROOT_SSH_AUTHORIZED_KEYS=""
+
+
+################################################
+# Prove that you have read the config
+
+I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY=true
+EOF
 }
 
 function msgbox_help() {
@@ -184,8 +277,8 @@ function menu() {
 		--extra-button --extra-label "Exit" \
 		--help-button \
 		--ok-label "Select" --cancel-label "Save" \
-		--menu "Main config menu" \
-		16 72 8 "${tag_item_list[@]}" 3>&2 2>&1 1>&3 3>&-)"
+		--menu "This is the gentoo configuration menu. Read and adjust all options below carefully. Save your desired configuration and run ./install afterwards. Use the help if you want further information for any item." \
+		20 72 12 "${tag_item_list[@]}" 3>&2 2>&1 1>&3 3>&-)"
 
 	local diag_exit="$?"
 	if [[ $diag_exit == 0 ]]; then
@@ -204,6 +297,7 @@ function menu() {
 	fi
 }
 
+# Begin menu loop. Exit will be called to end this loop where it is appropriate.
 while true; do
 	menu
 done

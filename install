@@ -1,11 +1,12 @@
 #!/bin/bash
 set -o pipefail
 
+
 ################################################
 # Initialize script environment
 
 # Find the directory this script is stored in. (from: http://stackoverflow.com/questions/59895)
-get_source_dir() {
+function get_source_dir() {
 	local source="${BASH_SOURCE[0]}"
 	while [[ -h $source ]]
 	do
@@ -44,14 +45,16 @@ while [[ $# -gt 0 ]]; do
 		""|"help"|"--help"|"-help"|"-h")
 			echo "Usage: $0 [opts]... <action>"
 			echo "Performs a minimal gentoo installation. See https://github.com/oddlama/gentoo-install"
-			echo "for more information."
+			echo "for more information. If the configuration file does not exist, the configurator will"
+			echo "be started instead."
 			echo ""
 			echo "Options:"
 			echo "  -c, --config <CONFIG>    Use the given configuration file instead of the default"
-			echo "                           location (gentoo.conf)"
+			echo "                           location (gentoo.conf). Applies to installation as well"
+			echo "                           as initial configuration in case it doesn't exist."
 			echo ""
 			echo "Actions:"
-			echo "  -i, --install            Installs gentoo as configured"
+			echo "  -i, --install            Installs gentoo as configured. (default if configuration exists)"
 			echo "  -R, --chroot             Chroot into an existing system. The root filesystem"
 			echo "                           is mounted automatically based on the partition"
 			echo "                           UUIDs (generated when installing for the first time),"
@@ -86,9 +89,23 @@ while [[ $# -gt 0 ]]; do
 	shift
 done
 
-# Load config
+# Check configuration location
 [[ -z "${CONFIG%%$GENTOO_INSTALL_REPO_DIR*}" ]] \
 	|| die "Configuration file must be inside the installation directory. This is needed so it is accessible from within the chroot environment."
+
+if [[ -z "$ACTION" ]]; then
+	if [[ -e "$CONFIG" ]]; then
+		# Default if configuration exists: Run installer
+		ACTION="install"
+	else
+		# Default if configuration does not exists: Run configurator, and exit afterwards.
+		exec "$GENTOO_INSTALL_REPO_DIR/configure" "$CONFIG"
+	fi
+fi
+
+# Load config
+[[ -e "$CONFIG" ]] \
+	|| die "Configuration file '$CONFIG' does not exist. To run the configurator, omit '-i' or "
 
 source "$CONFIG"
 [[ $I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY == "true" ]] \
