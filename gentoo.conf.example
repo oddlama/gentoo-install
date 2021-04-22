@@ -150,10 +150,12 @@ KEYMAP_INITRAMFS="$KEYMAP"
 
 # A list of additional locales to generate. You should only
 # add locales here if you really need them and want to localize
-# your system. Otherwise, leave this list empty, and use C.utf8.
+# your system. Otherwise, leave this list empty, and use "C.utf8" as the locale.
+# Be careful that the syntax for locales is a bit different from the name of the resulting
+# locale. For a list of supported locales, see the file /usr/share/i18n/SUPPORTED.
 LOCALES=""
-# The locale to set for the system. Be careful, this setting differs from the LOCALES
-# list entries (e.g. .UTF-8 vs .utf8). Use the name as shown in `eselect locale`.
+# The locale to set for the system. Be careful, the locale names deviate from the LOCALES
+# list entries (e.g. .UTF-8 vs .utf8). See `locale -a` for all available locales.
 LOCALE="C.utf8"
 # For a german system you could use:
 # LOCALES="

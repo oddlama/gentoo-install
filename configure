@@ -10,7 +10,8 @@ function get_source_dir() {
 	local source="${BASH_SOURCE[0]}"
 	while [[ -h $source ]]
 	do
-		local tmp="$(cd -P "$(dirname "${source}")" && pwd)"
+		local tmp
+		tmp="$(cd -P "$(dirname "${source}")" && pwd)"
 		source="$(readlink "${source}")"
 		[[ $source != /* ]] && source="${tmp}/${source}"
 	done
@@ -46,25 +47,91 @@ echo "Please install dialog on your system to use the configurator"
 
 
 ################################################
-# Configuration storage
+# Configuration helper functions
 
-SAVE_AS_FILENAME="$RELA_CONFIG_FILE"
-if [[ -e "$CONFIG_FILE" ]]; then
+function get_timezone() {
+	local file
+	if file="$(readlink /etc/localtime)"; then
+		# /etc/localtime is a symlink as expected
+		local timezone
+		timezone=${file#*zoneinfo/}
+		if [[ $timezone = "$file" || ! $timezone =~ ^[^/]+/[^/]+$ ]]; then
+			# not pointing to expected location or not Region/City
+			echo "Europe/London"
+		fi
+		echo "$timezone"
+	else
+		# compare files by contents
+		# https://stackoverflow.com/questions/12521114/getting-the-canonical-time-zone-name-in-shell-script#comment88637393_12523283
+		find /usr/share/zoneinfo -type f ! -regex ".*/Etc/.*" -exec \
+			cmp -s {} /etc/localtime \; -print | sed -e 's@.*/zoneinfo/@@' | head -n1
+	fi
+}
+
+function get_default_keymap() {
+	local keymap
+	keymap="$(grep KEYMAP /etc/vconsole.conf)"
+	keymap="${keymap#KEYMAP=}"
+
+	local map
+	for map in "${ALL_KEYMAPS[@]}"; do
+		if [[ $map == "$keymap" ]]; then
+			echo -n "${keymap}"
+			return
+		fi
+	done
+
+	# Fallback to us
+	echo -n "us"
+}
+
+
+################################################
+# Configuration constants
+
+function get_all_keymaps() {
+	ALL_KEYMAPS=()
+	local map
+	for map in $(find /usr/share/keymaps/ /usr/share/kbd/keymaps/ -type f -iname '*.map.gz' -printf "%f\n" 2>/dev/null | sort -u); do
+		ALL_KEYMAPS+=("${map%%.map.gz}")
+	done
+}; get_all_keymaps
+
+
+INIT_SYSTEMS=("systemd" "OpenRC")
+readarray -t SUPPORTED_LOCALES < /usr/share/i18n/SUPPORTED
+
+
+################################################
+# Load/Default configuration
+
+function load_config() {
 	# Load settings
-	UNSAVED_CHANGES=false
-	source "$CONFIG_FILE" || die "Could not load given configuration."
-else
-	# Default settings
-	UNSAVED_CHANGES=true
+	source "$1" || die "Could not load given configuration."
 
+	if [[ "$SYSTEMD" == true ]]; then
+		INIT_SYSTEM="systemd"
+	else
+		INIT_SYSTEM="OpenRC"
+	fi
+
+	if [[ "$KEYMAP" == "$KEYMAP_INITRAMFS" ]]; then
+		KEYMAP_INITRAMFS_OTHER=false
+	else
+		KEYMAP_INITRAMFS_OTHER=true
+	fi
+
+	# After loading a config no unsaved changes exist.
+	UNSAVED_CHANGES=false
+}
+
+function load_default_config() {
 	HOSTNAME="gentoo"
-	# TODO get from current system
-	TIMEZONE="Europe/London"
-	KEYMAP="us"
-	KEYMAP_INITRAMFS="$KEYMAP"
+	TIMEZONE="$(get_timezone)"
+	KEYMAP="$(get_default_keymap)"
+	KEYMAP_INITRAMFS=""
 	LOCALES=""
 	LOCALE="C.utf8"
-
 
 	GENTOO_MIRROR="https://mirror.eu.oneandone.net/linux/distributions/gentoo/gentoo"
 	GENTOO_ARCH="amd64"
@@ -73,15 +140,73 @@ else
 	SELECT_MIRRORS=true
 	SELECT_MIRRORS_LARGE_FILE=false
 
-	INIT_SYSTEM=systemd
-
-
-
 	ADDITIONAL_PACKAGES=("app-editors/neovim")
 	INSTALL_SSHD=true
-
 	ROOT_SSH_AUTHORIZED_KEYS=""
+
+	INIT_SYSTEM="systemd"
+	KEYMAP_INITRAMFS_OTHER=false
+
+	# All settings are unsaved.
+	UNSAVED_CHANGES=true
+}
+
+SAVE_AS_FILENAME="$RELA_CONFIG_FILE"
+if [[ -e "$CONFIG_FILE" ]]; then
+	load_config "$CONFIG_FILE"
+else
+	load_default_config
 fi
+
+
+################################################
+# Menu helpers and constants
+
+function clear_and_exit() {
+	dialog --clear
+	clear -x
+	exit 0
+}
+
+function ellipsis() {
+	if [[ "${#2}" -gt "$1" ]]; then
+		echo "${2:0:$1}…"
+	else
+		echo "$2"
+	fi
+}
+
+function on_off_toggle() {
+	if [[ "${!1}" == true ]]; then
+		declare -g "$1"=false
+	else
+		declare -g "$1"=true
+	fi
+}
+
+function on_off_label() {
+	if [[ "$1" == true ]]; then
+		echo -n "[*]"
+	else
+		echo -n "[ ]"
+	fi
+}
+
+function is_on() {
+	[[ "$1" == true ]]
+}
+
+function is_off() {
+	[[ "$1" != true ]]
+}
+
+SELECTED_MENU_ITEM=""
+MENU_SIZE="20 76 12"
+INPUTBOX_SIZE="8 76"
+RADIOLIST_SIZE="20 76 8"
+BUILDLIST_SIZE="20 76 8"
+HELP_POPUP_SIZE="8 66"
+CONFIRM_SIZE="8 66"
 
 
 ################################################
@@ -91,101 +216,238 @@ MENU_ITEMS=(
 	"HOSTNAME"
 	"TIMEZONE"
 	"KEYMAP"
+	"KEYMAP_INITRAMFS_OTHER"
+	"KEYMAP_INITRAMFS"
+	"--------"
+	"LOCALES"
 	"LOCALE"
+	"--------"
 	"INIT_SYSTEM"
 	"KEYFILE"
 )
 
-SELECTED_MENU_ITEM=""
+function --------_tag()   { echo "────────────────────────────"; }
+function --------_label() { echo "────────────────────────────"; }
+function --------_show()  { return 0; }
+function --------_help()  { echo "Congratulations, you found a separator."; }
+function --------_menu()  { true; }
 
 function HOSTNAME_tag()   { echo "Hostname"; }
 function HOSTNAME_label() { echo "($HOSTNAME)"; }
+function HOSTNAME_show()  { return 0; }
 function HOSTNAME_help()  { echo "Enter the desired system hostname here. Be aware that when creating mdadm raid arrays, this value will be recorded in metadata block. If you change it later, you should also update the metadata."; }
 function HOSTNAME_menu()  {
 	local sel
-	sel="$(dialog --clear \
+	# shellcheck disable=SC2086
+	sel="$(dialog \
 		--title "Select hostname" \
 		--inputbox "Enter the hostname for your new system." \
-		8 72 "$HOSTNAME" 3>&2 2>&1 1>&3 3>&-)"
+		$INPUTBOX_SIZE "$HOSTNAME" 3>&2 2>&1 1>&3 3>&-)"
 	UNSAVED_CHANGES=true
 }
 
 function TIMEZONE_tag()   { echo "Timezone"; }
 function TIMEZONE_label() { echo "($TIMEZONE)"; }
+function TIMEZONE_show()  { return 0; }
 function TIMEZONE_help()  { echo "The timezone for the new system."; }
 function TIMEZONE_menu()  {
 	true
 }
 
-function KEYMAP_tag()   { echo "Keymap"; }
-function KEYMAP_label() { echo "($KEYMAP)"; }
-function KEYMAP_help()  { echo "The default vconsole keymap for the system."; }
-function KEYMAP_menu()  {
+# $1: title
+# $2: description
+# $3: space separated index list of selected items (e.g. "0 1 5 6")
+# $@: all items
+function menu_splitlist()  {
+	local title="$1"
+	local description="$2"
+	local selected_index_list="$3"
+	shift 3
+
+	# Build option array
 	local items=()
-	local map
-	local default_item="${1-$KEYMAP}"
-	for map in $(find /usr/share/keymaps/ /usr/share/kbd/keymaps/ -type f -iname '*.map.gz' -printf "%f\n" 2>/dev/null | sort -u); do
-		map="${map%%.map.gz}"
-		if [[ $map == $default_item ]]; then
-			items+=("$map" "on")
-		else
-			items+=("$map" "off")
-		fi
+	local item
+	local i=0
+	for item in "$@"; do
+		items+=("$((i++))" "$item" "off")
 	done
 
+	# Show selection dialog
 	local sel
-	sel="$(dialog --clear \
-		--noitem \
-		--title "Select keymap" \
-		--help-button \
-		--help-label "Select/OK" \
-		--help-status \
-		--default-item "$default_item" \
-		--default-button help \
-		--radiolist "Select which keymap to use in the vconsole. Use <space> to select the keymap and enter to accept your choice." \
-		16 72 8 "${items[@]}" 3>&2 2>&1 1>&3 3>&-)"
+	# shellcheck disable=SC2086
+	sel="$(dialog \
+		--title "$title" \
+		--buildlist "$description\nUse ^ to focus the list of unselected items and $ to focus the list of selected items. Use <Space> to select/deselect an item and select <OK> by pressing <Enter> when finished." \
+		$BUILDLIST_SIZE "${items[@]}" 3>&2 2>&1 1>&3 3>&-)"
 
 	local diag_exit="$?"
 	if [[ $diag_exit == 0 ]]; then
 		# <OK>
-		KEYMAP="$sel"
+		echo -n "$sel"
+		return 0
 	elif [[ $diag_exit == 1 ]]; then
 		# <Cancel>
-		true
+		return 1
 	elif [[ $diag_exit == 2 ]]; then
-		# <Select/OK>
+		# <Select>
 		local sel="${sel#HELP }"
 		local sel_cur="${sel% *}"
-		local sel_radio="${sel#* }"
-		if [[ $sel_cur == $sel_radio ]]; then
-			# <OK>
-			KEYMAP="$sel_cur"
-		else
-			# <Select>
-			KEYMAP_menu "$sel_cur"
-		fi
+		#local sel_radio="${sel#* }"
+		echo -n "$sel_cur"
+		return 0
 	else
 		# <ESC><ESC>
+		return 1
+	fi
+}
+
+# $1: title
+# $2: description
+# $3: default item
+# $@: items
+function menu_radiolist()  {
+	local title="$1"
+	local description="$2"
+	local default_item="$3"
+	shift 3
+
+	# Build option array
+	local items=()
+	local item
+	for item in "$@"; do
+		if [[ $item == "$default_item" ]]; then
+			items+=("$item" "on")
+		else
+			items+=("$item" "off")
+		fi
+	done
+
+	# Show selection dialog
+	local sel
+	# shellcheck disable=SC2086
+	sel="$(dialog \
+		--no-items \
+		--title "$title" \
+		--help-button \
+		--help-label "Select" \
+		--help-status \
+		--ok-label "OK" \
+		--default-item "$default_item" \
+		--default-button help \
+		--radiolist "$description\nUse <Select> to select the option under the cursor, or <OK> to use the option which is selected with an asterisk." \
+		$RADIOLIST_SIZE "${items[@]}" 3>&2 2>&1 1>&3 3>&-)"
+
+	local diag_exit="$?"
+	if [[ $diag_exit == 0 ]]; then
+		# <OK>
+		echo -n "$sel"
+		return 0
+	elif [[ $diag_exit == 1 ]]; then
+		# <Cancel>
+		return 1
+	elif [[ $diag_exit == 2 ]]; then
+		# <Select>
+		local sel="${sel#HELP }"
+		local sel_cur="${sel% *}"
+		#local sel_radio="${sel#* }"
+		echo -n "$sel_cur"
+		return 0
+	else
+		# <ESC><ESC>
+		return 1
+	fi
+}
+
+function KEYMAP_tag()   { echo "Keymap"; }
+function KEYMAP_label() { echo "($KEYMAP)"; }
+function KEYMAP_show()  { return 0; }
+function KEYMAP_help()  { echo "The default vconsole keymap for the system."; }
+function KEYMAP_menu()  {
+	local sel
+	if sel="$(menu_radiolist \
+		"Select initramfs keymap" \
+		"Select which keymap to use in the vconsole." \
+		"$KEYMAP" \
+		"${ALL_KEYMAPS[@]}")"
+	then
+		# Save keymap
+		KEYMAP="$sel"
+	else
+		# Return to menu
 		true
 	fi
 }
 
+function KEYMAP_INITRAMFS_OTHER_tag()   { echo "Other keymap in initramfs"; }
+function KEYMAP_INITRAMFS_OTHER_label() { on_off_label "$KEYMAP_INITRAMFS_OTHER"; }
+function KEYMAP_INITRAMFS_OTHER_show()  { return 0; }
+function KEYMAP_INITRAMFS_OTHER_help()  { echo "Whether another keymap should be used for the initramfs. If enabled, you will be able to choose a separate keymap below."; }
+function KEYMAP_INITRAMFS_OTHER_menu()  {
+	on_off_toggle "KEYMAP_INITRAMFS_OTHER"
+	[[ -z $KEYMAP_INITRAMFS ]] \
+		&& KEYMAP_INITRAMFS="$KEYMAP"
+}
+
+function KEYMAP_INITRAMFS_tag()   { echo " └ Keymap (initramfs)"; }
+function KEYMAP_INITRAMFS_label() { echo " └ ($KEYMAP_INITRAMFS)"; }
+function KEYMAP_INITRAMFS_show()  { is_on "$KEYMAP_INITRAMFS_OTHER"; }
+function KEYMAP_INITRAMFS_help()  { echo "The default vconsole keymap for the initrams. This is important if need to unlock an encrypted partition when booting."; }
+function KEYMAP_INITRAMFS_menu()  {
+	local sel
+	if sel="$(menu_radiolist \
+		"Select initramfs keymap" \
+		"Select which keymap to use in the initramfs vconsole." \
+		"$KEYMAP_INITRAMFS" \
+		"${ALL_KEYMAPS[@]}")"
+	then
+		# Save keymap
+		KEYMAP_INITRAMFS="$sel"
+	else
+		# Return to menu
+		true
+	fi
+}
+
+function LOCALES_tag()   { echo "Locales"; }
+function LOCALES_label() { echo "($(ellipsis 20 "$LOCALES"))"; }
+function LOCALES_show()  { return 0; }
+function LOCALES_help()  { echo "The locales to generate for the new system. Be careful that the syntax for locales is a different from the resulting name of the genereated locales of locale-gen. For example the locale 'en_US.utf8' is enabled via 'en_US.UTF-8 UTF-8')."; }
+function LOCALES_menu()  {
+	menu_splitlist "Select locales" "Select which locales to generate." "${SUPPORTED_LOCALES[@]}"
+}
+
 function LOCALE_tag()   { echo "Locale"; }
 function LOCALE_label() { echo "($LOCALE)"; }
-function LOCALE_help()  { echo "The locale to set for the new system. Be careful, the available options deviate from the corresponding names in the list of locales which is used by locale-gen. For example the locale 'en_US.utf8' is called 'en_US.UTF-8' in /etc/locale.gen). Use the name as shown in `eselect locale` here."; }
+function LOCALE_show()  { return 0; }
+function LOCALE_help()  { echo "The locale to use for the new system. See \`locale -a\` for available options, and be sure to generate the locale by adding it to the list of locales above."; }
 function LOCALE_menu()  {
+	# TODO say enable before in locales
 	true
 }
 
 function INIT_SYSTEM_tag()   { echo "Init system"; }
 function INIT_SYSTEM_label() { echo "($INIT_SYSTEM)"; }
+function INIT_SYSTEM_show()  { return 0; }
 function INIT_SYSTEM_help()  { echo ""; }
 function INIT_SYSTEM_menu()  {
-	true
+	local sel
+	if sel="$(menu_radiolist \
+		"Select init system" \
+		"Select the init system you want to use." \
+		"$INIT_SYSTEM" \
+		"${INIT_SYSTEMS[@]}")"
+	then
+		# Save keymap
+		INIT_SYSTEM="$sel"
+	else
+		# Return to menu
+		true
+	fi
 }
 
 function KEYFILE_tag()   { echo "Key file"; }
 function KEYFILE_label() { echo "($KEYFILE)"; }
+function KEYFILE_show()  { return 0; }
 function KEYFILE_help()  { echo ""; }
 function KEYFILE_menu()  {
 	true
@@ -253,44 +515,47 @@ EOF
 }
 
 function msgbox_help() {
-	dialog --clear \
+	# shellcheck disable=SC2086
+	dialog \
 		--msgbox "$1" \
-		8 66 3>&2 2>&1 1>&3 3>&-
+		$HELP_POPUP_SIZE 3>&2 2>&1 1>&3 3>&-
 }
 
 function menu_exit() {
 	if [[ $UNSAVED_CHANGES == "true" ]]; then
 		local sel
-		sel="$(dialog --clear \
+		# shellcheck disable=SC2086
+		sel="$(dialog \
 			--help-button --help-label "Back" \
 			--yes-label "Save" --no-label "Discard" \
 			--yesno "Do you want to save your configuration?\n(Press <ESC><ESC>, or choose <Back> to continue gentoo configuration)." \
-			8 66 3>&2 2>&1 1>&3 3>&-)"
+			$CONFIRM_SIZE 3>&2 2>&1 1>&3 3>&-)"
 
 		local diag_exit="$?"
 		if [[ $diag_exit == 0 ]]; then
 			# <Save>
 			save "$CONFIG_FILE"
-			exit 0
+			clear_and_exit 0
 		elif [[ $diag_exit == 1 ]]; then
 			# <Discard>
-			exit 0
+			clear_and_exit 0
 		else
 			# Back to menu (<ESC><ESC>, <Back>)
 			true
 		fi
 	else
 		# Nothing was changed. Exit immediately.
-		exit 0
+		clear_and_exit 0
 	fi
 }
 
 function menu_save_as() {
 	local sel
-	sel="$(dialog --clear \
+	# shellcheck disable=SC2086
+	sel="$(dialog \
 		--ok-label "Save" \
 		--inputbox "Enter a filename to which this configuration should be saved.\n(Press <ESC><ESC>, or choose <Cancel> to abort)." \
-		8 66 "$SAVE_AS_FILENAME" 3>&2 2>&1 1>&3 3>&-)"
+		$INPUTBOX_SIZE "$SAVE_AS_FILENAME" 3>&2 2>&1 1>&3 3>&-)"
 
 	local diag_exit="$?"
 	if [[ $diag_exit == 0 ]]; then
@@ -312,20 +577,24 @@ function menu() {
 
 	# Create menu list
 	for item in "${MENU_ITEMS[@]}"; do
+		# Only if item is visible
+		"${item}_show" || continue
+
 		item_tag="$("${item}_tag")"
 		tag_item_list+=("$item_tag" "$("${item}_label")")
 		reverse_lookup["$item_tag"]="$item"
 	done
 
 	local sel
-	sel="$(dialog --clear \
+	# shellcheck disable=SC2086
+	sel="$(dialog --colors \
 		--title "Gentoo configuration ($RELA_CONFIG_FILE)" \
 		--extra-button --extra-label "Exit" \
 		--help-button \
 		--default-item "$SELECTED_MENU_ITEM" \
 		--ok-label "Select" --cancel-label "Save" \
 		--menu "This is the gentoo configuration menu. Read and adjust all options below carefully. Save your desired configuration and run ./install afterwards. Use <Help> if you want further information on any option." \
-		20 72 12 "${tag_item_list[@]}" 3>&2 2>&1 1>&3 3>&-)"
+		$MENU_SIZE "${tag_item_list[@]}" 3>&2 2>&1 1>&3 3>&-)"
 
 	local diag_exit="$?"
 	if [[ $diag_exit == 0 ]]; then
