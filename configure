@@ -117,6 +117,21 @@ function recalculate_locales() {
 	LOCALES="${LOCALES:1}"
 }
 
+ALL_PARTITIONING_SCHEMES=("single_disk" "raid0_luks" "btrfs_raid" "zfs_raid")
+PARTITIONING_SCHEME="single_disk"
+
+function create_btrfs_raid_layout() {
+	PARTITIONING_SCHEME="btrfs_raid"
+}
+
+function create_raid0_luks_layout() {
+	PARTITIONING_SCHEME="raid0_luks"
+}
+
+function create_single_disk_layout() {
+	PARTITIONING_SCHEME="single_disk"
+}
+
 
 ################################################
 # Configuration constants
@@ -259,70 +274,6 @@ function is_off() {
 	[[ "$1" != true ]]
 }
 
-SELECTED_MENU_ITEM=""
-MENU_SIZE=("20" "76" "12")
-INPUTBOX_SIZE=("8" "76")
-EDITTEXT_SIZE=("16" "76")
-RADIOLIST_SIZE=("20" "76" "8")
-BUILDLIST_SIZE=("20" "76" "8")
-HELP_POPUP_SIZE=("8" "66")
-CONFIRM_SIZE=("8" "66")
-
-
-################################################
-# Menu definition
-
-MENU_ITEMS=(
-	"DISK_LAYOUT"
-	"SWAP"
-	"ENCRYPT"
-	"--------"
-	"HOSTNAME"
-	"TIMEZONE"
-	"KEYMAP"
-	"KEYMAP_INITRAMFS_OTHER"
-	"KEYMAP_INITRAMFS"
-	"LOCALES"
-	"LOCALE"
-	"--------"
-	"INIT_SYSTEM"
-	"GENTOO_MIRROR"
-	"GENTOO_ARCH"
-	"SELECT_MIRRORS"
-	"SELECT_MIRRORS_LARGE_FILE"
-	"--------"
-	"INSTALL_SSHD"
-	"ROOT_SSH_AUTHORIZED_KEYS"
-	"ADDITIONAL_PACKAGES"
-)
-
-function --------_tag()   { echo "────────────────────────────"; }
-function --------_label() { echo "────────────────────────────"; }
-function --------_show()  { return 0; }
-function --------_help()  { echo "Congratulations, you found a separator."; }
-function --------_menu()  { true; }
-
-function HOSTNAME_tag()   { echo "Hostname"; }
-function HOSTNAME_label() { echo "($HOSTNAME)"; }
-function HOSTNAME_show()  { return 0; }
-function HOSTNAME_help()  { echo "Enter the desired system hostname here. Be aware that when creating mdadm raid arrays, this value will be recorded in metadata block. If you change it later, you should also update the metadata."; }
-function HOSTNAME_menu()  {
-	local sel
-	sel="$(dialog \
-		--title "Select hostname" \
-		--inputbox "Enter the hostname for your new system." \
-		"${INPUTBOX_SIZE[@]}" "$HOSTNAME" 3>&2 2>&1 1>&3 3>&-)"
-	UNSAVED_CHANGES=true
-}
-
-function TIMEZONE_tag()   { echo "Timezone"; }
-function TIMEZONE_label() { echo "($TIMEZONE)"; }
-function TIMEZONE_show()  { return 0; }
-function TIMEZONE_help()  { echo "The timezone for the new system."; }
-function TIMEZONE_menu()  {
-	true
-}
-
 # $1: title
 # $2: description
 # $3: space separated index list of selected items (e.g. "0 1 5 6")
@@ -427,6 +378,192 @@ function menu_radiolist()  {
 	fi
 }
 
+function msgbox_help() {
+	dialog \
+		--msgbox "$1" \
+		"${HELP_POPUP_SIZE[@]}" 3>&2 2>&1 1>&3 3>&-
+}
+
+function menu_exit() {
+	if [[ $UNSAVED_CHANGES == "true" ]]; then
+		local sel
+		sel="$(dialog \
+			--help-button --help-label "Back" \
+			--yes-label "Save" --no-label "Discard" \
+			--yesno "Do you want to save your configuration?\n(Press <ESC><ESC>, or choose <Back> to continue gentoo configuration)." \
+			"${CONFIRM_SIZE[@]}" 3>&2 2>&1 1>&3 3>&-)"
+
+		local diag_exit="$?"
+		if [[ $diag_exit == 0 ]]; then
+			# <Save>
+			save "$CONFIG_FILE"
+			clear_and_exit 0
+		elif [[ $diag_exit == 1 ]]; then
+			# <Discard>
+			clear_and_exit 0
+		else
+			# Back to menu (<ESC><ESC>, <Back>)
+			true
+		fi
+	else
+		# Nothing was changed. Exit immediately.
+		clear_and_exit 0
+	fi
+}
+
+function menu_save_as() {
+	local sel
+	sel="$(dialog \
+		--ok-label "Save" \
+		--inputbox "Enter a filename to which this configuration should be saved.\n(Press <ESC><ESC>, or choose <Cancel> to abort)." \
+		"${INPUTBOX_SIZE[@]}" "$SAVE_AS_FILENAME" 3>&2 2>&1 1>&3 3>&-)"
+
+	local diag_exit="$?"
+	if [[ $diag_exit == 0 ]]; then
+		# <Save>
+		SAVE_AS_FILENAME="$sel"
+		save "$SAVE_AS_FILENAME"
+		UNSAVED_CHANGES=false
+	else
+		# Back to menu (<ESC><ESC>, <Cancel>)
+		true
+	fi
+}
+
+function menu() {
+	local item
+	local item_tag
+	local tag_item_list=()
+	declare -A reverse_lookup
+
+	# Create menu list
+	for item in "${MENU_ITEMS[@]}"; do
+		# Only if item is visible
+		"${item}_show" || continue
+
+		item_tag="$("${item}_tag")"
+		tag_item_list+=("$item_tag" "$("${item}_label")")
+		reverse_lookup["$item_tag"]="$item"
+	done
+
+	local sel
+	sel="$(dialog --colors \
+		--title "Gentoo configuration ($RELA_CONFIG_FILE)" \
+		--extra-button --extra-label "Exit" \
+		--help-button \
+		--default-item "$SELECTED_MENU_ITEM" \
+		--ok-label "Select" --cancel-label "Save" \
+		--menu "This is the gentoo configuration menu. Read and adjust all options below carefully. Save your desired configuration and run ./install afterwards. Use <Help> if you want further information on any option." \
+		"${MENU_SIZE[@]}" "${tag_item_list[@]}" 3>&2 2>&1 1>&3 3>&-)"
+
+	local diag_exit="$?"
+	if [[ $diag_exit == 0 ]]; then
+		# <Select>
+		SELECTED_MENU_ITEM="$sel"
+		"${reverse_lookup[$SELECTED_MENU_ITEM]}_menu"
+	elif [[ $diag_exit == 1 ]]; then
+		# <Save>
+		SELECTED_MENU_ITEM="$sel"
+		menu_save_as
+	elif [[ $diag_exit == 2 ]]; then
+		# <Help>
+		SELECTED_MENU_ITEM="${sel#HELP }"
+		msgbox_help "$("${reverse_lookup[$SELECTED_MENU_ITEM]}_help")"
+	else
+		# Exit (<ESC><ESC>, <Exit>)
+		SELECTED_MENU_ITEM="${sel-$SELECTED_MENU_ITEM}"
+		menu_exit
+		true
+	fi
+}
+
+SELECTED_MENU_ITEM=""
+MENU_SIZE=("20" "76" "12")
+INPUTBOX_SIZE=("8" "76")
+EDITTEXT_SIZE=("16" "76")
+RADIOLIST_SIZE=("20" "76" "8")
+BUILDLIST_SIZE=("20" "76" "8")
+HELP_POPUP_SIZE=("8" "66")
+CONFIRM_SIZE=("8" "66")
+
+
+################################################
+# Menu definition
+
+MENU_ITEMS=(
+	"PARTITIONING_SCHEME"
+	"SWAP"
+	"ENCRYPT"
+	"--------"
+	"HOSTNAME"
+	"TIMEZONE"
+	"KEYMAP"
+	"KEYMAP_INITRAMFS_OTHER"
+	"KEYMAP_INITRAMFS"
+	"LOCALES"
+	"LOCALE"
+	"--------"
+	"INIT_SYSTEM"
+	"GENTOO_MIRROR"
+	"GENTOO_ARCH"
+	"SELECT_MIRRORS"
+	"SELECT_MIRRORS_LARGE_FILE"
+	"--------"
+	"INSTALL_SSHD"
+	"ROOT_SSH_AUTHORIZED_KEYS"
+	"ADDITIONAL_PACKAGES"
+)
+
+function --------_tag()   { echo "────────────────────────────"; }
+function --------_label() { echo "────────────────────────────"; }
+function --------_show()  { return 0; }
+function --------_help()  { echo "Congratulations, you found a separator."; }
+function --------_menu()  { true; }
+
+function PARTITIONING_SCHEME_tag()   { echo "Partitioning scheme"; }
+function PARTITIONING_SCHEME_label() { echo "($PARTITIONING_SCHEME)"; }
+function PARTITIONING_SCHEME_show()  { return 0; }
+function PARTITIONING_SCHEME_help()  { echo "Select the desired partitioning scheme."; }
+function PARTITIONING_SCHEME_menu()  {
+	local sel
+	if sel="$(menu_radiolist \
+		"Select partitioning scheme" \
+		"Select which partitioning scheme you want to follow. Have a look at the help text for this option (available in the menu) for details." \
+		"$PARTITIONING_SCHEME" \
+		"${ALL_PARTITIONING_SCHEMES[@]}")"
+	then
+		# Save keymap
+		PARTITIONING_SCHEME="$sel"
+		UNSAVED_CHANGES=true
+	else
+		# Return to menu
+		true
+	fi
+}
+
+function HOSTNAME_tag()   { echo "Hostname"; }
+function HOSTNAME_label() { echo "($HOSTNAME)"; }
+function HOSTNAME_show()  { return 0; }
+function HOSTNAME_help()  { echo "Enter the desired system hostname here. Be aware that when creating mdadm raid arrays, this value will be recorded in metadata block. If you change it later, you should also update the metadata."; }
+function HOSTNAME_menu()  {
+	local sel
+	sel="$(dialog \
+		--title "Select hostname" \
+		--inputbox "Enter the hostname for your new system." \
+		"${INPUTBOX_SIZE[@]}" "$HOSTNAME" 3>&2 2>&1 1>&3 3>&-)"
+	UNSAVED_CHANGES=true
+}
+
+function TIMEZONE_tag()   { echo "Timezone"; }
+function TIMEZONE_label() { echo "($TIMEZONE)"; }
+function TIMEZONE_show()  { return 0; }
+function TIMEZONE_help()  { echo "The timezone for the new system."; }
+function TIMEZONE_menu()  {
+	# TODO
+	true
+	UNSAVED_CHANGES=true
+}
+
 function KEYMAP_tag()   { echo "Keymap"; }
 function KEYMAP_label() { echo "($KEYMAP)"; }
 function KEYMAP_show()  { return 0; }
@@ -502,11 +639,10 @@ function LOCALE_label() { echo "($LOCALE)"; }
 function LOCALE_show()  { return 0; }
 function LOCALE_help()  { echo "The locale to use for the new system. See \`locale -a\` for available options, and be sure to generate the locale by adding it to the list of locales above."; }
 function LOCALE_menu()  {
-	# TODO say enable before in locales
 	local sel
 	if sel="$(menu_radiolist \
 		"Select default locale" \
-		"Select which locale to use as the default." \
+		"Select which locale to use as the default. Remember to also add the desired locale to the list of locales above." \
 		"$LOCALE" \
 		"${LOCALE_A[@]}")"
 	then
@@ -651,8 +787,7 @@ function ADDITIONAL_PACKAGES_menu()  {
 
 # $1: filename
 function save() {
-	echo save to "$1"
-cat > "$1" <<EOF
+	cat > "$1" <<EOF
 # vim: set ft=sh ts=4 sw=4 sts=-1 noet:
 # This file will be interpreted by /bin/bash.
 
@@ -705,105 +840,6 @@ ROOT_SSH_AUTHORIZED_KEYS=${ROOT_SSH_AUTHORIZED_KEYS@Q}
 
 I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY=true
 EOF
-}
-
-function msgbox_help() {
-	dialog \
-		--msgbox "$1" \
-		"${HELP_POPUP_SIZE[@]}" 3>&2 2>&1 1>&3 3>&-
-}
-
-function menu_exit() {
-	if [[ $UNSAVED_CHANGES == "true" ]]; then
-		local sel
-		sel="$(dialog \
-			--help-button --help-label "Back" \
-			--yes-label "Save" --no-label "Discard" \
-			--yesno "Do you want to save your configuration?\n(Press <ESC><ESC>, or choose <Back> to continue gentoo configuration)." \
-			"${CONFIRM_SIZE[@]}" 3>&2 2>&1 1>&3 3>&-)"
-
-		local diag_exit="$?"
-		if [[ $diag_exit == 0 ]]; then
-			# <Save>
-			save "$CONFIG_FILE"
-			clear_and_exit 0
-		elif [[ $diag_exit == 1 ]]; then
-			# <Discard>
-			clear_and_exit 0
-		else
-			# Back to menu (<ESC><ESC>, <Back>)
-			true
-		fi
-	else
-		# Nothing was changed. Exit immediately.
-		clear_and_exit 0
-	fi
-}
-
-function menu_save_as() {
-	local sel
-	sel="$(dialog \
-		--ok-label "Save" \
-		--inputbox "Enter a filename to which this configuration should be saved.\n(Press <ESC><ESC>, or choose <Cancel> to abort)." \
-		"${INPUTBOX_SIZE[@]}" "$SAVE_AS_FILENAME" 3>&2 2>&1 1>&3 3>&-)"
-
-	local diag_exit="$?"
-	if [[ $diag_exit == 0 ]]; then
-		# <Save>
-		SAVE_AS_FILENAME="$sel"
-		save "$SAVE_AS_FILENAME"
-		UNSAVED_CHANGES=false
-	else
-		# Back to menu (<ESC><ESC>, <Cancel>)
-		true
-	fi
-}
-
-function menu() {
-	local item
-	local item_tag
-	local tag_item_list=()
-	declare -A reverse_lookup
-
-	# Create menu list
-	for item in "${MENU_ITEMS[@]}"; do
-		# Only if item is visible
-		"${item}_show" || continue
-
-		item_tag="$("${item}_tag")"
-		tag_item_list+=("$item_tag" "$("${item}_label")")
-		reverse_lookup["$item_tag"]="$item"
-	done
-
-	local sel
-	sel="$(dialog --colors \
-		--title "Gentoo configuration ($RELA_CONFIG_FILE)" \
-		--extra-button --extra-label "Exit" \
-		--help-button \
-		--default-item "$SELECTED_MENU_ITEM" \
-		--ok-label "Select" --cancel-label "Save" \
-		--menu "This is the gentoo configuration menu. Read and adjust all options below carefully. Save your desired configuration and run ./install afterwards. Use <Help> if you want further information on any option." \
-		"${MENU_SIZE[@]}" "${tag_item_list[@]}" 3>&2 2>&1 1>&3 3>&-)"
-
-	local diag_exit="$?"
-	if [[ $diag_exit == 0 ]]; then
-		# <Select>
-		SELECTED_MENU_ITEM="$sel"
-		"${reverse_lookup[$SELECTED_MENU_ITEM]}_menu"
-	elif [[ $diag_exit == 1 ]]; then
-		# <Save>
-		SELECTED_MENU_ITEM="$sel"
-		menu_save_as
-	elif [[ $diag_exit == 2 ]]; then
-		# <Help>
-		SELECTED_MENU_ITEM="${sel#HELP }"
-		msgbox_help "$("${reverse_lookup[$SELECTED_MENU_ITEM]}_help")"
-	else
-		# Exit (<ESC><ESC>, <Exit>)
-		SELECTED_MENU_ITEM="${sel-$SELECTED_MENU_ITEM}"
-		menu_exit
-		true
-	fi
 }
 
 # Begin menu loop. Exit will be called to end this loop where it is appropriate.

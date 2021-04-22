@@ -279,8 +279,8 @@ create_single_disk_layout() {
 
 	create_gpt new_id=gpt device="$device"
 	create_partition new_id="part_$type" id=gpt size=256MiB       type="$type"
-	[[ $size_swap != "false" ]] && \
-	create_partition new_id=part_swap    id=gpt size="$size_swap" type=swap
+	[[ $size_swap != "false" ]] \
+		&& create_partition new_id=part_swap    id=gpt size="$size_swap" type=swap
 	create_partition new_id=part_root    id=gpt size=remaining    type=linux
 
 	local root_id="part_root"
@@ -290,8 +290,8 @@ create_single_disk_layout() {
 	fi
 
 	format id="part_$type" type="$type" label="$type"
-	[[ $size_swap != "false" ]] && \
-	format id=part_swap type=swap label=swap
+	[[ $size_swap != "false" ]] \
+		&& format id=part_swap type=swap label=swap
 	format id="$root_id" type="$root_fs" label=root
 
 	if [[ $type == "efi" ]]; then
@@ -299,8 +299,8 @@ create_single_disk_layout() {
 	else
 		DISK_ID_BIOS="part_$type"
 	fi
-	[[ $size_swap != "false" ]] && \
-	DISK_ID_SWAP=part_swap
+	[[ $size_swap != "false" ]] \
+		&& DISK_ID_SWAP=part_swap
 	DISK_ID_ROOT="$root_id"
 
 	if [[ $root_fs == "btrfs" ]]; then
@@ -342,19 +342,19 @@ create_raid0_luks_layout() {
 	for i in "${!extra_arguments[@]}"; do
 		create_gpt new_id="gpt_dev${i}" device="${extra_arguments[$i]}"
 		create_partition new_id="part_${type}_dev${i}" id="gpt_dev${i}" size=256MiB       type="$type"
-		[[ $size_swap != "false" ]] && \
-		create_partition new_id="part_swap_dev${i}"    id="gpt_dev${i}" size="$size_swap" type=raid
+		[[ $size_swap != "false" ]] \
+			&& create_partition new_id="part_swap_dev${i}"    id="gpt_dev${i}" size="$size_swap" type=raid
 		create_partition new_id="part_root_dev${i}"    id="gpt_dev${i}" size=remaining    type=raid
 	done
 
-	[[ $size_swap != "false" ]] && \
-	create_raid new_id=part_raid_swap name="swap" level=0 ids="$(expand_ids '^part_swap_dev[[:digit:]]$')"
+	[[ $size_swap != "false" ]] \
+		&& create_raid new_id=part_raid_swap name="swap" level=0 ids="$(expand_ids '^part_swap_dev[[:digit:]]$')"
 	create_raid new_id=part_raid_root name="root" level=0 ids="$(expand_ids '^part_root_dev[[:digit:]]$')"
 	create_luks new_id=part_luks_root name="root" id=part_raid_root
 
 	format id="part_${type}_dev0" type="$type" label="$type"
-	[[ $size_swap != "false" ]] && \
-	format id=part_raid_swap type=swap label=swap
+	[[ $size_swap != "false" ]] \
+		&& format id=part_raid_swap type=swap label=swap
 	format id=part_luks_root type="$root_fs" label=root
 
 	if [[ $type == "efi" ]]; then
@@ -362,8 +362,8 @@ create_raid0_luks_layout() {
 	else
 		DISK_ID_BIOS="part_${type}_dev0"
 	fi
-	[[ $size_swap != "false" ]] && \
-	DISK_ID_SWAP=part_raid_swap
+	[[ $size_swap != "false" ]] \
+		&& DISK_ID_SWAP=part_raid_swap
 	DISK_ID_ROOT=part_luks_root
 
 	if [[ $root_fs == "btrfs" ]]; then
@@ -406,8 +406,8 @@ create_btrfs_raid_layout() {
 	# Create layout on first disk
 	create_gpt new_id="gpt_dev0" device="${extra_arguments[0]}"
 	create_partition new_id="part_${type}_dev0" id="gpt_dev0" size=256MiB       type="$type"
-	[[ $size_swap != "false" ]] && \
-	create_partition new_id="part_swap_dev0"    id="gpt_dev0" size="$size_swap" type=swap
+	[[ $size_swap != "false" ]] \
+		&& create_partition new_id="part_swap_dev0"    id="gpt_dev0" size="$size_swap" type=swap
 	create_partition new_id="part_root_dev0"    id="gpt_dev0" size=remaining    type=linux
 
 	local root_id
@@ -434,8 +434,8 @@ create_btrfs_raid_layout() {
 	fi
 
 	format id="part_${type}_dev0" type="$type" label="$type"
-	[[ $size_swap != "false" ]] && \
-	format id="part_swap_dev0" type=swap label=swap
+	[[ $size_swap != "false" ]] \
+		&& format id="part_swap_dev0" type=swap label=swap
 	format_btrfs ids="$root_ids" label=root raid_type="$raid_type"
 
 	if [[ $type == "efi" ]]; then
@@ -443,8 +443,8 @@ create_btrfs_raid_layout() {
 	else
 		DISK_ID_BIOS="part_${type}_dev0"
 	fi
-	[[ $size_swap != "false" ]] && \
-	DISK_ID_SWAP=part_swap_dev0
+	[[ $size_swap != "false" ]] \
+		&& DISK_ID_SWAP=part_swap_dev0
 	DISK_ID_ROOT="$root_id"
 	DISK_ID_ROOT_TYPE="btrfs"
 	DISK_ID_ROOT_MOUNT_OPTS="defaults,noatime,compress=zstd,subvol=/root"
