@@ -190,7 +190,7 @@ SELECT_MIRRORS=true
 # take significantly longer (~5-10min).
 SELECT_MIRRORS_LARGE_FILE=false
 
-# Set to true if the tarball is based on systemd. In this case
+# Set to true if the stagr3 tarball is based on systemd. In this case
 # we need to use slightly different utilities to setup the base system.
 SYSTEMD=true
 
@@ -199,7 +199,8 @@ SYSTEMD=true
 # Additional (optional) configuration
 
 # Array of additional packages to install
-ADDITIONAL_PACKAGES=("app-editors/neovim")
+# e.g. ADDITIONAL_PACKAGES=("app-editors/neovim")
+ADDITIONAL_PACKAGES=()
 
 # Install and configure sshd (a reasonably secure config is provided, which
 # only allows the use of ed25519 keys, and requires pubkey authentication)

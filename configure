@@ -1,5 +1,5 @@
 #!/bin/bash
-set -o pipefail
+set -uo pipefail
 
 
 ################################################
@@ -19,7 +19,8 @@ function get_source_dir() {
 	echo -n "$(realpath "$(dirname "${source}")")"
 }
 
-export GENTOO_INSTALL_REPO_DIR="$(get_source_dir)"
+GENTOO_INSTALL_REPO_DIR="$(get_source_dir)"
+export GENTOO_INSTALL_REPO_DIR
 export GENTOO_INSTALL_REPO_SCRIPT_ACTIVE=true
 
 source "$GENTOO_INSTALL_REPO_DIR/scripts/utils.sh"
@@ -85,30 +86,70 @@ function get_default_keymap() {
 	echo -n "us"
 }
 
-
-################################################
-# Configuration constants
-
 function get_all_keymaps() {
 	ALL_KEYMAPS=()
 	local map
 	for map in $(find /usr/share/keymaps/ /usr/share/kbd/keymaps/ -type f -iname '*.map.gz' -printf "%f\n" 2>/dev/null | sort -u); do
 		ALL_KEYMAPS+=("${map%%.map.gz}")
 	done
-}; get_all_keymaps
+}
+
+function recalculate_locales() {
+	LOCALES=""
+	N_LOCALES=0
+
+	local selected_index_list="$SELECTED_LOCALES"
+	local next_selected
+	next_selected="${selected_index_list%% *}"
+	selected_index_list="${selected_index_list#* }"
+
+	local i=0
+	for item in "${SUPPORTED_LOCALES[@]}"; do
+		if [[ "$i" == "$next_selected" ]]; then
+			LOCALES="$LOCALES"$'\n'"$item"
+			next_selected="${selected_index_list%% *}"
+			selected_index_list="${selected_index_list#* }"
+			((++N_LOCALES))
+		fi
+		((++i))
+	done
+
+	LOCALES="${LOCALES:1}"
+}
 
 
+################################################
+# Configuration constants
+
+get_all_keymaps
 INIT_SYSTEMS=("systemd" "OpenRC")
+ALL_GENTOO_ARCHS=("x86" "amd64" "arm" "arm64")
 readarray -t SUPPORTED_LOCALES < /usr/share/i18n/SUPPORTED
+readarray -t LOCALE_A < <(locale -a)
 
 
 ################################################
 # Load/Default configuration
 
-function load_config() {
-	# Load settings
-	source "$1" || die "Could not load given configuration."
+function load_selected_locales() {
+	local sel_locales=()
+	local IFS=$'\n'
+	declare -A selected_by_name
+	for i in $LOCALES; do
+		selected_by_name["$i"]=true
+	done
 
+	local i=0
+	for item in "${SUPPORTED_LOCALES[@]}"; do
+		[[ "${selected_by_name[$item]-}" == true ]] \
+			&& sel_locales+=("$i")
+		((++i))
+	done
+
+	SELECTED_LOCALES="${sel_locales[*]}"
+}
+
+function process_config() {
 	if [[ "$SYSTEMD" == true ]]; then
 		INIT_SYSTEM="systemd"
 	else
@@ -121,7 +162,17 @@ function load_config() {
 		KEYMAP_INITRAMFS_OTHER=true
 	fi
 
+	load_selected_locales
+	recalculate_locales
+}
+
+function load_config() {
+	# Load settings
+	source "$1" || die "Could not load given configuration."
+
+	# Process config to generate intermediary values.
 	# After loading a config no unsaved changes exist.
+	process_config
 	UNSAVED_CHANGES=false
 }
 
@@ -129,25 +180,25 @@ function load_default_config() {
 	HOSTNAME="gentoo"
 	TIMEZONE="$(get_timezone)"
 	KEYMAP="$(get_default_keymap)"
-	KEYMAP_INITRAMFS=""
-	LOCALES=""
+	KEYMAP_INITRAMFS="$KEYMAP"
+	LOCALES="C.UTF-8 UTF-8"
 	LOCALE="C.utf8"
+
+	SYSTEMD=true
 
 	GENTOO_MIRROR="https://mirror.eu.oneandone.net/linux/distributions/gentoo/gentoo"
 	GENTOO_ARCH="amd64"
-	STAGE3_BASENAME="stage3-$GENTOO_ARCH-systemd"
 
 	SELECT_MIRRORS=true
 	SELECT_MIRRORS_LARGE_FILE=false
 
-	ADDITIONAL_PACKAGES=("app-editors/neovim")
+	ADDITIONAL_PACKAGES=()
 	INSTALL_SSHD=true
 	ROOT_SSH_AUTHORIZED_KEYS=""
 
-	INIT_SYSTEM="systemd"
-	KEYMAP_INITRAMFS_OTHER=false
-
+	# Process config to generate intermediary values.
 	# All settings are unsaved.
+	process_config
 	UNSAVED_CHANGES=true
 }
 
@@ -169,10 +220,13 @@ function clear_and_exit() {
 }
 
 function ellipsis() {
-	if [[ "${#2}" -gt "$1" ]]; then
-		echo "${2:0:$1}…"
+	local len="$1"
+	shift
+	local str="$*"
+	if [[ "${#str}" -gt "$len" ]]; then
+		echo "${str:0:$len}…"
 	else
-		echo "$2"
+		echo "$str"
 	fi
 }
 
@@ -184,12 +238,17 @@ function on_off_toggle() {
 	fi
 }
 
-function on_off_label() {
+function on_off_str() {
 	if [[ "$1" == true ]]; then
-		echo -n "[*]"
+		echo -n "$2"
 	else
-		echo -n "[ ]"
+		echo -n "$3"
 	fi
+}
+
+function on_off_label() {
+	local prefix="${2-}"
+	on_off_str "$1" "${prefix}[*]" "${prefix}[ ]"
 }
 
 function is_on() {
@@ -201,29 +260,40 @@ function is_off() {
 }
 
 SELECTED_MENU_ITEM=""
-MENU_SIZE="20 76 12"
-INPUTBOX_SIZE="8 76"
-RADIOLIST_SIZE="20 76 8"
-BUILDLIST_SIZE="20 76 8"
-HELP_POPUP_SIZE="8 66"
-CONFIRM_SIZE="8 66"
+MENU_SIZE=("20" "76" "12")
+INPUTBOX_SIZE=("8" "76")
+EDITTEXT_SIZE=("16" "76")
+RADIOLIST_SIZE=("20" "76" "8")
+BUILDLIST_SIZE=("20" "76" "8")
+HELP_POPUP_SIZE=("8" "66")
+CONFIRM_SIZE=("8" "66")
 
 
 ################################################
 # Menu definition
 
 MENU_ITEMS=(
+	"DISK_LAYOUT"
+	"SWAP"
+	"ENCRYPT"
+	"--------"
 	"HOSTNAME"
 	"TIMEZONE"
 	"KEYMAP"
 	"KEYMAP_INITRAMFS_OTHER"
 	"KEYMAP_INITRAMFS"
-	"--------"
 	"LOCALES"
 	"LOCALE"
 	"--------"
 	"INIT_SYSTEM"
-	"KEYFILE"
+	"GENTOO_MIRROR"
+	"GENTOO_ARCH"
+	"SELECT_MIRRORS"
+	"SELECT_MIRRORS_LARGE_FILE"
+	"--------"
+	"INSTALL_SSHD"
+	"ROOT_SSH_AUTHORIZED_KEYS"
+	"ADDITIONAL_PACKAGES"
 )
 
 function --------_tag()   { echo "────────────────────────────"; }
@@ -238,11 +308,10 @@ function HOSTNAME_show()  { return 0; }
 function HOSTNAME_help()  { echo "Enter the desired system hostname here. Be aware that when creating mdadm raid arrays, this value will be recorded in metadata block. If you change it later, you should also update the metadata."; }
 function HOSTNAME_menu()  {
 	local sel
-	# shellcheck disable=SC2086
 	sel="$(dialog \
 		--title "Select hostname" \
 		--inputbox "Enter the hostname for your new system." \
-		$INPUTBOX_SIZE "$HOSTNAME" 3>&2 2>&1 1>&3 3>&-)"
+		"${INPUTBOX_SIZE[@]}" "$HOSTNAME" 3>&2 2>&1 1>&3 3>&-)"
 	UNSAVED_CHANGES=true
 }
 
@@ -268,17 +337,25 @@ function menu_splitlist()  {
 	local items=()
 	local item
 	local i=0
+	local next_selected="${selected_index_list%% *}"
+	local selected_index_list="${selected_index_list#* }"
 	for item in "$@"; do
-		items+=("$((i++))" "$item" "off")
+		if [[ "$i" == "$next_selected" ]]; then
+			items+=("$i" "$item" "on")
+			next_selected="${selected_index_list%% *}"
+			selected_index_list="${selected_index_list#* }"
+		else
+			items+=("$i" "$item" "off")
+		fi
+		((++i))
 	done
 
 	# Show selection dialog
 	local sel
-	# shellcheck disable=SC2086
 	sel="$(dialog \
 		--title "$title" \
 		--buildlist "$description\nUse ^ to focus the list of unselected items and $ to focus the list of selected items. Use <Space> to select/deselect an item and select <OK> by pressing <Enter> when finished." \
-		$BUILDLIST_SIZE "${items[@]}" 3>&2 2>&1 1>&3 3>&-)"
+		"${BUILDLIST_SIZE[@]}" "${items[@]}" 3>&2 2>&1 1>&3 3>&-)"
 
 	local diag_exit="$?"
 	if [[ $diag_exit == 0 ]]; then
@@ -288,13 +365,6 @@ function menu_splitlist()  {
 	elif [[ $diag_exit == 1 ]]; then
 		# <Cancel>
 		return 1
-	elif [[ $diag_exit == 2 ]]; then
-		# <Select>
-		local sel="${sel#HELP }"
-		local sel_cur="${sel% *}"
-		#local sel_radio="${sel#* }"
-		echo -n "$sel_cur"
-		return 0
 	else
 		# <ESC><ESC>
 		return 1
@@ -324,7 +394,6 @@ function menu_radiolist()  {
 
 	# Show selection dialog
 	local sel
-	# shellcheck disable=SC2086
 	sel="$(dialog \
 		--no-items \
 		--title "$title" \
@@ -335,7 +404,7 @@ function menu_radiolist()  {
 		--default-item "$default_item" \
 		--default-button help \
 		--radiolist "$description\nUse <Select> to select the option under the cursor, or <OK> to use the option which is selected with an asterisk." \
-		$RADIOLIST_SIZE "${items[@]}" 3>&2 2>&1 1>&3 3>&-)"
+		"${RADIOLIST_SIZE[@]}" "${items[@]}" 3>&2 2>&1 1>&3 3>&-)"
 
 	local diag_exit="$?"
 	if [[ $diag_exit == 0 ]]; then
@@ -372,18 +441,20 @@ function KEYMAP_menu()  {
 	then
 		# Save keymap
 		KEYMAP="$sel"
+		UNSAVED_CHANGES=true
 	else
 		# Return to menu
 		true
 	fi
 }
 
-function KEYMAP_INITRAMFS_OTHER_tag()   { echo "Other keymap in initramfs"; }
+function KEYMAP_INITRAMFS_OTHER_tag()   { echo "Different initramfs keymap"; }
 function KEYMAP_INITRAMFS_OTHER_label() { on_off_label "$KEYMAP_INITRAMFS_OTHER"; }
 function KEYMAP_INITRAMFS_OTHER_show()  { return 0; }
 function KEYMAP_INITRAMFS_OTHER_help()  { echo "Whether another keymap should be used for the initramfs. If enabled, you will be able to choose a separate keymap below."; }
 function KEYMAP_INITRAMFS_OTHER_menu()  {
 	on_off_toggle "KEYMAP_INITRAMFS_OTHER"
+	UNSAVED_CHANGES=true
 	[[ -z $KEYMAP_INITRAMFS ]] \
 		&& KEYMAP_INITRAMFS="$KEYMAP"
 }
@@ -402,6 +473,7 @@ function KEYMAP_INITRAMFS_menu()  {
 	then
 		# Save keymap
 		KEYMAP_INITRAMFS="$sel"
+		UNSAVED_CHANGES=true
 	else
 		# Return to menu
 		true
@@ -409,20 +481,42 @@ function KEYMAP_INITRAMFS_menu()  {
 }
 
 function LOCALES_tag()   { echo "Locales"; }
-function LOCALES_label() { echo "($(ellipsis 20 "$LOCALES"))"; }
+function LOCALES_label() { echo "$N_LOCALES selected"; }
 function LOCALES_show()  { return 0; }
 function LOCALES_help()  { echo "The locales to generate for the new system. Be careful that the syntax for locales is a different from the resulting name of the genereated locales of locale-gen. For example the locale 'en_US.utf8' is enabled via 'en_US.UTF-8 UTF-8')."; }
 function LOCALES_menu()  {
-	menu_splitlist "Select locales" "Select which locales to generate." "${SUPPORTED_LOCALES[@]}"
+	local sel
+	if sel="$(menu_splitlist "Select locales" "Select which locales to generate." "$SELECTED_LOCALES" "${SUPPORTED_LOCALES[@]}")"; then
+		# Save locales
+		SELECTED_LOCALES="$sel"
+		recalculate_locales
+		UNSAVED_CHANGES=true
+	else
+		# Return to menu
+		true
+	fi
 }
 
-function LOCALE_tag()   { echo "Locale"; }
+function LOCALE_tag()   { echo "Default locale"; }
 function LOCALE_label() { echo "($LOCALE)"; }
 function LOCALE_show()  { return 0; }
 function LOCALE_help()  { echo "The locale to use for the new system. See \`locale -a\` for available options, and be sure to generate the locale by adding it to the list of locales above."; }
 function LOCALE_menu()  {
 	# TODO say enable before in locales
-	true
+	local sel
+	if sel="$(menu_radiolist \
+		"Select default locale" \
+		"Select which locale to use as the default." \
+		"$LOCALE" \
+		"${LOCALE_A[@]}")"
+	then
+		# Save locale
+		LOCALE="$sel"
+		UNSAVED_CHANGES=true
+	else
+		# Return to menu
+		true
+	fi
 }
 
 function INIT_SYSTEM_tag()   { echo "Init system"; }
@@ -439,18 +533,116 @@ function INIT_SYSTEM_menu()  {
 	then
 		# Save keymap
 		INIT_SYSTEM="$sel"
+		UNSAVED_CHANGES=true
 	else
 		# Return to menu
 		true
 	fi
 }
 
-function KEYFILE_tag()   { echo "Key file"; }
-function KEYFILE_label() { echo "($KEYFILE)"; }
-function KEYFILE_show()  { return 0; }
-function KEYFILE_help()  { echo ""; }
-function KEYFILE_menu()  {
-	true
+function GENTOO_MIRROR_tag()   { echo "Gentoo mirror"; }
+function GENTOO_MIRROR_label() { echo "($(ellipsis 20 "$GENTOO_MIRROR"))"; }
+function GENTOO_MIRROR_show()  { return 0; }
+function GENTOO_MIRROR_help()  { echo "Enter the primary gentoo mirror that should be used for the installation process (until mirrorselect is run)."; }
+function GENTOO_MIRROR_menu()  {
+	local sel
+	sel="$(dialog \
+		--title "Select gentoo mirror" \
+		--inputbox "Enter the desired gentoo mirror location." \
+		"${INPUTBOX_SIZE[@]}" "$GENTOO_MIRROR" 3>&2 2>&1 1>&3 3>&-)"
+	UNSAVED_CHANGES=true
+}
+
+function GENTOO_ARCH_tag()   { echo "Gentoo arch"; }
+function GENTOO_ARCH_label() { echo "($GENTOO_ARCH)"; }
+function GENTOO_ARCH_show()  { return 0; }
+function GENTOO_ARCH_help()  { echo "Select gentoo's architecture tag for the new system."; }
+function GENTOO_ARCH_menu()  {
+	local sel
+	if sel="$(menu_radiolist \
+		"Select architecture" \
+		"Select the architecture for the new system." \
+		"$GENTOO_ARCH" \
+		"${ALL_GENTOO_ARCHS[@]}")"
+	then
+		# Save keymap
+		GENTOO_ARCH="$sel"
+		UNSAVED_CHANGES=true
+	else
+		# Return to menu
+		true
+	fi
+}
+
+function SELECT_MIRRORS_tag()   { echo "Run mirrorselect"; }
+function SELECT_MIRRORS_label() { on_off_label "$SELECT_MIRRORS"; }
+function SELECT_MIRRORS_show()  { return 0; }
+function SELECT_MIRRORS_help()  { echo "Determines if mirrorselect will be used to determine the best gentoo mirror for the new system."; }
+function SELECT_MIRRORS_menu()  {
+	on_off_toggle "SELECT_MIRRORS"
+	UNSAVED_CHANGES=true
+}
+
+function SELECT_MIRRORS_LARGE_FILE_tag()   { echo " └ Use large files"; }
+function SELECT_MIRRORS_LARGE_FILE_label() { on_off_label "$SELECT_MIRRORS_LARGE_FILE" " └ "; }
+function SELECT_MIRRORS_LARGE_FILE_show()  { is_on "$SELECT_MIRRORS"; }
+function SELECT_MIRRORS_LARGE_FILE_help()  { echo "Determines if mirrorselect uses large files (~10MB) to test mirrors."; }
+function SELECT_MIRRORS_LARGE_FILE_menu()  {
+	on_off_toggle "SELECT_MIRRORS_LARGE_FILE"
+	UNSAVED_CHANGES=true
+}
+
+function INSTALL_SSHD_tag()   { echo "Install sshd"; }
+function INSTALL_SSHD_label() { on_off_label "$INSTALL_SSHD"; }
+function INSTALL_SSHD_show()  { return 0; }
+function INSTALL_SSHD_help()  { echo "Install and enable sshd on the new system. A reasonably secure sshd configuration will be provided. It will by default only allow ed25519 keys, restrict key exchange algorithms to a reasonable subset, disable any password based authentication, and only allow root to login."; }
+function INSTALL_SSHD_menu()  {
+	on_off_toggle "INSTALL_SSHD"
+	UNSAVED_CHANGES=true
+}
+
+function ROOT_SSH_AUTHORIZED_KEYS_tag()   { echo "Authorized keys (root)"; }
+function ROOT_SSH_AUTHORIZED_KEYS_label() { echo "$(sed '/^\s*#/d;/^\s*$/d' <<< "$ROOT_SSH_AUTHORIZED_KEYS" | wc -l) keys"; }
+function ROOT_SSH_AUTHORIZED_KEYS_show()  { return 0; }
+function ROOT_SSH_AUTHORIZED_KEYS_help()  { echo "The authorized keys for ssh root login, one per line."; }
+function ROOT_SSH_AUTHORIZED_KEYS_menu()  {
+	# Prepare file to edit in dialog,
+	# unfortunately <() won't work (probably EOF is encountered before content is available).
+	local tmpfile
+	tmpfile="$(mktemp)" || die "Could not create temporary file."
+	cat > "$tmpfile" <<EOF
+# Enter all authorized keys for ssh root login.
+# Use <Tab> to navigate between the inputbox, <OK> and <Cancel>.
+#
+# All comments will be removed from the final file.
+# If you are on a vconsole and have no means of entering this now,
+# simply edit the final configuration later with a text editor.
+
+#ssh-ed25519 ......
+$ROOT_SSH_AUTHORIZED_KEYS
+EOF
+
+	local sel
+	sel="$(dialog \
+		--title "Enter authorized keys" \
+		--editbox "$tmpfile" "${EDITTEXT_SIZE[@]}" 3>&2 2>&1 1>&3 3>&-)"
+	ROOT_SSH_AUTHORIZED_KEYS="$(sed '/^\s*#/d;/^\s*$/d' <<< "$sel")"
+	UNSAVED_CHANGES=true
+}
+
+function ADDITIONAL_PACKAGES_tag()   { echo "Additional packages"; }
+function ADDITIONAL_PACKAGES_label() { echo "${#ADDITIONAL_PACKAGES[@]} packages"; }
+function ADDITIONAL_PACKAGES_show()  { return 0; }
+function ADDITIONAL_PACKAGES_help()  { echo "Enter additional packages that should be installed. It is recommended to keep this to a minimum, because of the quite \"interactive\" nature of gentoo package management ;)"; }
+function ADDITIONAL_PACKAGES_menu()  {
+	local sel
+	sel="$(dialog \
+		--title "Additional packages" \
+		--inputbox "Enter additional packages (portage package ATOMs) to install. Delimited by space." \
+		"${INPUTBOX_SIZE[@]}" "${ADDITIONAL_PACKAGES[*]}" 3>&2 2>&1 1>&3 3>&-)"
+	# shellcheck disable=SC2206
+	ADDITIONAL_PACKAGES=($sel)
+	UNSAVED_CHANGES=true
 }
 
 
@@ -463,6 +655,7 @@ function save() {
 cat > "$1" <<EOF
 # vim: set ft=sh ts=4 sw=4 sts=-1 noet:
 # This file will be interpreted by /bin/bash.
+
 
 ################################################
 # Disk configuration
@@ -491,20 +684,20 @@ LOCALE=${LOCALE@Q}
 ################################################
 # Gentoo configuration
 
-GENTOO_MIRROR="https://mirror.eu.oneandone.net/linux/distributions/gentoo/gentoo"
-GENTOO_ARCH="amd64"
-STAGE3_BASENAME="stage3-$GENTOO_ARCH-systemd"
-SELECT_MIRRORS=true
-SELECT_MIRRORS_LARGE_FILE=false
-SYSTEMD=true
+GENTOO_MIRROR=${GENTOO_MIRROR@Q}
+GENTOO_ARCH=${GENTOO_ARCH@Q}
+STAGE3_BASENAME="stage3-\$GENTOO_ARCH$([[ $SYSTEMD == true ]] && echo -n "-systemd")"
+SELECT_MIRRORS=${SELECT_MIRRORS@Q}
+SELECT_MIRRORS_LARGE_FILE=${SELECT_MIRRORS_LARGE_FILE@Q}
+SYSTEMD=${SYSTEMD@Q}
 
 
 ################################################
 # Additional (optional) configuration
 
-ADDITIONAL_PACKAGES=("app-editors/neovim")
-INSTALL_SSHD=true
-ROOT_SSH_AUTHORIZED_KEYS=""
+ADDITIONAL_PACKAGES=${ADDITIONAL_PACKAGES@Q}
+INSTALL_SSHD=${INSTALL_SSHD@Q}
+ROOT_SSH_AUTHORIZED_KEYS=${ROOT_SSH_AUTHORIZED_KEYS@Q}
 
 
 ################################################
@@ -515,21 +708,19 @@ EOF
 }
 
 function msgbox_help() {
-	# shellcheck disable=SC2086
 	dialog \
 		--msgbox "$1" \
-		$HELP_POPUP_SIZE 3>&2 2>&1 1>&3 3>&-
+		"${HELP_POPUP_SIZE[@]}" 3>&2 2>&1 1>&3 3>&-
 }
 
 function menu_exit() {
 	if [[ $UNSAVED_CHANGES == "true" ]]; then
 		local sel
-		# shellcheck disable=SC2086
 		sel="$(dialog \
 			--help-button --help-label "Back" \
 			--yes-label "Save" --no-label "Discard" \
 			--yesno "Do you want to save your configuration?\n(Press <ESC><ESC>, or choose <Back> to continue gentoo configuration)." \
-			$CONFIRM_SIZE 3>&2 2>&1 1>&3 3>&-)"
+			"${CONFIRM_SIZE[@]}" 3>&2 2>&1 1>&3 3>&-)"
 
 		local diag_exit="$?"
 		if [[ $diag_exit == 0 ]]; then
@@ -551,11 +742,10 @@ function menu_exit() {
 
 function menu_save_as() {
 	local sel
-	# shellcheck disable=SC2086
 	sel="$(dialog \
 		--ok-label "Save" \
 		--inputbox "Enter a filename to which this configuration should be saved.\n(Press <ESC><ESC>, or choose <Cancel> to abort)." \
-		$INPUTBOX_SIZE "$SAVE_AS_FILENAME" 3>&2 2>&1 1>&3 3>&-)"
+		"${INPUTBOX_SIZE[@]}" "$SAVE_AS_FILENAME" 3>&2 2>&1 1>&3 3>&-)"
 
 	local diag_exit="$?"
 	if [[ $diag_exit == 0 ]]; then
@@ -586,7 +776,6 @@ function menu() {
 	done
 
 	local sel
-	# shellcheck disable=SC2086
 	sel="$(dialog --colors \
 		--title "Gentoo configuration ($RELA_CONFIG_FILE)" \
 		--extra-button --extra-label "Exit" \
@@ -594,7 +783,7 @@ function menu() {
 		--default-item "$SELECTED_MENU_ITEM" \
 		--ok-label "Select" --cancel-label "Save" \
 		--menu "This is the gentoo configuration menu. Read and adjust all options below carefully. Save your desired configuration and run ./install afterwards. Use <Help> if you want further information on any option." \
-		$MENU_SIZE "${tag_item_list[@]}" 3>&2 2>&1 1>&3 3>&-)"
+		"${MENU_SIZE[@]}" "${tag_item_list[@]}" 3>&2 2>&1 1>&3 3>&-)"
 
 	local diag_exit="$?"
 	if [[ $diag_exit == 0 ]]; then
