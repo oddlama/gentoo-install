@@ -15,53 +15,57 @@
 #
 # Be sure to only define one layout!
 
-# 1. create_single_disk_layout
-#
-# This layout creates the most common partitioning scheme on a single disk, i.e.
-# one boot, one swap and one root partition. Swap can be disabled and the root
-# partition can be luks encrypted. This is probably the layout you are most familiar with.
-#
-# Parameters:
-#   swap=<size>           Create a swap partition with given size, or no swap
-#                         at all if set to false
-#   type=[efi|bios]       Selects the boot type. Defaults to efi if not given.
-#   luks=[true|false]     Encrypt root partition. Defaults to false if not given.
-#   root_fs=[ext4|btrfs]  Root filesystem
-#create_single_disk_layout swap=8GiB type=efi luks=true root_fs=ext4 /dev/sdX
+function disk_configuration() {
+	create_classic_single_disk_layout swap=8GiB type=efi luks=true root_fs=ext4 /dev/sdX
 
-# 2. create_raid0_luks_layout
-#
-# This layout creates the single disk layout on multiple disks and combines
-# the swap and root partitions in separate raid0 arrays. Useful if you e.g. have
-# several nvme drives and want greater speed. Only one boot partition will actually
-# be used though.
-#
-# Parameters:
-#   swap=<size>           Create a swap partition with given size for each disk,
-#                         or no swap at all if set to false
-#   type=[efi|bios]       Selects the boot type. Defaults to efi if not given.
-#   root_fs=[ext4|btrfs]  Root filesystem
-# Careful: You will get N times the swap amount, so be sure to divide beforehand.
-#create_raid0_luks_layout swap=4GiB type=efi root_fs=ext4 /dev/sd{X,Y}
+	# 1. create_classic_single_disk_layout
+	#
+	# This layout creates the most common partitioning scheme on a single disk, i.e.
+	# one boot, one swap and one root partition. Swap can be disabled and the root
+	# partition can be luks encrypted. This is probably the layout you are most familiar with.
+	#
+	# Parameters:
+	#   swap=<size>           Create a swap partition with given size, or no swap
+	#                         at all if set to false
+	#   type=[efi|bios]       Selects the boot type. Defaults to efi if not given.
+	#   luks=[true|false]     Encrypt root partition. Defaults to false if not given.
+	#   root_fs=[ext4|btrfs]  Root filesystem
+	#create_classic_single_disk_layout swap=8GiB type=efi luks=true root_fs=ext4 /dev/sdX
 
-# 3. create_btrfs_raid_layout
-#
-# This layout is the same as the single_disk_layout, but uses btrfs as the root
-# filesystem and allows you to put additional disks into the btrfs device pool.
-# Only the first disk will have boot and swap partitions, the other disks will
-# directly be used in the btrfs device pool. If encryption is enabled, all disks
-# must be encrypted separately, as btrfs doesn't support encryption itself.
-# Also works with a single device.
-#
-# Parameters:
-#   swap=<size>                Create a swap partition with given size, or no swap
-#                              at all if set to false
-#   type=[efi|bios]            Selects the boot type. Defaults to efi if not given.
-#   luks=[true|false]          Encrypt root partition and btrfs devices. Defaults
-#                              to false if not given.
-#   raid_type=[raid0|raid1]    Select raid type. Defaults to raid0.
-#create_btrfs_raid_layout swap=8GiB luks=false raid_type=raid0 /dev/sd{X,Y}
-create_btrfs_raid_layout swap=8GiB luks=true /dev/sdX
+	# 2. create_raid0_luks_layout
+	#
+	# This layout creates the single disk layout on multiple disks and combines
+	# the swap and root partitions in separate raid0 arrays. Useful if you e.g. have
+	# several nvme drives and want greater speed. Only one boot partition will actually
+	# be used though.
+	#
+	# Parameters:
+	#   swap=<size>           Create a swap partition with given size for each disk,
+	#                         or no swap at all if set to false
+	#   type=[efi|bios]       Selects the boot type. Defaults to efi if not given.
+	#   root_fs=[ext4|btrfs]  Root filesystem
+	# Careful: You will get N times the swap amount, so be sure to divide beforehand.
+	#create_raid0_luks_layout swap=4GiB type=efi root_fs=ext4 /dev/sd{X,Y}
+
+	# 3. create_btrfs_centric_layout
+	#
+	# This layout is the same as the single_disk_layout, but uses btrfs as the root
+	# filesystem and allows you to put additional disks into the btrfs device pool.
+	# Only the first disk will have boot and swap partitions, the other disks will
+	# directly be used in the btrfs device pool. If encryption is enabled, all disks
+	# must be encrypted separately, as btrfs doesn't support encryption itself.
+	# Also works with a single device.
+	#
+	# Parameters:
+	#   swap=<size>                Create a swap partition with given size, or no swap
+	#                              at all if set to false
+	#   type=[efi|bios]            Selects the boot type. Defaults to efi if not given.
+	#   luks=[true|false]          Encrypt root partition and btrfs devices. Defaults
+	#                              to false if not given.
+	#   raid_type=[raid0|raid1]    Select raid type. Defaults to raid0.
+	#create_btrfs_centric_layout swap=8GiB luks=false raid_type=raid0 /dev/sd{X,Y}
+	#create_btrfs_centric_layout swap=8GiB luks=true /dev/sdX
+}
 
 
 ################################################
@@ -121,7 +125,7 @@ create_btrfs_raid_layout swap=8GiB luks=true /dev/sdX
 # By default this function returns the same keyfile for all partitions.
 # If you want to make this more granular, run the install script and
 # select here based on the id reported in the partitioning overview.
-luks_getkeyfile() {
+function luks_getkeyfile() {
 	case "$1" in
 		#'my_luks_partition') echo -n '/path/to/my_luks_partition_keyfile' ;;
 		*) echo -n "/path/to/luks-keyfile" ;;

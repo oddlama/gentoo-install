@@ -63,9 +63,9 @@ function get_timezone() {
 		echo "$timezone"
 	else
 		# compare files by contents
-		# https://stackoverflow.com/questions/12521114/getting-the-canonical-time-zone-name-in-shell-script#comment88637393_12523283
-		find /usr/share/zoneinfo -type f ! -regex ".*/Etc/.*" -exec \
-			cmp -s {} /etc/localtime \; -print | sed -e 's@.*/zoneinfo/@@' | head -n1
+		find /usr/share/zoneinfo -type f -exec cmp -s {} /etc/localtime \; -print \
+			| sed -e 's,.*/zoneinfo/,,' \
+			| head -1
 	fi
 }
 
@@ -94,6 +94,10 @@ function get_all_keymaps() {
 	done
 }
 
+function get_all_timezones() {
+	readarray -t ALL_TIMEZONES < <(find /usr/share/zoneinfo -type f -printf "%P\n" | sort -u)
+}
+
 function recalculate_locales() {
 	LOCALES=""
 	N_LOCALES=0
@@ -117,19 +121,33 @@ function recalculate_locales() {
 	LOCALES="${LOCALES:1}"
 }
 
-ALL_PARTITIONING_SCHEMES=("single_disk" "raid0_luks" "btrfs_raid" "zfs_raid")
-PARTITIONING_SCHEME="single_disk"
+ALL_PARTITIONING_SCHEMES=(
+	"classic_single_disk" "Classic single disk layout (boot, swap, root)"
+	"zfs_centric"         "ZFS centric (optional raid0/1 and encryption via zfs)"
+	"btrfs_centric"       "Btrfs centric (optional raid0/1 via btrfs)"
+	"raid0_luks"          "Raid0 (N>=2 disks) and luks for root"
+	"custom"              "Custom (edit the config manually later)"
+)
+PARTITIONING_SCHEME="zfs_centric"
 
-function create_btrfs_raid_layout() {
-	PARTITIONING_SCHEME="btrfs_raid"
+function create_single_disk_layout() {
+	create_classic_single_disk_layout
+}
+
+function create_classic_single_disk_layout() {
+	PARTITIONING_SCHEME="classic_single_disk"
 }
 
 function create_raid0_luks_layout() {
-	PARTITIONING_SCHEME="raid0_luks"
+	PARTITIONING_SCHEME="classic_single_disk"
 }
 
-function create_single_disk_layout() {
-	PARTITIONING_SCHEME="single_disk"
+function create_btrfs_raid_layout() {
+	create_btrfs_centric_layout
+}
+
+function create_btrfs_centric_layout() {
+	PARTITIONING_SCHEME="btrfs_centric"
 }
 
 
@@ -137,6 +155,7 @@ function create_single_disk_layout() {
 # Configuration constants
 
 get_all_keymaps
+get_all_timezones
 INIT_SYSTEMS=("systemd" "OpenRC")
 ALL_GENTOO_ARCHS=("x86" "amd64" "arm" "arm64")
 readarray -t SUPPORTED_LOCALES < /usr/share/i18n/SUPPORTED
@@ -165,6 +184,8 @@ function load_selected_locales() {
 }
 
 function process_config() {
+	disk_configuration
+
 	if [[ "$SYSTEMD" == true ]]; then
 		INIT_SYSTEM="systemd"
 	else
@@ -316,6 +337,67 @@ function menu_splitlist()  {
 	elif [[ $diag_exit == 1 ]]; then
 		# <Cancel>
 		return 1
+	else
+		# <ESC><ESC>
+		return 1
+	fi
+}
+
+# $1: title
+# $2: description
+# $3: default item
+# $@: [tag label]...
+function menu_radiolist_labeled()  {
+	local title="$1"
+	local description="$2"
+	local default_item="$3"
+	shift 3
+
+	# Build option array
+	local items=()
+	local tag
+	local label
+	while [[ "$#" -gt 0 ]]; do
+		tag="$1"
+		label="$2"
+		shift 2
+
+		if [[ $tag == "$default_item" ]]; then
+			items+=("$tag" "$label" "on")
+		else
+			items+=("$tag" "$label" "off")
+		fi
+	done
+
+	# Show selection dialog
+	local sel
+	sel="$(dialog \
+		--no-tags \
+		--title "$title" \
+		--help-button \
+		--help-label "Select" \
+		--help-status \
+		--ok-label "OK" \
+		--default-item "$default_item" \
+		--default-button help \
+		--radiolist "$description\nUse <Select> to select the option under the cursor, or <OK> to use the option which is selected with an asterisk." \
+		"${RADIOLIST_SIZE[@]}" "${items[@]}" 3>&2 2>&1 1>&3 3>&-)"
+
+	local diag_exit="$?"
+	if [[ $diag_exit == 0 ]]; then
+		# <OK>
+		echo -n "$sel"
+		return 0
+	elif [[ $diag_exit == 1 ]]; then
+		# <Cancel>
+		return 1
+	elif [[ $diag_exit == 2 ]]; then
+		# <Select>
+		local sel="${sel#HELP }"
+		local sel_cur="${sel% *}"
+		#local sel_radio="${sel#* }"
+		echo -n "$sel_cur"
+		return 0
 	else
 		# <ESC><ESC>
 		return 1
@@ -526,9 +608,9 @@ function PARTITIONING_SCHEME_show()  { return 0; }
 function PARTITIONING_SCHEME_help()  { echo "Select the desired partitioning scheme."; }
 function PARTITIONING_SCHEME_menu()  {
 	local sel
-	if sel="$(menu_radiolist \
+	if sel="$(menu_radiolist_labeled \
 		"Select partitioning scheme" \
-		"Select which partitioning scheme you want to follow. Have a look at the help text for this option (available in the menu) for details." \
+		"Select which partitioning scheme you want to follow. Have a look at the help text for this option (available in the menu) for more details.\n\nAll options support EFI/BIOS, swap and some form of encryption (luks/zfs).\n" \
 		"$PARTITIONING_SCHEME" \
 		"${ALL_PARTITIONING_SCHEMES[@]}")"
 	then
@@ -559,9 +641,20 @@ function TIMEZONE_label() { echo "($TIMEZONE)"; }
 function TIMEZONE_show()  { return 0; }
 function TIMEZONE_help()  { echo "The timezone for the new system."; }
 function TIMEZONE_menu()  {
-	# TODO
-	true
-	UNSAVED_CHANGES=true
+	local sel
+	if sel="$(menu_radiolist \
+		"Select timezone" \
+		"Select which timezone to use." \
+		"$TIMEZONE" \
+		"${ALL_TIMEZONES[@]}")"
+	then
+		# Save timezone
+		TIMEZONE="$sel"
+		UNSAVED_CHANGES=true
+	else
+		# Return to menu
+		true
+	fi
 }
 
 function KEYMAP_tag()   { echo "Keymap"; }
@@ -795,13 +888,7 @@ function save() {
 ################################################
 # Disk configuration
 
-create_btrfs_raid_layout swap=8GiB luks=true /dev/sdX
-luks_getkeyfile() {
-	case "\$1" in
-		#'my_luks_partition') echo -n '/path/to/my_luks_partition_keyfile' ;;
-		*) echo -n "/path/to/luks-keyfile" ;;
-	esac
-}
+$(define_disk_layout)
 
 
 ################################################

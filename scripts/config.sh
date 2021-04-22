@@ -252,13 +252,13 @@ expand_ids() {
 	done
 }
 
-# Example 1: Single disk, 3 partitions (efi, swap, root)
+# Single disk, 3 partitions (efi, swap, root)
 # Parameters:
 #   swap=<size>           Create a swap partition with given size, or no swap at all if set to false
 #   type=[efi|bios]       Selects the boot type. Defaults to efi if not given.
 #   luks=[true|false]     Encrypt root partition. Defaults to false if not given.
 #   root_fs=[ext4|btrfs]  Root filesystem
-create_single_disk_layout() {
+create_classic_single_disk_layout() {
 	local known_arguments=('+swap' '?type' '?luks' '?root_fs')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
@@ -314,7 +314,11 @@ create_single_disk_layout() {
 	fi
 }
 
-# Example 2: Multiple disks, with raid 0 and luks
+create_single_disk_layout() {
+	die "'create_single_disk_layout' is deprecated, please use 'create_classic_single_disk_layout' instead. It is fully option-compatible to the old version."
+}
+
+# Multiple disks, with raid 0 and luks
 # - efi:  partition on all disks, but only first disk used
 # - swap: raid 0 → fs
 # - root: raid 0 → luks → fs
@@ -377,14 +381,14 @@ create_raid0_luks_layout() {
 	fi
 }
 
-# Example 3: Multiple disks, up to 3 partitions on first disk (efi, maybe swap, dm-crypt for btrfs).
+# Multiple disks, up to 3 partitions on first disk (efi, optional swap, root with btrfs).
 # Additional devices will be first encrypted and then put directly into btrfs array.
 # Parameters:
 #   swap=<size>                Create a swap partition with given size, or no swap at all if set to false
 #   type=[efi|bios]            Selects the boot type. Defaults to efi if not given.
 #   luks=[true|false]          Encrypt root partition and btrfs devices. Defaults to false if not given.
 #   raid_type=[raid0|raid1]    Select raid type. Defaults to raid0.
-create_btrfs_raid_layout() {
+create_btrfs_centric_layout() {
 	local known_arguments=('+swap' '?type' '?raid_type' '?luks')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
@@ -448,4 +452,8 @@ create_btrfs_raid_layout() {
 	DISK_ID_ROOT="$root_id"
 	DISK_ID_ROOT_TYPE="btrfs"
 	DISK_ID_ROOT_MOUNT_OPTS="defaults,noatime,compress=zstd,subvol=/root"
+}
+
+create_btrfs_raid_layout() {
+	die "'create_btrfs_raid_layout' is deprecated, please use 'create_btrfs_centric_layout' instead. It is fully option-compatible to the old version."
 }
