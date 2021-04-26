@@ -139,23 +139,63 @@ ALL_PARTITIONING_SCHEMES=(
 	"custom"              "Custom (edit the config manually later)"
 )
 
+PARTITIONING_ROOT_FS_TYPES=("ext4" "btrfs")
+PARTITIONING_RAID_TYPES=("raid0" "raid1")
+PARTITIONING_ZFS_POOL_TYPES=("stripe" "mirror")
+
 function create_single_disk_layout() {
 	create_classic_single_disk_layout
 }
 
+function parse_swap() {
+	if [[ $1 == "false" ]]; then
+		PARTITIONING_USE_SWAP=false
+		PARTITIONING_SWAP=0
+	else
+		PARTITIONING_USE_SWAP=true
+		PARTITIONING_SWAP="$1"
+	fi
+}
+
 function create_classic_single_disk_layout() {
 	PARTITIONING_SCHEME="classic_single_disk"
-	USE_SWAP=false
+
+	local known_arguments=('+swap' '?type' '?luks' '?root_fs')
+	local extra_arguments=()
+	declare -A arguments; parse_arguments "$@"
+
+	PARTITIONING_DEVICE="${extra_arguments[0]}"
+	parse_swap "${arguments[swap]}"
+	PARTITIONING_BOOT_TYPE="${arguments[type]}"
+	PARTITIONING_USE_LUKS="${arguments[luks]:-false}"
+	PARTITIONING_ROOT_FS="${arguments[root_fs]:-ext4}"
 }
 
 function create_raid0_luks_layout() {
 	PARTITIONING_SCHEME="classic_single_disk"
-	USE_SWAP=false
+
+	local known_arguments=('+swap' '?type' '?root_fs')
+	local extra_arguments=()
+	declare -A arguments; parse_arguments "$@"
+
+	PARTITIONING_DEVICES=("${extra_arguments[@]}")
+	parse_swap "${arguments[swap]}"
+	PARTITIONING_BOOT_TYPE="${arguments[type]}"
+	PARTITIONING_ROOT_FS="${arguments[root_fs]:-ext4}"
 }
 
 function create_zfs_centric_layout() {
 	PARTITIONING_SCHEME="zfs_centric"
-	USE_SWAP=false
+
+	local known_arguments=('+swap' '?type' '?pool_type' '?encrypt')
+	local extra_arguments=()
+	declare -A arguments; parse_arguments "$@"
+
+	PARTITIONING_DEVICES=("${extra_arguments[@]}")
+	parse_swap "${arguments[swap]}"
+	PARTITIONING_BOOT_TYPE="${arguments[type]}"
+	PARTITIONING_ZFS_POOL_TYPE="${arguments[pool_type]:-stripe}"
+	PARTITIONING_ZFS_ENCRYPTION="${arguments[encrypt]:-false}"
 }
 
 function create_btrfs_raid_layout() {
@@ -164,7 +204,16 @@ function create_btrfs_raid_layout() {
 
 function create_btrfs_centric_layout() {
 	PARTITIONING_SCHEME="btrfs_centric"
-	USE_SWAP=false
+
+	local known_arguments=('+swap' '?type' '?raid_type' '?luks')
+	local extra_arguments=()
+	declare -A arguments; parse_arguments "$@"
+
+	PARTITIONING_DEVICES=("${extra_arguments[@]}")
+	parse_swap "${arguments[swap]}"
+	PARTITIONING_BOOT_TYPE="${arguments[type]}"
+	PARTITIONING_USE_LUKS="${arguments[luks]:-false}"
+	PARTITIONING_RAID_TYPE="${arguments[raid_type]:-raid0}"
 }
 
 
@@ -192,7 +241,7 @@ function load_selected_locales() {
 
 	local i=0
 	for item in "${SUPPORTED_LOCALES[@]}"; do
-		[[ "${selected_by_name[$item]-}" == true ]] \
+		[[ "${selected_by_name[$item]:-}" == true ]] \
 			&& sel_locales+=("$i")
 		((++i))
 	done
@@ -223,6 +272,9 @@ function load_config() {
 	# First load defaults, then replace by sourcing config.
 	load_default_config
 
+	# Fallback to custom partitioning scheme if it isn't set in the actual config
+	PARTITIONING_SCHEME="custom"
+
 	# Load settings
 	source "$1" || die "Could not load given configuration."
 
@@ -239,7 +291,7 @@ function load_default_config() {
 	LOCALE="C.utf8"
 
 	function disk_configuration() {
-		create_zfs_centric_layout swap=8GiB type=efi luks=false /dev/sdX
+		create_zfs_centric_layout swap=8GiB type=efi encrypt=true pool_type=stripe /dev/sdX
 	}
 
 	SYSTEMD=true
@@ -305,7 +357,7 @@ function on_off_str() {
 }
 
 function on_off_label() {
-	local prefix="${2-}"
+	local prefix="${2:-}"
 	on_off_str "$1" "${prefix}[*]" "${prefix}[ ]"
 }
 
@@ -315,6 +367,17 @@ function is_on() {
 
 function is_off() {
 	[[ "$1" != true ]]
+}
+
+# if $1 is in $2..
+function one_of() {
+	local what="$1"
+	shift
+	for i in "$@"; do
+		[[ "$i" == "$what" ]] \
+			&& return 0
+	done
+	return 1
 }
 
 # $1: title
@@ -565,7 +628,7 @@ function menu() {
 		msgbox_help "$("${reverse_lookup[$SELECTED_MENU_ITEM]}_help")"
 	else
 		# Exit (<ESC><ESC>, <Exit>)
-		SELECTED_MENU_ITEM="${dialog_out-$SELECTED_MENU_ITEM}"
+		SELECTED_MENU_ITEM="${dialog_out:-$SELECTED_MENU_ITEM}"
 		menu_exit
 		true
 	fi
@@ -585,10 +648,17 @@ CONFIRM_SIZE=("8" "66")
 # Menu definition
 
 MENU_ITEMS=(
-	"DISK_PARTITIONING_SCHEME"
-	"DISK_USE_SWAP"
-	"DISK_SWAP"
-	"DISK_USE_LUKS"
+	"PARTITIONING_SCHEME"
+	"PARTITIONING_BOOT_TYPE"
+	"PARTITIONING_USE_SWAP"
+	"PARTITIONING_SWAP"
+	"PARTITIONING_ROOT_FS"
+	"PARTITIONING_USE_LUKS"
+	"PARTITIONING_DEVICE"
+	"PARTITIONING_DEVICES"
+	"PARTITIONING_ZFS_ENCRYPTION"
+	"PARTITIONING_ZFS_POOL_TYPE"
+	"PARTITIONING_RAID_TYPE"
 	"--------"
 	"HOSTNAME"
 	"TIMEZONE"
@@ -615,11 +685,11 @@ function --------_show()  { return 0; }
 function --------_help()  { echo "Congratulations, you found a separator."; }
 function --------_menu()  { true; }
 
-function DISK_PARTITIONING_SCHEME_tag()   { echo "Partitioning scheme"; }
-function DISK_PARTITIONING_SCHEME_label() { echo "($PARTITIONING_SCHEME)"; }
-function DISK_PARTITIONING_SCHEME_show()  { return 0; }
-function DISK_PARTITIONING_SCHEME_help()  { echo "Select the desired partitioning scheme."; }
-function DISK_PARTITIONING_SCHEME_menu()  {
+function PARTITIONING_SCHEME_tag()   { echo "Partitioning scheme"; }
+function PARTITIONING_SCHEME_label() { echo "($PARTITIONING_SCHEME)"; }
+function PARTITIONING_SCHEME_show()  { return 0; }
+function PARTITIONING_SCHEME_help()  { echo "Select the desired partitioning scheme."; }
+function PARTITIONING_SCHEME_menu()  {
 	if menu_radiolist_labeled \
 		"Select partitioning scheme" \
 		"Select which partitioning scheme you want to follow. Have a look at the help text for this option (available in the menu) for more details.\n\nAll options support EFI/BIOS, swap and some form of encryption (luks/zfs).\n" \
@@ -627,7 +697,13 @@ function DISK_PARTITIONING_SCHEME_menu()  {
 		"${ALL_PARTITIONING_SCHEMES[@]}"
 	then
 		# Set disk scheme
-		PARTITIONING_SCHEME="$dialog_out"
+		case "$dialog_out" in
+			"classic_single_disk") create_classic_single_disk_layout swap=8GiB type=efi luks=false root_fs=ext4 /dev/sdX ;;
+			"zfs_centric")         ;;
+			"btrfs_centric")       ;;
+			"raid0_luks")          ;;
+			"custom")              PARTITIONING_SCHEME="$dialog_out" ;;
+		esac
 		UNSAVED_CHANGES=true
 	else
 		# Return to menu
@@ -635,13 +711,46 @@ function DISK_PARTITIONING_SCHEME_menu()  {
 	fi
 }
 
-function DISK_USE_SWAP_tag()   { echo "Use swap"; }
-function DISK_USE_SWAP_label() { on_off_label "$USE_SWAP"; }
-function DISK_USE_SWAP_show()  { return 0; }
-function DISK_USE_SWAP_help()  { echo "Select whether or not to create a swap partition."; }
-function DISK_USE_SWAP_menu()  {
-	on_off_toggle "USE_SWAP"
+function PARTITIONING_USE_SWAP_tag()   { echo " ├ Use swap"; }
+function PARTITIONING_USE_SWAP_label() { on_off_label "$PARTITIONING_USE_SWAP" " ├ "; }
+function PARTITIONING_USE_SWAP_show()  { [[ $PARTITIONING_SCHEME != "custom" ]]; }
+function PARTITIONING_USE_SWAP_help()  { echo "Select whether or not to create a swap partition."; }
+function PARTITIONING_USE_SWAP_menu()  {
+	on_off_toggle "PARTITIONING_USE_SWAP"
 	UNSAVED_CHANGES=true
+}
+
+function PARTITIONING_SWAP_tag()   { echo " │  └ Swap amount"; }
+function PARTITIONING_SWAP_label() { echo " │  └ ($PARTITIONING_SWAP)"; }
+function PARTITIONING_SWAP_show()  { [[ $PARTITIONING_SCHEME != "custom" ]] && is_on "$PARTITIONING_USE_SWAP"; }
+function PARTITIONING_SWAP_help()  { echo "Select the amount of swap to use."; }
+function PARTITIONING_SWAP_menu()  {
+	dialog \
+		--title "Select swap amount" \
+		--inputbox "Enter the amount of swap for the new system. Use the correct suffix (e.g. 16GiB, 1000MB)." \
+		"${INPUTBOX_SIZE[@]}" "$PARTITIONING_SWAP"
+	PARTITIONING_SWAP="$dialog_out"
+	UNSAVED_CHANGES=true
+}
+
+function PARTITIONING_ROOT_FS_tag()   { echo " ├ Root filesystem"; }
+function PARTITIONING_ROOT_FS_label() { echo " ├ ($PARTITIONING_ROOT_FS)"; }
+function PARTITIONING_ROOT_FS_show()  { [[ $PARTITIONING_SCHEME != "custom" ]] && one_of "$PARTITIONING_SCHEME" "classic_single_disk" "raid0_luks"; }
+function PARTITIONING_ROOT_FS_help()  { echo "Select the amount of swap to use."; }
+function PARTITIONING_ROOT_FS_menu()  {
+	if menu_radiolist \
+		"Select root fstype" \
+		"Select which filesystem to use on the root partition." \
+		"$PARTITIONING_ROOT_FS" \
+		"${PARTITIONING_ROOT_FS_TYPES[@]}"
+	then
+		# Set timezone
+		PARTITIONING_ROOT_FS="$dialog_out"
+		UNSAVED_CHANGES=true
+	else
+		# Return to menu
+		true
+	fi
 }
 
 function HOSTNAME_tag()   { echo "Hostname"; }
