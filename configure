@@ -46,6 +46,10 @@ done
 # TODO check install dialog
 echo "Please install dialog on your system to use the configurator"
 
+# Wrap dialog in two functions to prevent it from cluttering stderr.
+function dialog_wrapper() { dialog_out=$(command dialog "$@" 3>&2 2>&1 1>&3 3>&-); }
+function dialog() { dialog_wrapper "$@" 2>&1; }
+
 
 ################################################
 # Configuration helper functions
@@ -121,6 +125,12 @@ function recalculate_locales() {
 	LOCALES="${LOCALES:1}"
 }
 
+function define_disk_layout() {
+	# Show function declaration, trim trailing whitespace
+	declare -f disk_configuration \
+		| sed -e 's/\s*$//'
+}
+
 ALL_PARTITIONING_SCHEMES=(
 	"classic_single_disk" "Classic single disk layout (boot, swap, root)"
 	"zfs_centric"         "ZFS centric (optional raid0/1 and encryption via zfs)"
@@ -128,7 +138,6 @@ ALL_PARTITIONING_SCHEMES=(
 	"raid0_luks"          "Raid0 (N>=2 disks) and luks for root"
 	"custom"              "Custom (edit the config manually later)"
 )
-PARTITIONING_SCHEME="zfs_centric"
 
 function create_single_disk_layout() {
 	create_classic_single_disk_layout
@@ -136,10 +145,17 @@ function create_single_disk_layout() {
 
 function create_classic_single_disk_layout() {
 	PARTITIONING_SCHEME="classic_single_disk"
+	USE_SWAP=false
 }
 
 function create_raid0_luks_layout() {
 	PARTITIONING_SCHEME="classic_single_disk"
+	USE_SWAP=false
+}
+
+function create_zfs_centric_layout() {
+	PARTITIONING_SCHEME="zfs_centric"
+	USE_SWAP=false
 }
 
 function create_btrfs_raid_layout() {
@@ -148,6 +164,7 @@ function create_btrfs_raid_layout() {
 
 function create_btrfs_centric_layout() {
 	PARTITIONING_SCHEME="btrfs_centric"
+	USE_SWAP=false
 }
 
 
@@ -203,12 +220,13 @@ function process_config() {
 }
 
 function load_config() {
+	# First load defaults, then replace by sourcing config.
+	load_default_config
+
 	# Load settings
 	source "$1" || die "Could not load given configuration."
 
-	# Process config to generate intermediary values.
 	# After loading a config no unsaved changes exist.
-	process_config
 	UNSAVED_CHANGES=false
 }
 
@@ -219,6 +237,10 @@ function load_default_config() {
 	KEYMAP_INITRAMFS="$KEYMAP"
 	LOCALES="C.UTF-8 UTF-8"
 	LOCALE="C.utf8"
+
+	function disk_configuration() {
+		create_zfs_centric_layout swap=8GiB type=efi luks=false /dev/sdX
+	}
 
 	SYSTEMD=true
 
@@ -232,9 +254,7 @@ function load_default_config() {
 	INSTALL_SSHD=true
 	ROOT_SSH_AUTHORIZED_KEYS=""
 
-	# Process config to generate intermediary values.
 	# All settings are unsaved.
-	process_config
 	UNSAVED_CHANGES=true
 }
 
@@ -244,15 +264,17 @@ if [[ -e "$CONFIG_FILE" ]]; then
 else
 	load_default_config
 fi
+process_config
 
 
 ################################################
 # Menu helpers and constants
 
+# $1: exit code
 function clear_and_exit() {
 	dialog --clear
 	clear -x
-	exit 0
+	exit "$1"
 }
 
 function ellipsis() {
@@ -323,16 +345,14 @@ function menu_splitlist()  {
 	done
 
 	# Show selection dialog
-	local sel
-	sel="$(dialog \
+	dialog \
 		--title "$title" \
 		--buildlist "$description\nUse ^ to focus the list of unselected items and $ to focus the list of selected items. Use <Space> to select/deselect an item and select <OK> by pressing <Enter> when finished." \
-		"${BUILDLIST_SIZE[@]}" "${items[@]}" 3>&2 2>&1 1>&3 3>&-)"
+		"${BUILDLIST_SIZE[@]}" "${items[@]}"
 
-	local diag_exit="$?"
+	local diag_exit=$?
 	if [[ $diag_exit == 0 ]]; then
 		# <OK>
-		echo -n "$sel"
 		return 0
 	elif [[ $diag_exit == 1 ]]; then
 		# <Cancel>
@@ -347,7 +367,7 @@ function menu_splitlist()  {
 # $2: description
 # $3: default item
 # $@: [tag label]...
-function menu_radiolist_labeled()  {
+function menu_radiolist_labeled() {
 	local title="$1"
 	local description="$2"
 	local default_item="$3"
@@ -370,8 +390,7 @@ function menu_radiolist_labeled()  {
 	done
 
 	# Show selection dialog
-	local sel
-	sel="$(dialog \
+	dialog \
 		--no-tags \
 		--title "$title" \
 		--help-button \
@@ -381,22 +400,21 @@ function menu_radiolist_labeled()  {
 		--default-item "$default_item" \
 		--default-button help \
 		--radiolist "$description\nUse <Select> to select the option under the cursor, or <OK> to use the option which is selected with an asterisk." \
-		"${RADIOLIST_SIZE[@]}" "${items[@]}" 3>&2 2>&1 1>&3 3>&-)"
+		"${RADIOLIST_SIZE[@]}" "${items[@]}"
 
-	local diag_exit="$?"
+	local diag_exit=$?
 	if [[ $diag_exit == 0 ]]; then
 		# <OK>
-		echo -n "$sel"
 		return 0
 	elif [[ $diag_exit == 1 ]]; then
 		# <Cancel>
 		return 1
 	elif [[ $diag_exit == 2 ]]; then
 		# <Select>
-		local sel="${sel#HELP }"
+		local sel="${dialog_out#HELP }"
 		local sel_cur="${sel% *}"
 		#local sel_radio="${sel#* }"
-		echo -n "$sel_cur"
+		dialog_out="$sel_cur"
 		return 0
 	else
 		# <ESC><ESC>
@@ -426,8 +444,7 @@ function menu_radiolist()  {
 	done
 
 	# Show selection dialog
-	local sel
-	sel="$(dialog \
+	dialog \
 		--no-items \
 		--title "$title" \
 		--help-button \
@@ -437,22 +454,21 @@ function menu_radiolist()  {
 		--default-item "$default_item" \
 		--default-button help \
 		--radiolist "$description\nUse <Select> to select the option under the cursor, or <OK> to use the option which is selected with an asterisk." \
-		"${RADIOLIST_SIZE[@]}" "${items[@]}" 3>&2 2>&1 1>&3 3>&-)"
+		"${RADIOLIST_SIZE[@]}" "${items[@]}"
 
 	local diag_exit="$?"
 	if [[ $diag_exit == 0 ]]; then
 		# <OK>
-		echo -n "$sel"
 		return 0
 	elif [[ $diag_exit == 1 ]]; then
 		# <Cancel>
 		return 1
 	elif [[ $diag_exit == 2 ]]; then
 		# <Select>
-		local sel="${sel#HELP }"
+		local sel="${dialog_out#HELP }"
 		local sel_cur="${sel% *}"
 		#local sel_radio="${sel#* }"
-		echo -n "$sel_cur"
+		dialog_out="$sel_cur"
 		return 0
 	else
 		# <ESC><ESC>
@@ -461,19 +477,16 @@ function menu_radiolist()  {
 }
 
 function msgbox_help() {
-	dialog \
-		--msgbox "$1" \
-		"${HELP_POPUP_SIZE[@]}" 3>&2 2>&1 1>&3 3>&-
+	dialog --msgbox "$1" "${HELP_POPUP_SIZE[@]}"
 }
 
 function menu_exit() {
 	if [[ $UNSAVED_CHANGES == "true" ]]; then
-		local sel
-		sel="$(dialog \
+		dialog \
 			--help-button --help-label "Back" \
 			--yes-label "Save" --no-label "Discard" \
 			--yesno "Do you want to save your configuration?\n(Press <ESC><ESC>, or choose <Back> to continue gentoo configuration)." \
-			"${CONFIRM_SIZE[@]}" 3>&2 2>&1 1>&3 3>&-)"
+			"${CONFIRM_SIZE[@]}"
 
 		local diag_exit="$?"
 		if [[ $diag_exit == 0 ]]; then
@@ -494,16 +507,15 @@ function menu_exit() {
 }
 
 function menu_save_as() {
-	local sel
-	sel="$(dialog \
+	dialog \
 		--ok-label "Save" \
 		--inputbox "Enter a filename to which this configuration should be saved.\n(Press <ESC><ESC>, or choose <Cancel> to abort)." \
-		"${INPUTBOX_SIZE[@]}" "$SAVE_AS_FILENAME" 3>&2 2>&1 1>&3 3>&-)"
+		"${INPUTBOX_SIZE[@]}" "$SAVE_AS_FILENAME"
 
 	local diag_exit="$?"
 	if [[ $diag_exit == 0 ]]; then
 		# <Save>
-		SAVE_AS_FILENAME="$sel"
+		SAVE_AS_FILENAME="$dialog_out"
 		save "$SAVE_AS_FILENAME"
 		UNSAVED_CHANGES=false
 	else
@@ -528,32 +540,32 @@ function menu() {
 		reverse_lookup["$item_tag"]="$item"
 	done
 
-	local sel
-	sel="$(dialog --colors \
+	dialog --colors \
 		--title "Gentoo configuration ($RELA_CONFIG_FILE)" \
 		--extra-button --extra-label "Exit" \
 		--help-button \
 		--default-item "$SELECTED_MENU_ITEM" \
 		--ok-label "Select" --cancel-label "Save" \
 		--menu "This is the gentoo configuration menu. Read and adjust all options below carefully. Save your desired configuration and run ./install afterwards. Use <Help> if you want further information on any option." \
-		"${MENU_SIZE[@]}" "${tag_item_list[@]}" 3>&2 2>&1 1>&3 3>&-)"
+		"${MENU_SIZE[@]}" "${tag_item_list[@]}"
 
 	local diag_exit="$?"
 	if [[ $diag_exit == 0 ]]; then
 		# <Select>
-		SELECTED_MENU_ITEM="$sel"
-		"${reverse_lookup[$SELECTED_MENU_ITEM]}_menu"
+		SELECTED_MENU_ITEM="$dialog_out"
+		[[ -z "$SELECTED_MENU_ITEM" ]] \
+			|| "${reverse_lookup[$SELECTED_MENU_ITEM]}_menu"
 	elif [[ $diag_exit == 1 ]]; then
 		# <Save>
-		SELECTED_MENU_ITEM="$sel"
+		SELECTED_MENU_ITEM="$dialog_out"
 		menu_save_as
 	elif [[ $diag_exit == 2 ]]; then
 		# <Help>
-		SELECTED_MENU_ITEM="${sel#HELP }"
+		SELECTED_MENU_ITEM="${dialog_out#HELP }"
 		msgbox_help "$("${reverse_lookup[$SELECTED_MENU_ITEM]}_help")"
 	else
 		# Exit (<ESC><ESC>, <Exit>)
-		SELECTED_MENU_ITEM="${sel-$SELECTED_MENU_ITEM}"
+		SELECTED_MENU_ITEM="${dialog_out-$SELECTED_MENU_ITEM}"
 		menu_exit
 		true
 	fi
@@ -573,9 +585,10 @@ CONFIRM_SIZE=("8" "66")
 # Menu definition
 
 MENU_ITEMS=(
-	"PARTITIONING_SCHEME"
-	"SWAP"
-	"ENCRYPT"
+	"DISK_PARTITIONING_SCHEME"
+	"DISK_USE_SWAP"
+	"DISK_SWAP"
+	"DISK_USE_LUKS"
 	"--------"
 	"HOSTNAME"
 	"TIMEZONE"
@@ -602,20 +615,19 @@ function --------_show()  { return 0; }
 function --------_help()  { echo "Congratulations, you found a separator."; }
 function --------_menu()  { true; }
 
-function PARTITIONING_SCHEME_tag()   { echo "Partitioning scheme"; }
-function PARTITIONING_SCHEME_label() { echo "($PARTITIONING_SCHEME)"; }
-function PARTITIONING_SCHEME_show()  { return 0; }
-function PARTITIONING_SCHEME_help()  { echo "Select the desired partitioning scheme."; }
-function PARTITIONING_SCHEME_menu()  {
-	local sel
-	if sel="$(menu_radiolist_labeled \
+function DISK_PARTITIONING_SCHEME_tag()   { echo "Partitioning scheme"; }
+function DISK_PARTITIONING_SCHEME_label() { echo "($PARTITIONING_SCHEME)"; }
+function DISK_PARTITIONING_SCHEME_show()  { return 0; }
+function DISK_PARTITIONING_SCHEME_help()  { echo "Select the desired partitioning scheme."; }
+function DISK_PARTITIONING_SCHEME_menu()  {
+	if menu_radiolist_labeled \
 		"Select partitioning scheme" \
 		"Select which partitioning scheme you want to follow. Have a look at the help text for this option (available in the menu) for more details.\n\nAll options support EFI/BIOS, swap and some form of encryption (luks/zfs).\n" \
 		"$PARTITIONING_SCHEME" \
-		"${ALL_PARTITIONING_SCHEMES[@]}")"
+		"${ALL_PARTITIONING_SCHEMES[@]}"
 	then
-		# Save keymap
-		PARTITIONING_SCHEME="$sel"
+		# Set disk scheme
+		PARTITIONING_SCHEME="$dialog_out"
 		UNSAVED_CHANGES=true
 	else
 		# Return to menu
@@ -623,16 +635,25 @@ function PARTITIONING_SCHEME_menu()  {
 	fi
 }
 
+function DISK_USE_SWAP_tag()   { echo "Use swap"; }
+function DISK_USE_SWAP_label() { on_off_label "$USE_SWAP"; }
+function DISK_USE_SWAP_show()  { return 0; }
+function DISK_USE_SWAP_help()  { echo "Select whether or not to create a swap partition."; }
+function DISK_USE_SWAP_menu()  {
+	on_off_toggle "USE_SWAP"
+	UNSAVED_CHANGES=true
+}
+
 function HOSTNAME_tag()   { echo "Hostname"; }
 function HOSTNAME_label() { echo "($HOSTNAME)"; }
 function HOSTNAME_show()  { return 0; }
 function HOSTNAME_help()  { echo "Enter the desired system hostname here. Be aware that when creating mdadm raid arrays, this value will be recorded in metadata block. If you change it later, you should also update the metadata."; }
 function HOSTNAME_menu()  {
-	local sel
-	sel="$(dialog \
+	dialog \
 		--title "Select hostname" \
 		--inputbox "Enter the hostname for your new system." \
-		"${INPUTBOX_SIZE[@]}" "$HOSTNAME" 3>&2 2>&1 1>&3 3>&-)"
+		"${INPUTBOX_SIZE[@]}" "$HOSTNAME"
+	HOSTNAME="$dialog_out"
 	UNSAVED_CHANGES=true
 }
 
@@ -641,15 +662,14 @@ function TIMEZONE_label() { echo "($TIMEZONE)"; }
 function TIMEZONE_show()  { return 0; }
 function TIMEZONE_help()  { echo "The timezone for the new system."; }
 function TIMEZONE_menu()  {
-	local sel
-	if sel="$(menu_radiolist \
+	if menu_radiolist \
 		"Select timezone" \
 		"Select which timezone to use." \
 		"$TIMEZONE" \
-		"${ALL_TIMEZONES[@]}")"
+		"${ALL_TIMEZONES[@]}"
 	then
-		# Save timezone
-		TIMEZONE="$sel"
+		# Set timezone
+		TIMEZONE="$dialog_out"
 		UNSAVED_CHANGES=true
 	else
 		# Return to menu
@@ -662,15 +682,14 @@ function KEYMAP_label() { echo "($KEYMAP)"; }
 function KEYMAP_show()  { return 0; }
 function KEYMAP_help()  { echo "The default vconsole keymap for the system."; }
 function KEYMAP_menu()  {
-	local sel
-	if sel="$(menu_radiolist \
+	if menu_radiolist \
 		"Select initramfs keymap" \
 		"Select which keymap to use in the vconsole." \
 		"$KEYMAP" \
-		"${ALL_KEYMAPS[@]}")"
+		"${ALL_KEYMAPS[@]}"
 	then
-		# Save keymap
-		KEYMAP="$sel"
+		# Set keymap
+		KEYMAP="$dialog_out"
 		UNSAVED_CHANGES=true
 	else
 		# Return to menu
@@ -694,15 +713,14 @@ function KEYMAP_INITRAMFS_label() { echo " └ ($KEYMAP_INITRAMFS)"; }
 function KEYMAP_INITRAMFS_show()  { is_on "$KEYMAP_INITRAMFS_OTHER"; }
 function KEYMAP_INITRAMFS_help()  { echo "The default vconsole keymap for the initrams. This is important if need to unlock an encrypted partition when booting."; }
 function KEYMAP_INITRAMFS_menu()  {
-	local sel
-	if sel="$(menu_radiolist \
+	if menu_radiolist \
 		"Select initramfs keymap" \
 		"Select which keymap to use in the initramfs vconsole." \
 		"$KEYMAP_INITRAMFS" \
-		"${ALL_KEYMAPS[@]}")"
+		"${ALL_KEYMAPS[@]}"
 	then
-		# Save keymap
-		KEYMAP_INITRAMFS="$sel"
+		# Set keymap
+		KEYMAP_INITRAMFS="$dialog_out"
 		UNSAVED_CHANGES=true
 	else
 		# Return to menu
@@ -715,10 +733,9 @@ function LOCALES_label() { echo "$N_LOCALES selected"; }
 function LOCALES_show()  { return 0; }
 function LOCALES_help()  { echo "The locales to generate for the new system. Be careful that the syntax for locales is a different from the resulting name of the genereated locales of locale-gen. For example the locale 'en_US.utf8' is enabled via 'en_US.UTF-8 UTF-8')."; }
 function LOCALES_menu()  {
-	local sel
-	if sel="$(menu_splitlist "Select locales" "Select which locales to generate." "$SELECTED_LOCALES" "${SUPPORTED_LOCALES[@]}")"; then
-		# Save locales
-		SELECTED_LOCALES="$sel"
+	if menu_splitlist "Select locales" "Select which locales to generate." "$SELECTED_LOCALES" "${SUPPORTED_LOCALES[@]}"; then
+		# Set locales
+		SELECTED_LOCALES="$dialog_out"
 		recalculate_locales
 		UNSAVED_CHANGES=true
 	else
@@ -732,15 +749,14 @@ function LOCALE_label() { echo "($LOCALE)"; }
 function LOCALE_show()  { return 0; }
 function LOCALE_help()  { echo "The locale to use for the new system. See \`locale -a\` for available options, and be sure to generate the locale by adding it to the list of locales above."; }
 function LOCALE_menu()  {
-	local sel
-	if sel="$(menu_radiolist \
+	if menu_radiolist \
 		"Select default locale" \
 		"Select which locale to use as the default. Remember to also add the desired locale to the list of locales above." \
 		"$LOCALE" \
-		"${LOCALE_A[@]}")"
+		"${LOCALE_A[@]}"
 	then
-		# Save locale
-		LOCALE="$sel"
+		# Set locale
+		LOCALE="$dialog_out"
 		UNSAVED_CHANGES=true
 	else
 		# Return to menu
@@ -753,15 +769,14 @@ function INIT_SYSTEM_label() { echo "($INIT_SYSTEM)"; }
 function INIT_SYSTEM_show()  { return 0; }
 function INIT_SYSTEM_help()  { echo ""; }
 function INIT_SYSTEM_menu()  {
-	local sel
-	if sel="$(menu_radiolist \
+	if menu_radiolist \
 		"Select init system" \
 		"Select the init system you want to use." \
 		"$INIT_SYSTEM" \
-		"${INIT_SYSTEMS[@]}")"
+		"${INIT_SYSTEMS[@]}"
 	then
-		# Save keymap
-		INIT_SYSTEM="$sel"
+		# Set init system
+		INIT_SYSTEM="$dialog_out"
 		UNSAVED_CHANGES=true
 	else
 		# Return to menu
@@ -774,11 +789,10 @@ function GENTOO_MIRROR_label() { echo "($(ellipsis 20 "$GENTOO_MIRROR"))"; }
 function GENTOO_MIRROR_show()  { return 0; }
 function GENTOO_MIRROR_help()  { echo "Enter the primary gentoo mirror that should be used for the installation process (until mirrorselect is run)."; }
 function GENTOO_MIRROR_menu()  {
-	local sel
-	sel="$(dialog \
+	dialog \
 		--title "Select gentoo mirror" \
 		--inputbox "Enter the desired gentoo mirror location." \
-		"${INPUTBOX_SIZE[@]}" "$GENTOO_MIRROR" 3>&2 2>&1 1>&3 3>&-)"
+		"${INPUTBOX_SIZE[@]}" "$GENTOO_MIRROR"
 	UNSAVED_CHANGES=true
 }
 
@@ -787,15 +801,14 @@ function GENTOO_ARCH_label() { echo "($GENTOO_ARCH)"; }
 function GENTOO_ARCH_show()  { return 0; }
 function GENTOO_ARCH_help()  { echo "Select gentoo's architecture tag for the new system."; }
 function GENTOO_ARCH_menu()  {
-	local sel
-	if sel="$(menu_radiolist \
+	if menu_radiolist \
 		"Select architecture" \
 		"Select the architecture for the new system." \
 		"$GENTOO_ARCH" \
-		"${ALL_GENTOO_ARCHS[@]}")"
+		"${ALL_GENTOO_ARCHS[@]}"
 	then
-		# Save keymap
-		GENTOO_ARCH="$sel"
+		# Set arch
+		GENTOO_ARCH="$dialog_out"
 		UNSAVED_CHANGES=true
 	else
 		# Return to menu
@@ -851,11 +864,10 @@ function ROOT_SSH_AUTHORIZED_KEYS_menu()  {
 $ROOT_SSH_AUTHORIZED_KEYS
 EOF
 
-	local sel
-	sel="$(dialog \
+	dialog \
 		--title "Enter authorized keys" \
-		--editbox "$tmpfile" "${EDITTEXT_SIZE[@]}" 3>&2 2>&1 1>&3 3>&-)"
-	ROOT_SSH_AUTHORIZED_KEYS="$(sed '/^\s*#/d;/^\s*$/d' <<< "$sel")"
+		--editbox "$tmpfile" "${EDITTEXT_SIZE[@]}"
+	ROOT_SSH_AUTHORIZED_KEYS="$(sed '/^\s*#/d;/^\s*$/d' <<< "$dialog_out")"
 	UNSAVED_CHANGES=true
 }
 
@@ -864,13 +876,12 @@ function ADDITIONAL_PACKAGES_label() { echo "${#ADDITIONAL_PACKAGES[@]} packages
 function ADDITIONAL_PACKAGES_show()  { return 0; }
 function ADDITIONAL_PACKAGES_help()  { echo "Enter additional packages that should be installed. It is recommended to keep this to a minimum, because of the quite \"interactive\" nature of gentoo package management ;)"; }
 function ADDITIONAL_PACKAGES_menu()  {
-	local sel
-	sel="$(dialog \
+	dialog \
 		--title "Additional packages" \
 		--inputbox "Enter additional packages (portage package ATOMs) to install. Delimited by space." \
-		"${INPUTBOX_SIZE[@]}" "${ADDITIONAL_PACKAGES[*]}" 3>&2 2>&1 1>&3 3>&-)"
+		"${INPUTBOX_SIZE[@]}" "${ADDITIONAL_PACKAGES[*]}"
 	# shellcheck disable=SC2206
-	ADDITIONAL_PACKAGES=($sel)
+	ADDITIONAL_PACKAGES=($dialog_out)
 	UNSAVED_CHANGES=true
 }
 
@@ -917,7 +928,7 @@ SYSTEMD=${SYSTEMD@Q}
 ################################################
 # Additional (optional) configuration
 
-ADDITIONAL_PACKAGES=${ADDITIONAL_PACKAGES@Q}
+ADDITIONAL_PACKAGES=(${ADDITIONAL_PACKAGES[@]@Q})
 INSTALL_SSHD=${INSTALL_SSHD@Q}
 ROOT_SSH_AUTHORIZED_KEYS=${ROOT_SSH_AUTHORIZED_KEYS@Q}
 
@@ -928,6 +939,8 @@ ROOT_SSH_AUTHORIZED_KEYS=${ROOT_SSH_AUTHORIZED_KEYS@Q}
 I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY=true
 EOF
 }
+
+trap 'clear_and_exit 130' SIGINT
 
 # Begin menu loop. Exit will be called to end this loop where it is appropriate.
 while true; do
