@@ -68,7 +68,6 @@ prepare_installation_environment() {
 	check_has_program hwclock
 	check_has_program lsblk
 	check_has_program ntpd
-	check_has_program btrfs
 	check_has_program partprobe
 	check_has_program python3
 	check_has_program rhash
@@ -76,6 +75,10 @@ prepare_installation_environment() {
 	check_has_program uuidgen
 	check_has_program wget
 
+	[[ $USED_BTRFS == "true" ]] \
+		&& check_has_program btrfs
+	[[ $USED_ZFS == "true" ]] \
+		&& check_has_program zfs
 	[[ $USED_RAID == "true" ]] \
 		&& check_has_program mdadm
 	[[ $USED_LUKS == "true" ]] \
@@ -359,6 +362,9 @@ disk_format() {
 	esac
 }
 
+disk_format_zfs() {
+}
+
 disk_format_btrfs() {
 	local ids="${arguments[ids]}"
 	local label="${arguments[label]}"
@@ -412,6 +418,7 @@ apply_disk_action() {
 		'create_luks')       disk_create_luks      ;;
 		'create_dummy')      disk_create_dummy     ;;
 		'format')            disk_format           ;;
+		'format_zfs')        disk_format_zfs       ;;
 		'format_btrfs')      disk_format_btrfs     ;;
 		*) echo "Ignoring invalid action: ${arguments[action]}" ;;
 	esac

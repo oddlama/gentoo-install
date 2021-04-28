@@ -229,6 +229,22 @@ format() {
 }
 
 # Named arguments:
+# ids:       List of ids for devices / partitions created earlier. Must contain at least 1 element.
+# pool_type: The zfs pool type
+# encrypt:   Whether or not to encrypt the pool
+format_zfs() {
+	USED_ZFS=true
+
+	local known_arguments=('+ids' '?pool_type' '?encrypt')
+	local extra_arguments=()
+	declare -A arguments; parse_arguments "$@"
+
+	verify_existing_unique_ids ids
+
+	DISK_ACTIONS+=("action=format_zfs" "$@" ";")
+}
+
+# Named arguments:
 # ids:     List of ids for devices / partitions created earlier. Must contain at least 1 element.
 # label:   The label for the formatted disk
 format_btrfs() {
@@ -316,6 +332,65 @@ create_classic_single_disk_layout() {
 
 create_single_disk_layout() {
 	die "'create_single_disk_layout' is deprecated, please use 'create_classic_single_disk_layout' instead. It is fully option-compatible to the old version."
+}
+
+# Multiple disks, up to 3 partitions on first disk (efi, optional swap, root with zfs).
+# Additional devices will be added to the zfs pool.
+# Parameters:
+#   swap=<size>                Create a swap partition with given size, or no swap at all if set to false
+#   type=[efi|bios]            Selects the boot type. Defaults to efi if not given.
+#   encrypt=[true|false]       Encrypt zfs pool. Defaults to false if not given.
+#   pool_type=[stripe|mirror]  Select raid type. Defaults to stripe.
+create_zfs_centric_layout() {
+	local known_arguments=('+swap' '?type' '?pool_type' '?encrypt')
+	local extra_arguments=()
+	declare -A arguments; parse_arguments "$@"
+
+	[[ ${#extra_arguments[@]} -gt 0 ]] \
+		|| die_trace 1 "Expected at least one positional argument (the devices)"
+	local device="${extra_arguments[0]}"
+	local size_swap="${arguments[swap]}"
+	local pool_type="${arguments[pool_type]:-stripe}"
+	local type="${arguments[type]}"
+	local encrypt="${arguments[encrypt]:-false}"
+	local efi=true
+	case "$type" in
+		'bios')   efi=false type=bios ;;
+		'efi'|'') efi=true  type=efi  ;;
+		*)        die_trace 1 "Invalid argument type=$type, must be one of (bios, efi)" ;;
+	esac
+
+	# Create layout on first disk
+	create_gpt new_id="gpt_dev0" device="${extra_arguments[0]}"
+	create_partition new_id="part_${type}_dev0" id="gpt_dev0" size=256MiB       type="$type"
+	[[ $size_swap != "false" ]] \
+		&& create_partition new_id="part_swap_dev0"    id="gpt_dev0" size="$size_swap" type=swap
+	create_partition new_id="part_root_dev0"    id="gpt_dev0" size=remaining    type=linux
+
+	local root_id="part_root_dev0"
+	local root_ids="part_root_dev0;"
+	local dev_id
+	for i in "${!extra_arguments[@]}"; do
+		[[ $i != 0 ]] || continue
+		dev_id="root_dev$i"
+		create_dummy new_id="$dev_id" device="${extra_arguments[$i]}"
+		root_ids="${root_ids}$dev_id;"
+	done
+
+	format id="part_${type}_dev0" type="$type" label="$type"
+	[[ $size_swap != "false" ]] \
+		&& format id="part_swap_dev0" type=swap label=swap
+	format_zfs ids="$root_ids" encrypt="$encrypt" pool_type="$pool_type"
+
+	if [[ $type == "efi" ]]; then
+		DISK_ID_EFI="part_${type}_dev0"
+	else
+		DISK_ID_BIOS="part_${type}_dev0"
+	fi
+	[[ $size_swap != "false" ]] \
+		&& DISK_ID_SWAP=part_swap_dev0
+	DISK_ID_ROOT="$root_id"
+	DISK_ID_ROOT_TYPE="zfs"
 }
 
 # Multiple disks, with raid 0 and luks
