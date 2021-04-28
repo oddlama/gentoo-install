@@ -1,49 +1,52 @@
+# shellcheck source=./scripts/protection.sh
 source "$GENTOO_INSTALL_REPO_DIR/scripts/protection.sh" || exit 1
 
-elog() {
+function elog() {
 	echo "[[1m+[m] $*"
 }
 
-einfo() {
+function einfo() {
 	echo "[[1;32m+[m] [1;33m$*[m"
 }
 
-ewarn() {
+function ewarn() {
 	echo "[[1;33m+[m] $*" >&2
 }
 
-eerror() {
+function eerror() {
 	echo "[1;31merror:[m $*" >&2
 }
 
-die() {
+function die() {
 	eerror "$*"
-	[[ $$ == $GENTOO_INSTALL_REPO_SCRIPT_PID ]] \
+	[[ $$ == "$GENTOO_INSTALL_REPO_SCRIPT_PID" ]] \
 		|| kill "$GENTOO_INSTALL_REPO_SCRIPT_PID"
 	exit 1
 }
 
 # Prints an error with file:line info of the nth "stack frame".
 # 0 is this function, 1 the calling function, 2 its parent, and so on.
-die_trace() {
+function die_trace() {
 	local idx="${1:-0}"
 	shift
 	echo "[1m${BASH_SOURCE[$((idx + 1))]}:${BASH_LINENO[$idx]}: [1;31merror:[m ${FUNCNAME[$idx]}: $*" >&2
 	exit 1
 }
 
-for_line_in() {
+function for_line_in() {
 	while IFS="" read -r line || [[ -n $line ]]; do
 		"$2" "$line"
 	done <"$1"
 }
 
-flush_stdin() {
+function flush_stdin() {
 	local empty_stdin
+	# Unused variable is intentional.
+	# shellcheck disable=SC2034
 	while read -r -t 0.01 empty_stdin; do true; done
 }
 
-ask() {
+function ask() {
 	local response
 	while true; do
 		flush_stdin
@@ -58,7 +61,7 @@ ask() {
 	done
 }
 
-try() {
+function try() {
 	local response
 	local cmd_status
 	local prompt_parens="([1mS[mhell/[1mr[metry/[1ma[mbort/[1mc[montinue/[1mp[mrint)"
@@ -97,7 +100,7 @@ try() {
 	done
 }
 
-countdown() {
+function countdown() {
 	echo -n "$1" >&2
 
 	local i="$2"
@@ -109,15 +112,15 @@ countdown() {
 	echo >&2
 }
 
-download_stdout() {
+function download_stdout() {
 	wget --quiet --https-only --secure-protocol=PFS -O - -- "$1"
 }
 
-download() {
+function download() {
 	wget --quiet --https-only --secure-protocol=PFS --show-progress -O "$2" -- "$1"
 }
 
-get_blkid_field_by_device() {
+function get_blkid_field_by_device() {
 	local blkid_field="$1"
 	local device="$2"
 	blkid -g \
@@ -132,13 +135,17 @@ get_blkid_field_by_device() {
 	echo -n "$val"
 }
 
-get_blkid_uuid_for_id() {
-	local dev="$(resolve_device_by_id "$1")"
-	local uuid="$(get_blkid_field_by_device 'UUID' "$dev")"
+function get_blkid_uuid_for_id() {
+	local dev
+	dev="$(resolve_device_by_id "$1")" \
+		|| die "Could not resolve device with id=$dev"
+	local uuid
+	uuid="$(get_blkid_field_by_device 'UUID' "$dev")" \
+		|| die "Could not get UUID from blkid for device=$dev"
 	echo -n "$uuid"
 }
 
-get_device_by_blkid_field() {
+function get_device_by_blkid_field() {
 	local blkid_field="$1"
 	local field_value="$2"
 	blkid -g \
@@ -153,20 +160,20 @@ get_device_by_blkid_field() {
 	echo -n "$dev"
 }
 
-get_device_by_partuuid() {
+function get_device_by_partuuid() {
 	get_device_by_blkid_field 'PARTUUID' "$1"
 }
 
-get_device_by_uuid() {
+function get_device_by_uuid() {
 	get_device_by_blkid_field 'UUID' "$1"
 }
 
-cache_lsblk_output() {
+function cache_lsblk_output() {
 	CACHED_LSBLK_OUTPUT="$(lsblk --all --path --pairs --output NAME,PTUUID,PARTUUID)" \
 		|| die "Error while executing lsblk to cache output"
 }
 
-get_device_by_ptuuid() {
+function get_device_by_ptuuid() {
 	local ptuuid="${1,,}"
 	local dev
 	if [[ -n $CACHED_LSBLK_OUTPUT ]]; then
@@ -182,15 +189,17 @@ get_device_by_ptuuid() {
 	echo -n "$dev"
 }
 
-uuid_to_mduuid() {
+function uuid_to_mduuid() {
 	local mduuid="${1,,}"
 	mduuid="${mduuid//-/}"
 	mduuid="${mduuid:0:8}:${mduuid:8:8}:${mduuid:16:8}:${mduuid:24:8}"
 	echo -n "$mduuid"
 }
 
-get_device_by_mdadm_uuid() {
-	local mduuid="$(uuid_to_mduuid "$1")"
+function get_device_by_mdadm_uuid() {
+	local mduuid
+	mduuid="$(uuid_to_mduuid "$1")" \
+		|| die "Could not resolve mduuid from uuid=$1"
 	local dev
 	dev="$(mdadm --examine --scan)" \
 		|| die "Error while executing mdadm to find array with UUID=$mduuid"
@@ -203,11 +212,11 @@ get_device_by_mdadm_uuid() {
 	echo -n "$dev"
 }
 
-get_device_by_luks_name() {
+function get_device_by_luks_name() {
 	echo -n "/dev/mapper/$1"
 }
 
-create_resolve_entry() {
+function create_resolve_entry() {
 	local id="$1"
 	local type="$2"
 	local arg="${3,,}"
@@ -215,14 +224,14 @@ create_resolve_entry() {
 	DISK_ID_TO_RESOLVABLE[$id]="$type:$arg"
 }
 
-create_resolve_entry_device() {
+function create_resolve_entry_device() {
 	local id="$1"
 	local dev="$2"
 
 	DISK_ID_TO_RESOLVABLE[$id]="device:$dev"
 }
 
-resolve_device_by_id() {
+function resolve_device_by_id() {
 	local id="$1"
 	[[ -v DISK_ID_TO_RESOLVABLE[$id] ]] \
 		|| die "Cannot resolve id='$id' to a block device (no table entry)"
@@ -241,7 +250,7 @@ resolve_device_by_id() {
 	esac
 }
 
-load_or_generate_uuid() {
+function load_or_generate_uuid() {
 	local uuid
 	local uuid_file="$UUID_STORAGE_DIR/$1"
 
@@ -259,7 +268,7 @@ load_or_generate_uuid() {
 # Parses named arguments and stores them in the associative array `arguments`.
 # If given, the associative array `known_arguments` must contain a list of arguments
 # prefixed with + (mandatory) or ? (optional). "at least one of" can be expressed by +a|b|c.
-parse_arguments() {
+function parse_arguments() {
 	local key
 	local value
 	local a

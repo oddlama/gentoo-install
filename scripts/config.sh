@@ -1,3 +1,4 @@
+# shellcheck source=./scripts/protection.sh
 source "$GENTOO_INSTALL_REPO_DIR/scripts/protection.sh" || exit 1
 
 
@@ -28,17 +29,17 @@ USED_BTRFS=false
 # An array of disk related actions to perform
 DISK_ACTIONS=()
 # An array of dracut parameters needed to boot the selected configuration
-DISK_DRACUT_CMDLINE=("rd.vconsole.keymap=$KEYMAP_INITRAMFS")
+DISK_DRACUT_CMDLINE=()
 # An associative array from disk id to a resolvable string
-declare -A DISK_ID_TO_RESOLVABLE
+declare -gA DISK_ID_TO_RESOLVABLE
 # An associative array from disk id to parent gpt disk id (only for partitions)
-declare -A DISK_ID_PART_TO_GPT_ID
+declare -gA DISK_ID_PART_TO_GPT_ID
 # An associative array to check for existing ids (maps to uuids)
-declare -A DISK_ID_TO_UUID
+declare -gA DISK_ID_TO_UUID
 # An associative set to check for correct usage of size=remaining in gpt tables
-declare -A DISK_GPT_HAD_SIZE_REMAINING
+declare -gA DISK_GPT_HAD_SIZE_REMAINING
 
-only_one_of() {
+function only_one_of() {
 	local previous=""
 	local a
 	for a in "$@"; do
@@ -52,7 +53,7 @@ only_one_of() {
 	done
 }
 
-create_new_id() {
+function create_new_id() {
 	local id="${arguments[$1]}"
 	[[ $id == *';'* ]] \
 		&& die_trace 2 "Identifier contains invalid character ';'"
@@ -61,13 +62,13 @@ create_new_id() {
 	DISK_ID_TO_UUID[$id]="$(load_or_generate_uuid "$(base64 -w 0 <<< "$id")")"
 }
 
-verify_existing_id() {
+function verify_existing_id() {
 	local id="${arguments[$1]}"
 	[[ -v DISK_ID_TO_UUID[$id] ]] \
 		|| die_trace 2 "Identifier $1='$id' not found"
 }
 
-verify_existing_unique_ids() {
+function verify_existing_unique_ids() {
 	local arg="$1"
 	local ids="${arguments[$arg]}"
 
@@ -87,7 +88,7 @@ verify_existing_unique_ids() {
 	done
 }
 
-verify_option() {
+function verify_option() {
 	local opt="$1"
 	shift
 
@@ -104,7 +105,7 @@ verify_option() {
 # Named arguments:
 # new_id:     Id for the new gpt table
 # device|id:  The operand block device or previously allocated id
-create_gpt() {
+function create_gpt() {
 	local known_arguments=('+new_id' '+device|id')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
@@ -124,7 +125,7 @@ create_gpt() {
 # size:    Size for the new partition, or 'remaining' to allocate the rest
 # type:    The parition type, either (bios, efi, swap, raid, luks, linux) (or a 4 digit hex-code for gdisk).
 # id:      The operand device id
-create_partition() {
+function create_partition() {
 	local known_arguments=('+new_id' '+id' '+size' '+type')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
@@ -136,6 +137,7 @@ create_partition() {
 	[[ -v "DISK_GPT_HAD_SIZE_REMAINING[${arguments[id]}]" ]] \
 		&& die_trace 1 "Cannot add another partition to table (${arguments[id]}) after size=remaining was used"
 
+	# shellcheck disable=SC2034
 	[[ ${arguments[size]} == "remaining" ]] \
 		&& DISK_GPT_HAD_SIZE_REMAINING[${arguments[id]}]=true
 
@@ -150,7 +152,7 @@ create_partition() {
 # level:   Raid level
 # name:    Raid name (/dev/md/<name>)
 # ids:     Comma separated list of all member ids
-create_raid() {
+function create_raid() {
 	USED_RAID=true
 
 	local known_arguments=('+new_id' '+level' '+name' '+ids')
@@ -171,7 +173,7 @@ create_raid() {
 # Named arguments:
 # new_id:  Id for the new luks
 # id:      The operand device id
-create_luks() {
+function create_luks() {
 	USED_LUKS=true
 
 	local known_arguments=('+new_id' '+name' '+device|id')
@@ -194,7 +196,7 @@ create_luks() {
 # Named arguments:
 # new_id:  Id for the new luks
 # device:  The device
-create_dummy() {
+function create_dummy() {
 	local known_arguments=('+new_id' '+device')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
@@ -212,7 +214,7 @@ create_dummy() {
 # id:     Id of the device / partition created earlier
 # type:   One of (bios, efi, swap, ext4)
 # label:  The label for the formatted disk
-format() {
+function format() {
 	local known_arguments=('+id' '+type' '?label')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
@@ -232,7 +234,7 @@ format() {
 # ids:       List of ids for devices / partitions created earlier. Must contain at least 1 element.
 # pool_type: The zfs pool type
 # encrypt:   Whether or not to encrypt the pool
-format_zfs() {
+function format_zfs() {
 	USED_ZFS=true
 
 	local known_arguments=('+ids' '?pool_type' '?encrypt')
@@ -247,7 +249,7 @@ format_zfs() {
 # Named arguments:
 # ids:     List of ids for devices / partitions created earlier. Must contain at least 1 element.
 # label:   The label for the formatted disk
-format_btrfs() {
+function format_btrfs() {
 	USED_BTRFS=true
 
 	local known_arguments=('+ids' '?raid_type' '?label')
@@ -260,7 +262,7 @@ format_btrfs() {
 }
 
 # Returns a comma separated list of all registered ids matching the given regex.
-expand_ids() {
+function expand_ids() {
 	local regex="$1"
 	for id in "${!DISK_ID_TO_UUID[@]}"; do
 		[[ $id =~ $regex ]] \
@@ -274,7 +276,7 @@ expand_ids() {
 #   type=[efi|bios]       Selects the boot type. Defaults to efi if not given.
 #   luks=[true|false]     Encrypt root partition. Defaults to false if not given.
 #   root_fs=[ext4|btrfs]  Root filesystem
-create_classic_single_disk_layout() {
+function create_classic_single_disk_layout() {
 	local known_arguments=('+swap' '?type' '?luks' '?root_fs')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
@@ -283,15 +285,9 @@ create_classic_single_disk_layout() {
 		|| die_trace 1 "Expected exactly one positional argument (the device)"
 	local device="${extra_arguments[0]}"
 	local size_swap="${arguments[swap]}"
-	local type="${arguments[type]}"
+	local type="${arguments[type]:-efi}"
 	local use_luks="${arguments[luks]:-false}"
 	local root_fs="${arguments[root_fs]:-ext4}"
-	local efi=true
-	case "$type" in
-		'bios')   efi=false type=bios ;;
-		'efi'|'') efi=true  type=efi  ;;
-		*)        die_trace 1 "Invalid argument type=$type, must be one of (bios, efi)" ;;
-	esac
 
 	create_gpt new_id=gpt device="$device"
 	create_partition new_id="part_$type" id=gpt size=256MiB       type="$type"
@@ -330,7 +326,7 @@ create_classic_single_disk_layout() {
 	fi
 }
 
-create_single_disk_layout() {
+function create_single_disk_layout() {
 	die "'create_single_disk_layout' is deprecated, please use 'create_classic_single_disk_layout' instead. It is fully option-compatible to the old version."
 }
 
@@ -341,7 +337,7 @@ create_single_disk_layout() {
 #   type=[efi|bios]            Selects the boot type. Defaults to efi if not given.
 #   encrypt=[true|false]       Encrypt zfs pool. Defaults to false if not given.
 #   pool_type=[stripe|mirror]  Select raid type. Defaults to stripe.
-create_zfs_centric_layout() {
+function create_zfs_centric_layout() {
 	local known_arguments=('+swap' '?type' '?pool_type' '?encrypt')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
@@ -351,14 +347,8 @@ create_zfs_centric_layout() {
 	local device="${extra_arguments[0]}"
 	local size_swap="${arguments[swap]}"
 	local pool_type="${arguments[pool_type]:-stripe}"
-	local type="${arguments[type]}"
+	local type="${arguments[type]:-efi}"
 	local encrypt="${arguments[encrypt]:-false}"
-	local efi=true
-	case "$type" in
-		'bios')   efi=false type=bios ;;
-		'efi'|'') efi=true  type=efi  ;;
-		*)        die_trace 1 "Invalid argument type=$type, must be one of (bios, efi)" ;;
-	esac
 
 	# Create layout on first disk
 	create_gpt new_id="gpt_dev0" device="${extra_arguments[0]}"
@@ -401,7 +391,7 @@ create_zfs_centric_layout() {
 #   swap=<size>           Create a swap partition with given size for each disk, or no swap at all if set to false
 #   type=[efi|bios]       Selects the boot type. Defaults to efi if not given.
 #   root_fs=[ext4|btrfs]  Root filesystem
-create_raid0_luks_layout() {
+function create_raid0_luks_layout() {
 	local known_arguments=('+swap' '?type' '?root_fs')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
@@ -409,14 +399,8 @@ create_raid0_luks_layout() {
 	[[ ${#extra_arguments[@]} -gt 0 ]] \
 		|| die_trace 1 "Expected at least one positional argument (the devices)"
 	local size_swap="${arguments[swap]}"
-	local type="${arguments[type]}"
+	local type="${arguments[type]:-efi}"
 	local root_fs="${arguments[root_fs]:-ext4}"
-	local efi=true
-	case "$type" in
-		'bios')   efi=false type=bios ;;
-		'efi'|'') efi=true  type=efi  ;;
-		*)        die_trace 1 "Invalid argument type=$type, must be one of (bios, efi)" ;;
-	esac
 
 	for i in "${!extra_arguments[@]}"; do
 		create_gpt new_id="gpt_dev${i}" device="${extra_arguments[$i]}"
@@ -463,7 +447,7 @@ create_raid0_luks_layout() {
 #   type=[efi|bios]            Selects the boot type. Defaults to efi if not given.
 #   luks=[true|false]          Encrypt root partition and btrfs devices. Defaults to false if not given.
 #   raid_type=[raid0|raid1]    Select raid type. Defaults to raid0.
-create_btrfs_centric_layout() {
+function create_btrfs_centric_layout() {
 	local known_arguments=('+swap' '?type' '?raid_type' '?luks')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
@@ -473,14 +457,8 @@ create_btrfs_centric_layout() {
 	local device="${extra_arguments[0]}"
 	local size_swap="${arguments[swap]}"
 	local raid_type="${arguments[raid_type]:-raid0}"
-	local type="${arguments[type]}"
+	local type="${arguments[type]:-efi}"
 	local use_luks="${arguments[luks]:-false}"
-	local efi=true
-	case "$type" in
-		'bios')   efi=false type=bios ;;
-		'efi'|'') efi=true  type=efi  ;;
-		*)        die_trace 1 "Invalid argument type=$type, must be one of (bios, efi)" ;;
-	esac
 
 	# Create layout on first disk
 	create_gpt new_id="gpt_dev0" device="${extra_arguments[0]}"
@@ -529,6 +507,6 @@ create_btrfs_centric_layout() {
 	DISK_ID_ROOT_MOUNT_OPTS="defaults,noatime,compress=zstd,subvol=/root"
 }
 
-create_btrfs_raid_layout() {
+function create_btrfs_raid_layout() {
 	die "'create_btrfs_raid_layout' is deprecated, please use 'create_btrfs_centric_layout' instead. It is fully option-compatible to the old version."
 }

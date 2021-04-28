@@ -1,10 +1,11 @@
+# shellcheck source=./scripts/protection.sh
 source "$GENTOO_INSTALL_REPO_DIR/scripts/protection.sh" || exit 1
 
 
 ################################################
 # Functions
 
-install_stage3() {
+function install_stage3() {
 	[[ $# == 0 ]] || die "Too many arguments"
 
 	prepare_installation_environment
@@ -13,7 +14,7 @@ install_stage3() {
 	extract_stage3
 }
 
-configure_base_system() {
+function configure_base_system() {
 	einfo "Generating locales"
 	echo "$LOCALES" > /etc/locale.gen \
 		|| die "Could not write /etc/locale.gen"
@@ -87,7 +88,7 @@ configure_base_system() {
 	env_update
 }
 
-configure_portage() {
+function configure_portage() {
 	# Prepare /etc/portage for autounmask
 	mkdir_or_die 0755 "/etc/portage/package.use"
 	touch_or_die 0644 "/etc/portage/package.use/zz-autounmask"
@@ -110,7 +111,7 @@ configure_portage() {
 	fi
 }
 
-install_sshd() {
+function install_sshd() {
 	einfo "Installing sshd"
 	install -m0600 -o root -g root "$GENTOO_INSTALL_REPO_DIR/contrib/sshd_config" /etc/ssh/sshd_config \
 		|| die "Could not install /etc/ssh/sshd_config"
@@ -119,7 +120,7 @@ install_sshd() {
 		|| die "Could not create group 'sshusers'"
 }
 
-generate_initramfs() {
+function generate_initramfs() {
 	local output="$1"
 
 	# Generate initramfs
@@ -133,7 +134,9 @@ generate_initramfs() {
 	[[ $USED_BTRFS == "true" ]] \
 		&& modules+=("btrfs")
 
-	local kver="$(readlink /usr/src/linux)"
+	local kver
+	kver="$(readlink /usr/src/linux)" \
+		|| die "Could not figure out kernel version from /usr/src/linux symlink."
 	kver="${kver#linux-}"
 
 	# Generate initramfs
@@ -150,11 +153,11 @@ generate_initramfs() {
 		"$output"
 }
 
-get_cmdline() {
-	echo -n "${DISK_DRACUT_CMDLINE[*]} root=UUID=$(get_blkid_uuid_for_id "$DISK_ID_ROOT")"
+function get_cmdline() {
+	echo -n "rd.vconsole.keymap=$KEYMAP_INITRAMFS ${DISK_DRACUT_CMDLINE[*]} root=UUID=$(get_blkid_uuid_for_id "$DISK_ID_ROOT")"
 }
 
-install_kernel_efi() {
+function install_kernel_efi() {
 	try emerge --verbose sys-boot/efibootmgr
 
 	# Copy kernel to EFI
@@ -171,13 +174,17 @@ install_kernel_efi() {
 
 	# Create boot entry
 	einfo "Creating efi boot entry"
-	local efipartdev="$(resolve_device_by_id "$DISK_ID_EFI")"
+	local efipartdev
+	efipartdev="$(resolve_device_by_id "$DISK_ID_EFI")" \
+		|| die "Could not resolve device with id=$DISK_ID_EFI"
 	local efipartnum="${efipartdev: -1}"
-	local gptdev="$(resolve_device_by_id "${DISK_ID_PART_TO_GPT_ID[$DISK_ID_EFI]}")"
+	local gptdev
+	gptdev="$(resolve_device_by_id "${DISK_ID_PART_TO_GPT_ID[$DISK_ID_EFI]}")" \
+		|| die "Could not resolve device with id=${DISK_ID_PART_TO_GPT_ID[$DISK_ID_EFI]}"
 	try efibootmgr --verbose --create --disk "$gptdev" --part "$efipartnum" --label "gentoo" --loader '\EFI\vmlinuz.efi' --unicode 'initrd=\EFI\initramfs.img'" $(get_cmdline)"
 }
 
-generate_syslinux_cfg() {
+function generate_syslinux_cfg() {
 	cat <<EOF
 DEFAULT gentoo
 PROMPT 0
@@ -189,7 +196,7 @@ LABEL gentoo
 EOF
 }
 
-install_kernel_bios() {
+function install_kernel_bios() {
 	try emerge --verbose sys-boot/syslinux
 
 	# Link kernel to known name
@@ -205,7 +212,9 @@ install_kernel_bios() {
 
 	# Install syslinux
 	einfo "Installing syslinux"
-	local biosdev="$(resolve_device_by_id "$DISK_ID_BIOS")"
+	local biosdev
+	biosdev="$(resolve_device_by_id "$DISK_ID_BIOS")" \
+		|| die "Could not resolve device with id=$DISK_ID_BIOS"
 	mkdir_or_die 0700 "/boot/bios/syslinux"
 	try syslinux --directory syslinux --install "$biosdev"
 
@@ -215,11 +224,13 @@ install_kernel_bios() {
 
 	# Install syslinux MBR record
 	einfo "Copying syslinux MBR record"
-	local gptdev="$(resolve_device_by_id "${DISK_ID_PART_TO_GPT_ID[$DISK_ID_BIOS]}")"
+	local gptdev
+	gptdev="$(resolve_device_by_id "${DISK_ID_PART_TO_GPT_ID[$DISK_ID_BIOS]}")" \
+		|| die "Could not resolve device with id=${DISK_ID_PART_TO_GPT_ID[$DISK_ID_BIOS]}"
 	try dd bs=440 conv=notrunc count=1 if=/usr/share/syslinux/gptmbr.bin of="$gptdev"
 }
 
-install_kernel() {
+function install_kernel() {
 	# Install vanilla kernel
 	einfo "Installing vanilla kernel and related tools"
 	try emerge --verbose sys-kernel/dracut sys-kernel/gentoo-kernel-bin
@@ -231,12 +242,12 @@ install_kernel() {
 	fi
 }
 
-add_fstab_entry() {
+function add_fstab_entry() {
 	printf '%-46s  %-24s  %-6s  %-96s %s\n' "$1" "$2" "$3" "$4" "$5" >> /etc/fstab \
 		|| die "Could not append entry to fstab"
 }
 
-generate_fstab() {
+function generate_fstab() {
 	einfo "Generating fstab"
 	install -m0644 -o root -g root "$GENTOO_INSTALL_REPO_DIR/contrib/fstab" /etc/fstab \
 		|| die "Could not overwrite /etc/fstab"
@@ -251,7 +262,7 @@ generate_fstab() {
 	fi
 }
 
-install_ansible() {
+function install_ansible() {
 	einfo "Installing ansible"
 	try emerge --verbose app-admin/ansible
 
@@ -276,7 +287,7 @@ install_ansible() {
 		|| die "Could not add ansible to auxiliary groups"
 }
 
-main_install_gentoo_in_chroot() {
+function main_install_gentoo_in_chroot() {
 	[[ $# == 0 ]] || die "Too many arguments"
 
 	# Remove the root password, making the account accessible for automated
@@ -388,7 +399,7 @@ main_install_gentoo_in_chroot() {
 	einfo "Otherwise, you may now reboot your system."
 }
 
-main_install() {
+function main_install() {
 	[[ $# == 0 ]] || die "Too many arguments"
 
 	gentoo_umount
@@ -400,11 +411,11 @@ main_install() {
 	gentoo_umount
 }
 
-main_chroot() {
+function main_chroot() {
 	gentoo_chroot "$@"
 	gentoo_umount
 }
 
-main_umount() {
+function main_umount() {
 	gentoo_umount
 }

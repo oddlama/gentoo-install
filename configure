@@ -23,6 +23,7 @@ GENTOO_INSTALL_REPO_DIR="$(get_source_dir)"
 export GENTOO_INSTALL_REPO_DIR
 export GENTOO_INSTALL_REPO_SCRIPT_ACTIVE=true
 
+# shellcheck source=./scripts/utils.sh
 source "$GENTOO_INSTALL_REPO_DIR/scripts/utils.sh"
 
 # Remember actual config file path
@@ -231,6 +232,7 @@ function create_btrfs_raid_layout() {
 function create_btrfs_centric_layout() {
 	PARTITIONING_SCHEME="btrfs_centric"
 
+	# shellcheck disable=SC2034
 	local known_arguments=('+swap' '?type' '?raid_type' '?luks')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
@@ -302,6 +304,7 @@ function load_config() {
 	PARTITIONING_SCHEME="custom"
 
 	# Load settings
+	# shellcheck disable=SC1090
 	source "$1" || die "Could not load given configuration."
 
 	# After loading a config no unsaved changes exist.
@@ -912,7 +915,7 @@ function PARTITIONING_DEVICES_menu()  {
 		--title "Select devices" \
 		--inputbox "Enter the path of all devices which you want to partition, separated by space. (e.g. /dev/sda /dev/sdb).$invalid_line" \
 		"${INPUTBOX_SIZE[@]}" "${PARTITIONING_DEVICES[*]}"
-	PARTITIONING_DEVICES=($dialog_out)
+	read -ra PARTITIONING_DEVICES <<< "$dialog_out"
 	UNSAVED_CHANGES=true
 }
 

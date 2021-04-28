@@ -10,7 +10,8 @@ function get_source_dir() {
 	local source="${BASH_SOURCE[0]}"
 	while [[ -h $source ]]
 	do
-		local tmp="$(cd -P "$(dirname "${source}")" && pwd)"
+		local tmp
+		tmp="$(cd -P "$(dirname "${source}")" && pwd)"
 		source="$(readlink "${source}")"
 		[[ $source != /* ]] && source="${tmp}/${source}"
 	done
@@ -18,17 +19,23 @@ function get_source_dir() {
 	echo -n "$(realpath "$(dirname "${source}")")"
 }
 
-export ACTUAL_WORKING_DIRECTORY="$(realpath "$(pwd)")"
-export GENTOO_INSTALL_REPO_DIR_ORIGINAL="$(get_source_dir)"
+ACTUAL_WORKING_DIRECTORY="$(realpath "$(pwd)")" || exit 1
+export ACTUAL_WORKING_DIRECTORY
+GENTOO_INSTALL_REPO_DIR_ORIGINAL="$(get_source_dir)"
+export GENTOO_INSTALL_REPO_DIR_ORIGINAL
 export GENTOO_INSTALL_REPO_DIR="$GENTOO_INSTALL_REPO_DIR_ORIGINAL"
 export GENTOO_INSTALL_REPO_SCRIPT_ACTIVE=true
 export GENTOO_INSTALL_REPO_SCRIPT_PID=$$
 
 umask 0077
 
+# shellcheck source=./scripts/utils.sh
 source "$GENTOO_INSTALL_REPO_DIR/scripts/utils.sh"
+# shellcheck source=./scripts/config.sh
 source "$GENTOO_INSTALL_REPO_DIR/scripts/config.sh"
+# shellcheck source=./scripts/functions.sh
 source "$GENTOO_INSTALL_REPO_DIR/scripts/functions.sh"
+# shellcheck source=./scripts/main.sh
 source "$GENTOO_INSTALL_REPO_DIR/scripts/main.sh"
 
 
@@ -67,7 +74,7 @@ while [[ $# -gt 0 ]]; do
 		"-c"|"--config")
 			[[ -f "$2" ]] \
 				|| die "Config file not found: '$2'"
-			CONFIG="$(cd "$ACTUAL_WORKING_DIRECTORY"; realpath --relative-to="$GENTOO_INSTALL_REPO_DIR" "$2" 2>/dev/null)"
+			CONFIG="$(cd "$ACTUAL_WORKING_DIRECTORY" && realpath --relative-to="$GENTOO_INSTALL_REPO_DIR" "$2" 2>/dev/null)" || die "Could not determine realpath to config"
 			shift
 			;;
 		"-R"|"--chroot")
@@ -108,7 +115,8 @@ fi
 [[ -e "$CONFIG" ]] \
 	|| die "Configuration file '$CONFIG' does not exist. To run the configurator, omit '-i' or "
 
-source "$CONFIG"
+# shellcheck disable=SC1090
+source "$CONFIG" || die "Could not source config"
 [[ $I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY == "true" ]] \
 	|| die "You have not properly read the config. Edit the config file and set I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY=true to continue."
 

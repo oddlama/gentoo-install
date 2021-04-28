@@ -1,15 +1,16 @@
+# shellcheck source=./scripts/protection.sh
 source "$GENTOO_INSTALL_REPO_DIR/scripts/protection.sh" || exit 1
 
 
 ################################################
 # Functions
 
-check_has_program() {
+function check_has_program() {
 	type "$1" &>/dev/null \
 		|| die "Missing program: '$1'"
 }
 
-sync_time() {
+function sync_time() {
 	einfo "Syncing time"
 	ntpd -g -q \
 		|| die "Could not sync time with remote server"
@@ -20,7 +21,7 @@ sync_time() {
 		|| die "Could not save time to hardware clock"
 }
 
-check_config() {
+function check_config() {
 	[[ $KEYMAP =~ ^[0-9A-Za-z-]*$ ]] \
 		|| die "KEYMAP contains invalid characters"
 
@@ -57,11 +58,11 @@ check_config() {
 	fi
 }
 
-preprocess_config() {
+function preprocess_config() {
 	check_config
 }
 
-prepare_installation_environment() {
+function prepare_installation_environment() {
 	einfo "Preparing installation environment"
 
 	check_has_program gpg
@@ -87,7 +88,7 @@ prepare_installation_environment() {
 	sync_time
 }
 
-add_summary_entry() {
+function add_summary_entry() {
 	local parent="$1"
 	local id="$2"
 	local name="$3"
@@ -111,7 +112,7 @@ add_summary_entry() {
 	summary_desc[$id]="$desc"
 }
 
-summary_color_args() {
+function summary_color_args() {
 	for arg in "$@"; do
 		if [[ -v "arguments[$arg]" ]]; then
 			printf '%-28s ' "[1;34m$arg[2m=[m${arguments[$arg]}"
@@ -119,7 +120,7 @@ summary_color_args() {
 	done
 }
 
-disk_create_gpt() {
+function disk_create_gpt() {
 	local new_id="${arguments[new_id]}"
 	if [[ $disk_action_summarize_only == "true" ]]; then
 		if [[ -v arguments[id] ]]; then
@@ -148,7 +149,7 @@ disk_create_gpt() {
 	partprobe "$device"
 }
 
-disk_create_partition() {
+function disk_create_partition() {
 	local new_id="${arguments[new_id]}"
 	local id="${arguments[id]}"
 	local size="${arguments[size]}"
@@ -164,7 +165,9 @@ disk_create_partition() {
 		arg_size="+$size"
 	fi
 
-	local device="$(resolve_device_by_id "$id")"
+	local device
+	device="$(resolve_device_by_id "$id")" \
+		|| die "Could not resolve device with id=$id"
 	local partuuid="${DISK_ID_TO_UUID[$new_id]}"
 	local extra_args=""
 	case "$type" in
@@ -184,7 +187,7 @@ disk_create_partition() {
 	partprobe "$device"
 }
 
-disk_create_raid() {
+function disk_create_raid() {
 	local new_id="${arguments[new_id]}"
 	local level="${arguments[level]}"
 	local name="${arguments[name]}"
@@ -204,10 +207,12 @@ disk_create_raid() {
 	local devices_desc=""
 	local devices=()
 	local id
+	local dev
 	# Splitting is intentional here
 	# shellcheck disable=SC2086
 	for id in ${ids//';'/ }; do
-		local dev="$(resolve_device_by_id "$id")"
+		dev="$(resolve_device_by_id "$id")" \
+			|| die "Could not resolve device with id=$id"
 		devices+=("$dev")
 		devices_desc+="$dev ($id), "
 	done
@@ -229,7 +234,7 @@ disk_create_raid() {
 		|| die "Could not create raid$level array '$mddevice' ($new_id) on $devices_desc"
 }
 
-disk_create_luks() {
+function disk_create_luks() {
 	local new_id="${arguments[new_id]}"
 	local name="${arguments[name]}"
 	if [[ $disk_action_summarize_only == "true" ]]; then
@@ -284,7 +289,7 @@ disk_create_luks() {
 		|| die "Could not open luks encrypted device $device_desc"
 }
 
-disk_create_dummy() {
+function disk_create_dummy() {
 	local new_id="${arguments[new_id]}"
 	local device="${arguments[device]}"
 	if [[ $disk_action_summarize_only == "true" ]]; then
@@ -293,7 +298,7 @@ disk_create_dummy() {
 	fi
 }
 
-init_btrfs() {
+function init_btrfs() {
 	local device="$1"
 	local desc="$2"
 	mkdir -p /btrfs \
@@ -308,7 +313,7 @@ init_btrfs() {
 		|| die "Could not unmount btrfs on $desc"
 }
 
-disk_format() {
+function disk_format() {
 	local id="${arguments[id]}"
 	local type="${arguments[type]}"
 	local label="${arguments[label]}"
@@ -317,7 +322,9 @@ disk_format() {
 		return 0
 	fi
 
-	local device="$(resolve_device_by_id "$id")"
+	local device
+	device="$(resolve_device_by_id "$id")" \
+		|| die "Could not resolve device with id=$id"
 	einfo "Formatting $device ($id) with $type"
 	case "$type" in
 		'bios'|'efi')
@@ -362,10 +369,24 @@ disk_format() {
 	esac
 }
 
-disk_format_zfs() {
+function disk_format_zfs() {
+	local ids="${arguments[ids]}"
+	local label="${arguments[label]}"
+	local pool_type="${arguments[pool_type]}"
+	local encrypt="${arguments[encrypt]}"
+	if [[ $disk_action_summarize_only == "true" ]]; then
+		local id
+		# Splitting is intentional here
+		# shellcheck disable=SC2086
+		for id in ${ids//';'/ }; do
+			add_summary_entry "$id" "__fs__$id" "zfs" "(fs)" "$(summary_color_args label)"
+		done
+		return 0
+	fi
+
 }
 
-disk_format_btrfs() {
+function disk_format_btrfs() {
 	local ids="${arguments[ids]}"
 	local label="${arguments[label]}"
 	local raid_type="${arguments[raid_type]}"
@@ -382,10 +403,12 @@ disk_format_btrfs() {
 	local devices_desc=""
 	local devices=()
 	local id
+	local dev
 	# Splitting is intentional here
 	# shellcheck disable=SC2086
 	for id in ${ids//';'/ }; do
-		local dev="$(resolve_device_by_id "$id")"
+		dev="$(resolve_device_by_id "$id")" \
+			|| die "Could not resolve device with id=$id"
 		devices+=("$dev")
 		devices_desc+="$dev ($id), "
 	done
@@ -408,7 +431,7 @@ disk_format_btrfs() {
 	init_btrfs "${devices[0]}" "btrfs array ($devices_desc)"
 }
 
-apply_disk_action() {
+function apply_disk_action() {
 	unset known_arguments
 	unset arguments; declare -A arguments; parse_arguments "$@"
 	case "${arguments[action]}" in
@@ -424,7 +447,7 @@ apply_disk_action() {
 	esac
 }
 
-print_summary_tree_entry() {
+function print_summary_tree_entry() {
 	local indent_chars=""
 	local indent="0"
 	local d="1"
@@ -471,7 +494,7 @@ print_summary_tree_entry() {
 		"$desc")"
 }
 
-print_summary_tree() {
+function print_summary_tree() {
 	local root="$1"
 	local depth="$((depth + 1))"
 	local has_children=false
@@ -489,7 +512,9 @@ print_summary_tree() {
 	fi
 
 	if [[ $has_children == "true" ]]; then
-		local count="$(tr ';' '\n' <<< "$children" | grep -c '\S')"
+		local count
+		count="$(tr ';' '\n' <<< "$children" | grep -c '\S')" \
+			|| count=0
 		local idx=0
 		# Splitting is intentional here
 		# shellcheck disable=SC2086
@@ -505,7 +530,7 @@ print_summary_tree() {
 	fi
 }
 
-apply_disk_actions() {
+function apply_disk_actions() {
 	local param
 	local current_params=()
 	for param in "${DISK_ACTIONS[@]}"; do
@@ -518,7 +543,7 @@ apply_disk_actions() {
 	done
 }
 
-summarize_disk_actions() {
+function summarize_disk_actions() {
 	elog "[1mCurrent lsblk output:[m"
 	for_line_in <(lsblk \
 		|| die "Error in lsblk") elog
@@ -542,7 +567,7 @@ summarize_disk_actions() {
 	elog ────────────────────────────────────────────────────────────────────────────────
 }
 
-apply_disk_configuration() {
+function apply_disk_configuration() {
 	summarize_disk_actions
 
 	ask "Do you really want to apply this disk configuration?" \
@@ -558,7 +583,7 @@ apply_disk_configuration() {
 		|| die "Error in lsblk") elog
 }
 
-mount_efivars() {
+function mount_efivars() {
 	# Skip if already mounted
 	mountpoint -q -- "/sys/firmware/efi/efivars" \
 		&& return
@@ -569,7 +594,7 @@ mount_efivars() {
 		|| die "Could not mount efivarfs"
 }
 
-mount_by_id() {
+function mount_by_id() {
 	local dev
 	local id="$1"
 	local mountpoint="$2"
@@ -588,11 +613,11 @@ mount_by_id() {
 		|| die "Could not mount device '$dev'"
 }
 
-mount_root() {
+function mount_root() {
 	mount_by_id "$DISK_ID_ROOT" "$ROOT_MOUNTPOINT"
 }
 
-bind_repo_dir() {
+function bind_repo_dir() {
 	# Use new location by default
 	export GENTOO_INSTALL_REPO_DIR="$GENTOO_INSTALL_REPO_BIND"
 
@@ -609,7 +634,7 @@ bind_repo_dir() {
 		|| die "Could not bind mount '$GENTOO_INSTALL_REPO_DIR_ORIGINAL' to '$GENTOO_INSTALL_REPO_BIND'"
 }
 
-download_stage3() {
+function download_stage3() {
 	cd "$TMP_DIR" \
 		|| die "Could not cd into '$TMP_DIR'"
 
@@ -660,7 +685,7 @@ download_stage3() {
 	fi
 }
 
-extract_stage3() {
+function extract_stage3() {
 	mount_root
 
 	[[ -n $CURRENT_STAGE3 ]] \
@@ -684,7 +709,7 @@ extract_stage3() {
 		|| die "Could not cd into '$TMP_DIR'"
 }
 
-gentoo_umount() {
+function gentoo_umount() {
 	if mountpoint -q -- "$ROOT_MOUNTPOINT"; then
 		einfo "Unmounting root filesystem"
 		umount -R -l "$ROOT_MOUNTPOINT" \
@@ -692,13 +717,13 @@ gentoo_umount() {
 	fi
 }
 
-init_bash() {
+function init_bash() {
 	source /etc/profile
 	umask 0077
 	export PS1='(chroot) \[[0;31m\]\u\[[1;31m\]@\h \[[1;34m\]\w \[[m\]\$ \[[m\]'
 }; export -f init_bash
 
-env_update() {
+function env_update() {
 	env-update \
 		|| die "Error in env-update"
 	source /etc/profile \
@@ -706,19 +731,19 @@ env_update() {
 	umask 0077
 }
 
-mkdir_or_die() {
+function mkdir_or_die() {
 	# shellcheck disable=SC2174
 	mkdir -m "$1" -p "$2" \
 		|| die "Could not create directory '$2'"
 }
 
-touch_or_die() {
+function touch_or_die() {
 	touch "$2" \
 		|| die "Could not touch '$2'"
 	chmod "$1" "$2"
 }
 
-gentoo_chroot() {
+function gentoo_chroot() {
 	if [[ $# -eq 0 ]]; then
 		gentoo_chroot /bin/bash --init-file <(echo 'init_bash')
 	fi
@@ -760,7 +785,7 @@ gentoo_chroot() {
 			|| die "Failed to chroot into '$ROOT_MOUNTPOINT'"
 }
 
-enable_service() {
+function enable_service() {
 	if [[ $SYSTEMD == "true" ]]; then
 		systemctl enable "$1" \
 			|| die "Could not enable $1 service"
