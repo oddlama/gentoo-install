@@ -36,32 +36,14 @@ function configure_base_system() {
 		echo "KEYMAP=$KEYMAP" > /etc/vconsole.conf \
 			|| die "Could not write /etc/vconsole.conf"
 
+		# Set locale
+		einfo "Selecting locale"
+		echo "LANG=$LOCALE" > /etc/locale.conf \
+			|| die "Could not write /etc/locale.conf"
+
 		einfo "Selecting timezone"
 		ln -sfn "../usr/share/zoneinfo/$TIMEZONE" /etc/localtime \
 			|| die "Could not change /etc/localtime link"
-
-		# TODO use systemd-nspawn to start instead of chroot, then we can use these utils.
-		#hostnamectl set-hostname "$HOSTNAME" \
-		#	|| die "Could not set hostname"
-
-		## Set timezone
-		#einfo "Selecting timezone"
-		#timedatectl set-timezone "$TIMEZONE" \
-		#	|| die "Could not set timezone"
-
-		#einfo "Setting time to UTC"
-		#timedatectl set-local-rtc 0 \
-		#	|| die "Could not set local rtc to UTC"
-
-		## Set keymap
-		#einfo "Selecting keymap"
-		#localectl set-keymap "$KEYMAP" \
-		#	|| die "Could not set keymap"
-
-		## Set locale
-		#einfo "Selecting locale"
-		#localectl set-locale LANG="$LOCALE" \
-		#	|| die "Could not set locale"
 	else
 		# Set hostname
 		einfo "Selecting hostname"

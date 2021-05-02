@@ -287,7 +287,7 @@ function disk_create_luks() {
 			--header-backup-file "$header_file" \
 		|| die "Could not backup luks header on $device_desc"
 	cryptsetup open --type luks2 \
-			--key-file "$keyfile" \
+			--key-file <(echo -n "$GENTOO_INSTALL_ENCRYPTION_KEY") \
 			"$device" "$name" \
 		|| die "Could not open luks encrypted device $device_desc"
 }

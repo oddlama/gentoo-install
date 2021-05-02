@@ -1,7 +1,5 @@
-- root authorized_keys support
 - zfs support
   - start systemd services
   - create pool
   - enable zstd
-- systemd settings pls
 - zfs selector dracut
