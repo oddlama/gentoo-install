@@ -49,13 +49,6 @@ function check_config() {
 	else
 		IS_EFI=false
 	fi
-
-	if [[ $INSTALL_ANSIBLE == "true" ]]; then
-		[[ $INSTALL_SSHD == "true" ]] \
-			|| die "You must enable INSTALL_SSHD for ansible"
-		[[ -n $ANSIBLE_SSH_AUTHORIZED_KEYS ]] \
-			|| die "Missing pubkey for ansible user"
-	fi
 }
 
 function preprocess_config() {
@@ -85,7 +78,20 @@ function prepare_installation_environment() {
 	[[ $USED_LUKS == "true" ]] \
 		&& check_has_program cryptsetup
 
+	# Check encryption key if used
+	[[ $USED_ENCRYPTION == "true" ]] \
+		&& check_encryption_key
+
+	# Sync time now to prevent issues later
 	sync_time
+}
+
+function check_encryption_key() {
+	[[ -n "${GENTOO_INSTALL_ENCRYPTION_KEY+set}" ]] \
+		|| die "You are using encryption but GENTOO_INSTALL_ENCRYPTION_KEY is unset or empty. Export it before running this script."
+
+	[[ ${#GENTOO_INSTALL_ENCRYPTION_KEY} -ge 8 ]] \
+		|| die "Your encryption key must be at least 8 characters long."
 }
 
 function add_summary_entry() {
@@ -259,13 +265,10 @@ function disk_create_luks() {
 	local uuid="${DISK_ID_TO_UUID[$new_id]}"
 
 	einfo "Creating luks ($new_id) on $device_desc"
-	local keyfile
-	keyfile="$(luks_getkeyfile "$new_id")" \
-		|| die "Error in luks_getkeyfile for $device_desc"
 	cryptsetup luksFormat \
 			--type luks2 \
 			--uuid "$uuid" \
-			--key-file "$keyfile" \
+			--key-file <(echo -n "$GENTOO_INSTALL_ENCRYPTION_KEY") \
 			--cipher aes-xts-plain64 \
 			--hash sha512 \
 			--pbkdf argon2id \

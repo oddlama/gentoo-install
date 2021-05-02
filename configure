@@ -143,7 +143,6 @@ function define_swap() {
 }
 
 function define_disk_layout() {
-
 	case "$PARTITIONING_SCHEME" in
 		"classic_single_disk") define_disk_configuration_function "create_classic_single_disk_layout swap=$(define_swap) type=${PARTITIONING_BOOT_TYPE@Q} luks=${PARTITIONING_USE_LUKS@Q} root_fs=${PARTITIONING_ROOT_FS@Q}" "${PARTITIONING_DEVICE@Q}" ;;
 		"zfs_centric")         define_disk_configuration_function "create_zfs_centric_layout swap=$(define_swap) type=${PARTITIONING_BOOT_TYPE@Q} encrypt=${PARTITIONING_ZFS_ENCRYPTION@Q} pool_type=${PARTITIONING_ZFS_POOL_TYPE@Q}" "${PARTITIONING_DEVICES[@]@Q}" ;;
@@ -1062,11 +1061,11 @@ function INIT_SYSTEM_menu()  {
 function GENTOO_MIRROR_tag()   { echo "Gentoo mirror"; }
 function GENTOO_MIRROR_label() { echo "($(ellipsis 20 "$GENTOO_MIRROR"))"; }
 function GENTOO_MIRROR_show()  { return 0; }
-function GENTOO_MIRROR_help()  { echo "Enter the primary gentoo mirror that should be used for the installation process (until mirrorselect is run)."; }
+function GENTOO_MIRROR_help()  { echo "Enter the initial gentoo mirror that should be used for the installation process (until mirrorselect is run)."; }
 function GENTOO_MIRROR_menu()  {
 	dialog \
 		--title "Select gentoo mirror" \
-		--inputbox "Enter the desired gentoo mirror location." \
+		--inputbox "Enter the initial gentoo mirror that should be used for the installation process (until mirrorselect is run)." \
 		"${INPUTBOX_SIZE[@]}" "$GENTOO_MIRROR"
 	UNSAVED_CHANGES=true
 }

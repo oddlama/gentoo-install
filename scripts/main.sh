@@ -116,8 +116,16 @@ function install_sshd() {
 	install -m0600 -o root -g root "$GENTOO_INSTALL_REPO_DIR/contrib/sshd_config" /etc/ssh/sshd_config \
 		|| die "Could not install /etc/ssh/sshd_config"
 	enable_service sshd
-	groupadd -r sshusers \
-		|| die "Could not create group 'sshusers'"
+
+	mkdir_or_die 0700 "/root/"
+	mkdir_or_die 0700 "/root/.ssh"
+
+	if [[ -n "$ROOT_SSH_AUTHORIZED_KEYS" ]]; then
+		einfo "Adding authorized keys for root"
+		touch_or_die 0600 "/root/.ssh/authorized_keys"
+		echo "$ROOT_SSH_AUTHORIZED_KEYS" > "$ROOT_HOME/.ssh/authorized_keys" \
+			|| die "Could not add ssh key to /root/.ssh/authorized_keys"
+	fi
 }
 
 function generate_initramfs() {
@@ -262,31 +270,6 @@ function generate_fstab() {
 	fi
 }
 
-function install_ansible() {
-	einfo "Installing ansible"
-	try emerge --verbose app-admin/ansible
-
-	einfo "Creating ansible user"
-	useradd -r -d "$ANSIBLE_HOME" -s /bin/bash ansible \
-		|| die "Could not create user 'ansible'"
-	mkdir_or_die 0700 "$ANSIBLE_HOME"
-	mkdir_or_die 0700 "$ANSIBLE_HOME/.ssh"
-
-	if [[ -n $ANSIBLE_SSH_AUTHORIZED_KEYS ]]; then
-		einfo "Adding authorized keys for ansible"
-		touch_or_die 0600 "$ANSIBLE_HOME/.ssh/authorized_keys"
-		echo "$ANSIBLE_SSH_AUTHORIZED_KEYS" >> "$ANSIBLE_HOME/.ssh/authorized_keys" \
-			|| die "Could not add ssh key to authorized_keys"
-	fi
-
-	chown -R ansible: "$ANSIBLE_HOME" \
-		|| die "Could not change ownership of ansible home"
-
-	einfo "Adding ansible to some auxiliary groups"
-	usermod -a -G wheel,sshusers ansible \
-		|| die "Could not add ansible to auxiliary groups"
-}
-
 function main_install_gentoo_in_chroot() {
 	[[ $# == 0 ]] || die "Too many arguments"
 
@@ -374,11 +357,6 @@ function main_install_gentoo_in_chroot() {
 			|| die "Could not change owner of '/etc/systemd/network/20-wired-dhcp.network'"
 	fi
 
-	# Install ansible
-	if [[ $INSTALL_ANSIBLE == "true" ]]; then
-		install_ansible
-	fi
-
 	# Install additional packages, if any.
 	if [[ ${#ADDITIONAL_PACKAGES[@]} -gt 0 ]]; then
 		einfo "Installing additional packages"
@@ -395,6 +373,8 @@ function main_install_gentoo_in_chroot() {
 	fi
 
 	einfo "Gentoo installation complete."
+	[[ $USED_LUKS == "true" ]] \
+		&& einfo "A backup of your luks headers can be found at '$LUKS_HEADER_BACKUP_DIR', in case you want to have a backup."
 	einfo "To chroot into the new system, simply execute the provided 'chroot' wrapper."
 	einfo "Otherwise, you may now reboot your system."
 }

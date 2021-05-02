@@ -25,6 +25,8 @@ USED_LUKS=false
 USED_ZFS=false
 # Flag to track usage of btrfs
 USED_BTRFS=false
+# Flag to track usage of encryption
+USED_ENCRYPTION=false
 
 # An array of disk related actions to perform
 DISK_ACTIONS=()
@@ -175,6 +177,7 @@ function create_raid() {
 # id:      The operand device id
 function create_luks() {
 	USED_LUKS=true
+	USED_ENCRYPTION=true
 
 	local known_arguments=('+new_id' '+name' '+device|id')
 	local extra_arguments=()
@@ -243,6 +246,7 @@ function format_zfs() {
 
 	verify_existing_unique_ids ids
 
+	USED_ENCRYPTION=${arguments[encrypt]:-false}
 	DISK_ACTIONS+=("action=format_zfs" "$@" ";")
 }
 

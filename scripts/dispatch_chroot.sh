@@ -19,5 +19,9 @@ export NPROC_ONE="$((NPROC + 1))"
 export MAKEFLAGS="-j$NPROC"
 export EMERGE_DEFAULT_OPTS="--jobs=$NPROC_ONE --load-average=$NPROC"
 
+# Unset critical variables
+unset GENTOO_INSTALL_ENCRYPTION_KEY
+unset key
+
 # Execute the requested command
 exec "$@"
