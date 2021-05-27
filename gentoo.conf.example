@@ -15,6 +15,15 @@
 #
 # Be sure to only define one layout!
 
+# This function will be called when a custom zfs pool type has been chosen.
+# $1: either 'true' or 'false' determining if the pool should be encrypted
+# $2: a string describing all device paths (for error messages)
+# $@: device paths
+function format_zfs_custom() {
+	# See format_zfs_standard() function in scripts/functions.sh for an example!
+	die "You need to implement format_zfs_custom() in your .conf file!"
+}
+
 function disk_configuration() {
 	create_classic_single_disk_layout swap=8GiB type=efi luks=true root_fs=ext4 /dev/sdX
 

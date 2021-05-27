@@ -57,18 +57,17 @@ while [[ $# -gt 0 ]]; do
 			echo "be started instead."
 			echo ""
 			echo "Options:"
-			echo "  -c, --config <CONFIG>    Use the given configuration file instead of the default"
-			echo "                           location (gentoo.conf). Applies to installation as well"
-			echo "                           as initial configuration in case it doesn't exist."
+			echo "  -c, --config <CONFIG>         Use the given configuration file instead of the default"
+			echo "                                  location (gentoo.conf). Applies to installation as well"
+			echo "                                  as initial configuration in case it doesn't exist."
 			echo ""
 			echo "Actions:"
-			echo "  -i, --install            Installs gentoo as configured. (default if configuration exists)"
-			echo "  -R, --chroot             Chroot into an existing system. The root filesystem"
-			echo "                           is mounted automatically based on the partition"
-			echo "                           UUIDs (generated when installing for the first time),"
-			echo "                           and unmounted when the chroot exits"
-			echo "  -u, --umount             Try to unmount all associated mountpoints. (Only needed"
-			echo "                           if anything gets forcefully interrupted)"
+			echo "  -i, --install                 Installs gentoo as configured. This is the default mode,"
+			echo "                                  if the given configuration file exists."
+			echo "  -R, --chroot <DIR> [CMD...]   Chroot into an existing system. The root filesystem"
+			echo "                                  must already be mounted under DIR. All required special"
+			echo "                                  filesystems will be mounted inside, and unmounted when"
+			echo "                                  the chroot exits."
 			exit 0
 			;;
 		"-c"|"--config")
@@ -80,14 +79,13 @@ while [[ $# -gt 0 ]]; do
 		"-R"|"--chroot")
 			[[ -z $ACTION ]] || die "Multiple actions given"
 			ACTION="chroot"
+			CHROOT_DIR="$2"
+			[[ -e "$CHROOT_DIR" ]] || die "Chroot directory not found: '$CHROOT_DIR'"
+			shift
 			;;
 		"-i"|"--install")
 			[[ -z $ACTION ]] || die "Multiple actions given"
 			ACTION="install"
-			;;
-		"-u"|"--umount"|"--unmount")
-			[[ -z $ACTION ]] || die "Multiple actions given"
-			ACTION="umount"
 			;;
 		"__install_gentoo_in_chroot")
 			ACTION="__install_gentoo_in_chroot"
@@ -127,9 +125,8 @@ preprocess_config
 mkdir_or_die 0755 "$TMP_DIR"
 
 case "$ACTION" in
-	"chroot")  main_chroot "$@" ;;
+	"chroot")  main_chroot "$CHROOT_DIR" "$@" ;;
 	"install") main_install "$@" ;;
-	"umount")  main_umount "$@" ;;
 	"__install_gentoo_in_chroot") main_install_gentoo_in_chroot "$@" ;;
 	*) die "Invalid action '$ACTION'" ;;
 esac

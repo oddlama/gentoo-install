@@ -369,15 +369,12 @@ function main_install() {
 
 	[[ $IS_EFI == "true" ]] \
 		&& mount_efivars
-	gentoo_chroot "$GENTOO_INSTALL_REPO_BIND/scripts/main.sh" __install_gentoo_in_chroot
+	gentoo_chroot "$ROOT_MOUNTPOINT" "$GENTOO_INSTALL_REPO_BIND/scripts/main.sh" __install_gentoo_in_chroot
 	gentoo_umount
 }
 
 function main_chroot() {
 	gentoo_chroot "$@"
-	gentoo_umount
-}
-
-function main_umount() {
+	einfo "Unmounting chroot environment"
 	gentoo_umount
 }

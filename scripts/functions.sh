@@ -372,11 +372,53 @@ function disk_format() {
 	esac
 }
 
+# This function will be called when a custom zfs pool type has been chosen.
+# $1: either 'true' or 'false' determining if the pool should be encrypted
+# $2: a string describing all device paths (for error messages)
+# $@: device paths
+function format_zfs_standard() {
+	local encrypt="$1"
+	local device_desc="$2"
+	shift 2
+	local devices=("$@")
+
+	einfo "Creating zfs pool on $devices_desc"
+	local extra_args=()
+	if [[ "$encrypt" == true ]]; then
+		extra_args+=(
+			"-O" "encryption=aes-256-gcm"
+			"-O" "keyformat=passphrase"
+			"-O" "keylocation=prompt"
+			)
+	fi
+
+	# dnodesize=legacy might be needed for GRUB2, but auto is preferred for xattr=sa.
+	zpool create \
+		-R /mnt               \
+		-o ashift=12          \
+		-O acltype=posix      \
+		-O atime=off          \
+		-O xattr=sa           \
+		-O dnodesize=auto     \
+		-O mountpoint=none    \
+		-O canmount=noauto    \
+		-O devices=off        \
+		-O compression=zstd   \
+		"${extra_args[@]}"    \
+		rpool                 \
+		"${devices[@]}"       \
+		|| die "Could not create zfs pool on $devices_desc"
+
+	zfs create -o mountpoint=/ rpool/ROOT/default \
+		|| die "Could not create zfs default dataset"
+	zpool set bootfs=rpool/ROOT/default rpool \
+		|| die "Could not set zfs property bootfs on rpool"
+}
+
 function disk_format_zfs() {
 	local ids="${arguments[ids]}"
-	local label="${arguments[label]}"
 	local pool_type="${arguments[pool_type]}"
-	local encrypt="${arguments[encrypt]}"
+	local encrypt="${arguments[encrypt]-false}"
 	if [[ $disk_action_summarize_only == "true" ]]; then
 		local id
 		# Splitting is intentional here
@@ -387,6 +429,25 @@ function disk_format_zfs() {
 		return 0
 	fi
 
+	local devices_desc=""
+	local devices=()
+	local id
+	local dev
+	# Splitting is intentional here
+	# shellcheck disable=SC2086
+	for id in ${ids//';'/ }; do
+		dev="$(resolve_device_by_id "$id")" \
+			|| die "Could not resolve device with id=$id"
+		devices+=("$dev")
+		devices_desc+="$dev ($id), "
+	done
+	devices_desc="${devices_desc:0:-2}"
+
+	if [[ "$pool_type" == "custom" ]]; then
+		format_zfs_custom "$encrypt" "$devices_desc" "${devices[@]}"
+	else
+		format_zfs_standard "$encrypt" "$devices_desc" "${devices[@]}"
+	fi
 }
 
 function disk_format_btrfs() {
@@ -617,7 +678,11 @@ function mount_by_id() {
 }
 
 function mount_root() {
-	mount_by_id "$DISK_ID_ROOT" "$ROOT_MOUNTPOINT"
+	if [[ $USED_ZFS == "true" ]] && ! mountpoint -q -- "$ROOT_MOUNTPOINT"; then
+		die "Error: Expected zfs to be mounted under '$ROOT_MOUNTPOINT', but it isn't."
+	else
+		mount_by_id "$DISK_ID_ROOT" "$ROOT_MOUNTPOINT"
+	fi
 }
 
 function bind_repo_dir() {
@@ -746,37 +811,41 @@ function touch_or_die() {
 	chmod "$1" "$2"
 }
 
+# $1: root directory
+# $@: command...
 function gentoo_chroot() {
-	if [[ $# -eq 0 ]]; then
-		gentoo_chroot /bin/bash --init-file <(echo 'init_bash')
+	if [[ $# -eq 1 ]]; then
+		gentoo_chroot "$1" /bin/bash --init-file <(echo 'init_bash')
 	fi
 
 	[[ $EXECUTED_IN_CHROOT != "true" ]] \
 		|| die "Already in chroot"
 
-	gentoo_umount
-	mount_root
+	local chroot_dir="$1"
+	shift
+
+	# Bind repo directory to tmp
 	bind_repo_dir
 
 	# Copy resolv.conf
 	einfo "Preparing chroot environment"
-	install --mode=0644 /etc/resolv.conf "$ROOT_MOUNTPOINT/etc/resolv.conf" \
+	install --mode=0644 /etc/resolv.conf "$chroot_dir/etc/resolv.conf" \
 		|| die "Could not copy resolv.conf"
 
 	# Mount virtual filesystems
 	einfo "Mounting virtual filesystems"
 	(
-		mountpoint -q -- "$ROOT_MOUNTPOINT/proc" || mount -t proc /proc "$ROOT_MOUNTPOINT/proc" || exit 1
-		mountpoint -q -- "$ROOT_MOUNTPOINT/tmp"  || mount --rbind /tmp  "$ROOT_MOUNTPOINT/tmp"  || exit 1
-		mountpoint -q -- "$ROOT_MOUNTPOINT/sys"  || {
-			mount --rbind /sys  "$ROOT_MOUNTPOINT/sys" &&
-			mount --make-rslave "$ROOT_MOUNTPOINT/sys"; } || exit 1
-		mountpoint -q -- "$ROOT_MOUNTPOINT/dev"  || {
-			mount --rbind /dev  "$ROOT_MOUNTPOINT/dev" &&
-			mount --make-rslave "$ROOT_MOUNTPOINT/dev"; } || exit 1
+		mountpoint -q -- "$chroot_dir/proc" || mount -t proc /proc "$chroot_dir/proc" || exit 1
+		mountpoint -q -- "$chroot_dir/tmp"  || mount --rbind /tmp  "$chroot_dir/tmp"  || exit 1
+		mountpoint -q -- "$chroot_dir/sys"  || {
+			mount --rbind /sys  "$chroot_dir/sys" &&
+			mount --make-rslave "$chroot_dir/sys"; } || exit 1
+		mountpoint -q -- "$chroot_dir/dev"  || {
+			mount --rbind /dev  "$chroot_dir/dev" &&
+			mount --make-rslave "$chroot_dir/dev"; } || exit 1
 	) || die "Could not mount virtual filesystems"
 
-	# Cache lsblk output, because apparently it doesn't work correctly in chroot (returns almost no info for devices, e.g. empty uuids)
+	# Cache lsblk output, because it doesn't work correctly in chroot (returns almost no info for devices, e.g. empty uuids)
 	cache_lsblk_output
 
 	# Execute command
@@ -784,8 +853,8 @@ function gentoo_chroot() {
 	EXECUTED_IN_CHROOT=true \
 		TMP_DIR="$TMP_DIR" \
 		CACHED_LSBLK_OUTPUT="$CACHED_LSBLK_OUTPUT" \
-		exec chroot -- "$ROOT_MOUNTPOINT" "$GENTOO_INSTALL_REPO_DIR/scripts/dispatch_chroot.sh" "$@" \
-			|| die "Failed to chroot into '$ROOT_MOUNTPOINT'"
+		exec chroot -- "$chroot_dir" "$GENTOO_INSTALL_REPO_DIR/scripts/dispatch_chroot.sh" "$@" \
+			|| die "Failed to chroot into '$chroot_dir'"
 }
 
 function enable_service() {

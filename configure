@@ -167,7 +167,7 @@ ALL_PARTITIONING_SCHEMES=(
 PARTITIONING_BOOT_TYPES=("efi" "bios")
 PARTITIONING_ROOT_FS_TYPES=("ext4" "btrfs")
 PARTITIONING_BTRFS_RAID_TYPES=("raid0" "raid1")
-PARTITIONING_ZFS_POOL_TYPES=("stripe" "mirror")
+PARTITIONING_ZFS_POOL_TYPES=("standard" "custom")
 
 function create_single_disk_layout() {
 	create_classic_single_disk_layout
@@ -220,7 +220,7 @@ function create_zfs_centric_layout() {
 	PARTITIONING_DEVICES=("${extra_arguments[@]}")
 	parse_swap "${arguments[swap]}"
 	PARTITIONING_BOOT_TYPE="${arguments[type]}"
-	PARTITIONING_ZFS_POOL_TYPE="${arguments[pool_type]:-stripe}"
+	PARTITIONING_ZFS_POOL_TYPE="${arguments[pool_type]:-standard}"
 	PARTITIONING_ZFS_ENCRYPTION="${arguments[encrypt]:-false}"
 }
 
@@ -319,7 +319,7 @@ function load_default_config() {
 	LOCALE="C.utf8"
 
 	function disk_configuration() {
-		create_zfs_centric_layout swap=8GiB type=efi encrypt=true pool_type=stripe /dev/sdX
+		create_zfs_centric_layout swap=8GiB type=efi encrypt=true pool_type=standard /dev/sdX
 	}
 
 	SYSTEMD=true
@@ -682,8 +682,8 @@ MENU_ITEMS=(
 	"PARTITIONING_SWAP"
 	"PARTITIONING_ROOT_FS"
 	"PARTITIONING_USE_LUKS"
-	"PARTITIONING_ZFS_ENCRYPTION"
 	"PARTITIONING_ZFS_POOL_TYPE"
+	"PARTITIONING_ZFS_ENCRYPTION"
 	"PARTITIONING_BTRFS_RAID_TYPE"
 	"PARTITIONING_DEVICE"
 	"PARTITIONING_DEVICES"
@@ -727,7 +727,7 @@ function PARTITIONING_SCHEME_menu()  {
 		# Set disk scheme
 		case "$dialog_out" in
 			"classic_single_disk") create_classic_single_disk_layout swap=8GiB type=efi luks=false root_fs=ext4 /dev/sdX ;;
-			"zfs_centric")         create_zfs_centric_layout swap=8GiB type=efi encrypt=true pool_type=stripe /dev/sdX ;;
+			"zfs_centric")         create_zfs_centric_layout swap=8GiB type=efi encrypt=true pool_type=standard /dev/sdX ;;
 			"btrfs_centric")       create_btrfs_centric_layout swap=8GiB type=efi raid_type=raid0 luks=false /dev/sdX ;;
 			"raid0_luks")          create_raid0_luks_layout swap=8GiB type=efi root_fs=ext4 /dev/sdX /dev/sdY ;;
 			"custom")              PARTITIONING_SCHEME="$dialog_out" ;;
@@ -812,7 +812,7 @@ function PARTITIONING_USE_LUKS_menu()  {
 
 function PARTITIONING_ZFS_ENCRYPTION_tag()   { echo " ├ ZFS Encryption"; }
 function PARTITIONING_ZFS_ENCRYPTION_label() { on_off_label "$PARTITIONING_ZFS_ENCRYPTION" " ├ "; }
-function PARTITIONING_ZFS_ENCRYPTION_show()  { [[ $PARTITIONING_SCHEME != "custom" ]] && one_of "$PARTITIONING_SCHEME" "zfs_centric"; }
+function PARTITIONING_ZFS_ENCRYPTION_show()  { [[ $PARTITIONING_SCHEME != "custom" ]] && one_of "$PARTITIONING_SCHEME" "zfs_centric" && one_of "$PARTITIONING_ZFS_POOL_TYPE" "standard"; }
 function PARTITIONING_ZFS_ENCRYPTION_help()  { echo "Determines if ZFS encryption will be used to encrypt your root partition."; }
 function PARTITIONING_ZFS_ENCRYPTION_menu()  {
 	on_off_toggle "PARTITIONING_ZFS_ENCRYPTION"
@@ -822,11 +822,11 @@ function PARTITIONING_ZFS_ENCRYPTION_menu()  {
 function PARTITIONING_ZFS_POOL_TYPE_tag()   { echo " ├ Pool type"; }
 function PARTITIONING_ZFS_POOL_TYPE_label() { echo " ├ ($PARTITIONING_ZFS_POOL_TYPE)"; }
 function PARTITIONING_ZFS_POOL_TYPE_show()  { [[ $PARTITIONING_SCHEME != "custom" ]] && one_of "$PARTITIONING_SCHEME" "zfs_centric"; }
-function PARTITIONING_ZFS_POOL_TYPE_help()  { echo "Determines the pool type of the created zfs pool (stripe / mirror)."; }
+function PARTITIONING_ZFS_POOL_TYPE_help()  { echo "Determines how the zfs pool will be initialized. Select 'standard' for a default pool setup that puts all given devices in one pool with ZSTD compression. Selecting 'custom' will require you to write your own pool creation function in the output config."; }
 function PARTITIONING_ZFS_POOL_TYPE_menu()  {
 	if menu_radiolist \
 		"Select ZFS pool type" \
-		"Select which ZFS pool type you want to use. By default pools are striping in ZFS." \
+		"Select 'standard' for a default pool setup that puts all given devices in one pool with ZSTD compression. Selecting 'custom' will require you to write your own pool creation function in the output config." \
 		"$PARTITIONING_ZFS_POOL_TYPE" \
 		"${PARTITIONING_ZFS_POOL_TYPES[@]}"
 	then
