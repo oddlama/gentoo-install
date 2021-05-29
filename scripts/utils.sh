@@ -333,10 +333,11 @@ function check_has_programs() {
 		&& return
 
 	echo "The following programs are required for the installer to work, but are currently missing on your system:" >&2
-	echo "  ${failed[@]}" >&2
+	echo "  ${failed[*]}" >&2
 
 	if type pacman &>/dev/null; then
-		local pacman_packages=(
+		declare -A pacman_packages
+		pacman_packages=(
 			[ntpd]=openntpd
 			[zfs]=""
 		)
@@ -345,7 +346,7 @@ function check_has_programs() {
 			local packages
 			local need_zfs=false
 			for program in "${failed[@]}"; do
-				if [[ -v pacman_packages[$program] ]]; then
+				if [[ -v "pacman_packages[$program]" ]]; then
 					packages+=("$program")
 				else
 					# Assignments to the empty string are explcitly ignored,
