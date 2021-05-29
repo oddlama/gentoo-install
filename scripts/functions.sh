@@ -47,6 +47,7 @@ function check_config() {
 }
 
 function preprocess_config() {
+	disk_configuration
 	check_config
 }
 
