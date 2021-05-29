@@ -103,6 +103,14 @@ function get_all_timezones() {
 	readarray -t ALL_TIMEZONES < <(find /usr/share/zoneinfo -type f -printf "%P\n" | sort -u)
 }
 
+function get_supported_locales() {
+	if [[ -e /usr/share/i18n/SUPPORTED ]]; then
+		echo /usr/share/i18n/SUPPORTED
+	else
+		echo "$GENTOO_INSTALL_REPO_DIR/contrib/i18n_supported"
+	fi
+}
+
 function recalculate_locales() {
 	LOCALES=""
 	N_LOCALES=0
@@ -251,7 +259,7 @@ get_all_keymaps
 get_all_timezones
 INIT_SYSTEMS=("systemd" "OpenRC")
 ALL_GENTOO_ARCHS=("x86" "amd64" "arm" "arm64")
-readarray -t SUPPORTED_LOCALES < /usr/share/i18n/SUPPORTED
+readarray -t SUPPORTED_LOCALES < "$(get_supported_locales)"
 readarray -t LOCALE_A < <(locale -a)
 
 
