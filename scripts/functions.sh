@@ -54,18 +54,18 @@ function preprocess_config() {
 function prepare_installation_environment() {
 	einfo "Preparing installation environment"
 
-	local needed_programs=()
-
-	needed_programs+=(gpg)
-	needed_programs+=(hwclock)
-	needed_programs+=(lsblk)
-	needed_programs+=(ntpd)
-	needed_programs+=(partprobe)
-	needed_programs+=(python3)
-	needed_programs+=(rhash)
-	needed_programs+=(sgdisk)
-	needed_programs+=(uuidgen)
-	needed_programs+=(wget)
+	local needed_programs=(
+		gpg
+		hwclock
+		lsblk
+		ntpd
+		partprobe
+		python3
+		rhash
+		sgdisk
+		uuidgen
+		wget
+	)
 
 	[[ $USED_BTRFS == "true" ]] \
 		&& needed_programs+=(btrfs)
