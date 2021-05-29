@@ -5,11 +5,6 @@ source "$GENTOO_INSTALL_REPO_DIR/scripts/protection.sh" || exit 1
 ################################################
 # Functions
 
-function check_has_program() {
-	type "$1" &>/dev/null \
-		|| die "Missing program: '$1'"
-}
-
 function sync_time() {
 	einfo "Syncing time"
 	ntpd -g -q \
@@ -58,25 +53,30 @@ function preprocess_config() {
 function prepare_installation_environment() {
 	einfo "Preparing installation environment"
 
-	check_has_program gpg
-	check_has_program hwclock
-	check_has_program lsblk
-	check_has_program ntpd
-	check_has_program partprobe
-	check_has_program python3
-	check_has_program rhash
-	check_has_program sgdisk
-	check_has_program uuidgen
-	check_has_program wget
+	local needed_programs=()
+
+	needed_programs+=(gpg)
+	needed_programs+=(hwclock)
+	needed_programs+=(lsblk)
+	needed_programs+=(ntpd)
+	needed_programs+=(partprobe)
+	needed_programs+=(python3)
+	needed_programs+=(rhash)
+	needed_programs+=(sgdisk)
+	needed_programs+=(uuidgen)
+	needed_programs+=(wget)
 
 	[[ $USED_BTRFS == "true" ]] \
-		&& check_has_program btrfs
+		&& needed_programs+=(btrfs)
 	[[ $USED_ZFS == "true" ]] \
-		&& check_has_program zfs
+		&& needed_programs+=(zfs)
 	[[ $USED_RAID == "true" ]] \
-		&& check_has_program mdadm
+		&& needed_programs+=(mdadm)
 	[[ $USED_LUKS == "true" ]] \
-		&& check_has_program cryptsetup
+		&& needed_programs+=(cryptsetup)
+
+	# Check for existence of required programs
+	check_has_programs "${needed_programs[@]}"
 
 	# Check encryption key if used
 	[[ $USED_ENCRYPTION == "true" ]] \

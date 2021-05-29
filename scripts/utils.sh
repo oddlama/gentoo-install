@@ -320,3 +320,25 @@ function parse_arguments() {
 		done
 	fi
 }
+
+function check_has_programs() {
+	local failed=()
+	local program
+	for program in "$@"; do
+		type "$1" &>/dev/null \
+			|| failed+=("$program")
+	done
+
+	echo "The following programs are required for the installer to work, but are currently missing on your system:" >&2
+	echo "  ${failed[@]}" >&2
+
+	if type pacman &>/dev/null; then
+		echo "We have detected that pacman is available."
+		if ask "Do you want to install the missing programs automatically?"; then
+			pacman -Sy "${failed[@]}"
+			return
+		fi
+	fi
+
+	die "Aborted installer because of missing required programs."
+}
