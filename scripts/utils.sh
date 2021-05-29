@@ -329,6 +329,9 @@ function check_has_programs() {
 			|| failed+=("$program")
 	done
 
+	[[ ${#failed[@]} -eq 0 ]] \
+		&& return
+
 	echo "The following programs are required for the installer to work, but are currently missing on your system:" >&2
 	echo "  ${failed[@]}" >&2
 
