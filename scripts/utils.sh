@@ -322,11 +322,10 @@ function parse_arguments() {
 }
 
 function check_has_programs() {
-	echo "$@"
 	local failed=()
 	local program
 	for program in "$@"; do
-		type "$1" &>/dev/null \
+		type "$program" &>/dev/null \
 			|| failed+=("$program")
 	done
 
