@@ -336,9 +336,34 @@ function check_has_programs() {
 	echo "  ${failed[@]}" >&2
 
 	if type pacman &>/dev/null; then
+		local pacman_packages=(
+			[ntpd]=openntpd
+			[zfs]=""
+		)
 		echo "We have detected that pacman is available."
 		if ask "Do you want to install the missing programs automatically?"; then
-			pacman -Sy "${failed[@]}"
+			local packages
+			local need_zfs=false
+			for program in "${failed[@]}"; do
+				if [[ -v pacman_packages[$program] ]]; then
+					packages+=("$program")
+				else
+					# Assignments to the empty string are explcitly ignored,
+					# as for example zfs needs to be handeled separately.
+					[[ -n "${pacman_packages[$program]}" ]] \
+						&& packages+=("${pacman_packages[$program]}")
+				fi
+			done
+			pacman -Sy "${packages[@]}"
+
+			if [[ "$need_zfs" == true ]]; then
+				echo "On an Arch live-stick you need the archzfs repository and some tools and modifications to use zfs."
+				echo "There is an automated installer available at https://eoli3n.github.io/archzfs/init."
+				if ask "Do you want to automatically download and execute this zfs installation script?"; then
+					curl -s "https://eoli3n.github.io/archzfs/init" | bash
+				fi
+			fi
+
 			return
 		fi
 	fi
