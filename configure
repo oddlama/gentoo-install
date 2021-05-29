@@ -76,7 +76,7 @@ function get_timezone() {
 
 function get_default_keymap() {
 	local keymap
-	keymap="$(grep KEYMAP /etc/vconsole.conf)"
+	keymap="$(grep KEYMAP /etc/vconsole.conf 2>/dev/null || echo "KEYMAP=us")"
 	keymap="${keymap#KEYMAP=}"
 
 	local map
