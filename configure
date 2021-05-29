@@ -61,11 +61,12 @@ function get_timezone() {
 		# /etc/localtime is a symlink as expected
 		local timezone
 		timezone=${file#*zoneinfo/}
-		if [[ $timezone = "$file" || ! $timezone =~ ^[^/]+/[^/]+$ ]]; then
+		if [[ $timezone == "$file" ]]; then
 			# not pointing to expected location or not Region/City
 			echo "Europe/London"
+		else
+			echo "$timezone"
 		fi
-		echo "$timezone"
 	else
 		# compare files by contents
 		find /usr/share/zoneinfo -type f -exec cmp -s {} /etc/localtime \; -print \
@@ -1173,6 +1174,10 @@ function ADDITIONAL_PACKAGES_menu()  {
 
 # $1: filename
 function save() {
+	if [[ "$KEYMAP_INITRAMFS_OTHER" == "false" ]]; then
+		KEYMAP_INITRAMFS="$KEYMAP"
+	fi
+
 	cat > "$1" <<EOF
 # vim: set ft=sh ts=4 sw=4 sts=-1 noet:
 # This file will be interpreted by /bin/bash.
