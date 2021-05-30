@@ -6,11 +6,11 @@ function elog() {
 }
 
 function einfo() {
-	echo "[[1;32m+[m] [1;33m$*[m"
+	echo "[[1;33m*[m] [1;33m$*[m"
 }
 
 function ewarn() {
-	echo "[[1;33m+[m] $*" >&2
+	echo "[[1;31m![m] [1;33m$*" >&2
 }
 
 function eerror() {
