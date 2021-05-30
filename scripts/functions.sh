@@ -408,7 +408,7 @@ function format_zfs_standard() {
 		"${extra_args[@]}"    \
 		rpool                 \
 		"${devices[@]}"       \
-		<<< "$GENTOO_INSTALL_ENCRYPTION_KEY"
+			<<< "$GENTOO_INSTALL_ENCRYPTION_KEY" \
 		|| die "Could not create zfs pool on $devices_desc"
 
 	zfs create -o mountpoint=/ rpool/ROOT \
