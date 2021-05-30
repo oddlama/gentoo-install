@@ -369,7 +369,7 @@ function main_install() {
 
 	[[ $IS_EFI == "true" ]] \
 		&& mount_efivars
-	gentoo_chroot "$ROOT_MOUNTPOINT" "$GENTOO_INSTALL_REPO_BIND/scripts/main.sh" __install_gentoo_in_chroot
+	gentoo_chroot "$ROOT_MOUNTPOINT" "$GENTOO_INSTALL_REPO_BIND/install" __install_gentoo_in_chroot
 	gentoo_umount
 }
 
