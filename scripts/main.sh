@@ -374,6 +374,10 @@ function main_install() {
 }
 
 function main_chroot() {
+	# Skip if already mounted
+	mountpoint -q -- "$1" \
+		|| die "'$1' is not a mountpoint"
+
 	gentoo_chroot "$@"
 	einfo "Unmounting chroot environment"
 	gentoo_umount
