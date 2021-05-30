@@ -395,7 +395,7 @@ function format_zfs_standard() {
 
 	# dnodesize=legacy might be needed for GRUB2, but auto is preferred for xattr=sa.
 	zpool create \
-		-R /mnt               \
+		-R "$ROOT_MOUNTPOINT" \
 		-o ashift=12          \
 		-O acltype=posix      \
 		-O atime=off          \
