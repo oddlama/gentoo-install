@@ -819,6 +819,7 @@ function touch_or_die() {
 # $@: command...
 function gentoo_chroot() {
 	if [[ $# -eq 1 ]]; then
+		einfo "To later unmount all virtual filesystems, simply use umount -l ${1@Q}"
 		gentoo_chroot "$1" /bin/bash --init-file <(echo 'init_bash')
 	fi
 
@@ -857,8 +858,8 @@ function gentoo_chroot() {
 	EXECUTED_IN_CHROOT=true \
 		TMP_DIR="$TMP_DIR" \
 		CACHED_LSBLK_OUTPUT="$CACHED_LSBLK_OUTPUT" \
-		chroot -- "$chroot_dir" "$GENTOO_INSTALL_REPO_DIR/scripts/dispatch_chroot.sh" "$@" \
-			|| die "Failed to chroot into '$chroot_dir', or the executed command returned an error."
+		exec chroot -- "$chroot_dir" "$GENTOO_INSTALL_REPO_DIR/scripts/dispatch_chroot.sh" "$@" \
+			|| die "Failed to chroot into '$chroot_dir'."
 }
 
 function enable_service() {
