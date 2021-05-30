@@ -150,7 +150,7 @@ function get_device_by_blkid_field() {
 	local field_value="$2"
 	blkid -g \
 		|| die "Error while executing blkid -g"
-	partprobe
+	type partprobe && partprobe
 	local dev
 	dev="$(blkid -o export -t "$blkid_field=$field_value")" \
 		|| die "Error while executing blkid to find $blkid_field=$field_value"
