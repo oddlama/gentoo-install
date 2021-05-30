@@ -176,7 +176,7 @@ function cache_lsblk_output() {
 function get_device_by_ptuuid() {
 	local ptuuid="${1,,}"
 	local dev
-	if [[ -n $CACHED_LSBLK_OUTPUT ]]; then
+	if [[ -v CACHED_LSBLK_OUTPUT ]]; then
 		dev="$CACHED_LSBLK_OUTPUT"
 	else
 		dev="$(lsblk --all --path --pairs --output NAME,PTUUID,PARTUUID)" \

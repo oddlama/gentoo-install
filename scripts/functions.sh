@@ -408,10 +408,13 @@ function format_zfs_standard() {
 		"${extra_args[@]}"    \
 		rpool                 \
 		"${devices[@]}"       \
+		<<< "$GENTOO_INSTALL_ENCRYPTION_KEY"
 		|| die "Could not create zfs pool on $devices_desc"
 
+	zfs create -o mountpoint=/ rpool/ROOT \
+		|| die "Could not create zfs dataset 'rpool/ROOT'"
 	zfs create -o mountpoint=/ rpool/ROOT/default \
-		|| die "Could not create zfs default dataset"
+		|| die "Could not create zfs dataset 'rpool/ROOT/default'"
 	zpool set bootfs=rpool/ROOT/default rpool \
 		|| die "Could not set zfs property bootfs on rpool"
 }
