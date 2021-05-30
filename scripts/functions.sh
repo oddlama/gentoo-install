@@ -129,7 +129,7 @@ function summary_color_args() {
 
 function disk_create_gpt() {
 	local new_id="${arguments[new_id]}"
-	if [[ $disk_action_summarize_only == "true" ]]; then
+	if [[ ${disk_action_summarize_only-false} == "true" ]]; then
 		if [[ -v arguments[id] ]]; then
 			add_summary_entry "${arguments[id]}" "$new_id" "gpt" "" ""
 		else
@@ -161,7 +161,7 @@ function disk_create_partition() {
 	local id="${arguments[id]}"
 	local size="${arguments[size]}"
 	local type="${arguments[type]}"
-	if [[ $disk_action_summarize_only == "true" ]]; then
+	if [[ ${disk_action_summarize_only-false} == "true" ]]; then
 		add_summary_entry "$id" "$new_id" "part" "($type)" "$(summary_color_args size)"
 		return 0
 	fi
@@ -199,7 +199,7 @@ function disk_create_raid() {
 	local level="${arguments[level]}"
 	local name="${arguments[name]}"
 	local ids="${arguments[ids]}"
-	if [[ $disk_action_summarize_only == "true" ]]; then
+	if [[ ${disk_action_summarize_only-false} == "true" ]]; then
 		local id
 		# Splitting is intentional here
 		# shellcheck disable=SC2086
@@ -244,7 +244,7 @@ function disk_create_raid() {
 function disk_create_luks() {
 	local new_id="${arguments[new_id]}"
 	local name="${arguments[name]}"
-	if [[ $disk_action_summarize_only == "true" ]]; then
+	if [[ ${disk_action_summarize_only-false} == "true" ]]; then
 		if [[ -v arguments[id] ]]; then
 			add_summary_entry "${arguments[id]}" "$new_id" "luks" "" ""
 		else
@@ -296,7 +296,7 @@ function disk_create_luks() {
 function disk_create_dummy() {
 	local new_id="${arguments[new_id]}"
 	local device="${arguments[device]}"
-	if [[ $disk_action_summarize_only == "true" ]]; then
+	if [[ ${disk_action_summarize_only-false} == "true" ]]; then
 		add_summary_entry __root__ "$new_id" "$device" "" ""
 		return 0
 	fi
@@ -321,7 +321,7 @@ function disk_format() {
 	local id="${arguments[id]}"
 	local type="${arguments[type]}"
 	local label="${arguments[label]}"
-	if [[ $disk_action_summarize_only == "true" ]]; then
+	if [[ ${disk_action_summarize_only-false} == "true" ]]; then
 		add_summary_entry "${arguments[id]}" "__fs__${arguments[id]}" "${arguments[type]}" "(fs)" "$(summary_color_args label)"
 		return 0
 	fi
@@ -420,7 +420,7 @@ function disk_format_zfs() {
 	local ids="${arguments[ids]}"
 	local pool_type="${arguments[pool_type]}"
 	local encrypt="${arguments[encrypt]-false}"
-	if [[ $disk_action_summarize_only == "true" ]]; then
+	if [[ ${disk_action_summarize_only-false} == "true" ]]; then
 		local id
 		# Splitting is intentional here
 		# shellcheck disable=SC2086
@@ -455,7 +455,7 @@ function disk_format_btrfs() {
 	local ids="${arguments[ids]}"
 	local label="${arguments[label]}"
 	local raid_type="${arguments[raid_type]}"
-	if [[ $disk_action_summarize_only == "true" ]]; then
+	if [[ ${disk_action_summarize_only-false} == "true" ]]; then
 		local id
 		# Splitting is intentional here
 		# shellcheck disable=SC2086
