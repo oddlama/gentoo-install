@@ -411,7 +411,7 @@ function format_zfs_standard() {
 			<<< "$GENTOO_INSTALL_ENCRYPTION_KEY" \
 		|| die "Could not create zfs pool on $devices_desc"
 
-	zfs create -o mountpoint=/ rpool/ROOT \
+	zfs create rpool/ROOT \
 		|| die "Could not create zfs dataset 'rpool/ROOT'"
 	zfs create -o mountpoint=/ rpool/ROOT/default \
 		|| die "Could not create zfs dataset 'rpool/ROOT/default'"
