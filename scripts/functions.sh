@@ -858,7 +858,7 @@ function gentoo_chroot() {
 		TMP_DIR="$TMP_DIR" \
 		CACHED_LSBLK_OUTPUT="$CACHED_LSBLK_OUTPUT" \
 		chroot -- "$chroot_dir" "$GENTOO_INSTALL_REPO_DIR/scripts/dispatch_chroot.sh" "$@" \
-			|| die "Failed to chroot into '$chroot_dir'"
+			|| die "Failed to chroot into '$chroot_dir', or the executed command returned an error."
 }
 
 function enable_service() {
