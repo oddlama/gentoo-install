@@ -1,33 +1,29 @@
 ## About gentoo-install
 
-This script performs a reasonably minimal installation of gentoo. An EFI system is highly
-recommended, but legacy BIOS boot is also supported. The script supports both systemd (default)
-and OpenRC as the init system. The main performed steps are:
-
-1. Partitioning
-1. Download & cryptographically verify stage3 tarball
-1. Extract stage3
-1. Initialize portage
-1. Install kernel
-1. Install additional software
-
-The system will use `sys-kernel/gentoo-kernel-bin`, which should be suitable
-to boot most systems out of the box. It is strongly recommend to replace this kernel
-with a custom built one, when the system is functional. If you are looking for a way
-to detect and manage your kernel configuration, have a look at [autokernel](https://github.com/oddlama/autokernel).
+A installer for gentoo with a simple menuconfig inspired configuration TUI.
+The configurator is only used to generate a `gentoo.conf` file, which can also be
+edited by hand if desired. An example configuration is provided with the repository.
 
 ## Quick start
 
 1. Download a copy or clone this repo
 1. Run `./configure` and save your configuration
-1. Install using `./install`
+1. When using encryption, export your desired key with `export GENTOO_INSTALL_ENCRYPTION_KEY="mypassword"`
+1. Run installation using `./install`
 
-Every option is explained in detail in `gentoo.conf.example` and in the help popups in the configurator.
+Every option is explained in detail in `gentoo.conf.example` and in the help menu popups in the configurator.
 When installing, you will be asked to review the partitioning before anything critical is done.
 
 ## Overview
 
-Here is a more complete overview of what this script does:
+This script performs a reasonably minimal installation of gentoo. An EFI system is highly
+recommended, but legacy BIOS boot is also supported. The script supports both systemd (default)
+and OpenRC as the init system.
+
+The system will use `sys-kernel/gentoo-kernel-bin`, which should be suitable
+to boot most systems out of the box. It is strongly recommend to replace this kernel
+with a custom built one, when the system is functional. If you are looking for a way
+to detect and manage your kernel configuration, have a look at [autokernel](https://github.com/oddlama/autokernel).
 
 1. Partition disks (supports gpt, raid, luks)
 1. Download and cryptographically verify the newest stage3 tarball
@@ -36,11 +32,12 @@ Here is a more complete overview of what this script does:
 1. Configure portage (create zz-autounmask files, configure MAKEOPTS, EMERGE_DEFAULT_OPTS)
 1. Select the fastest gentoo mirrors
 1. Configure the base system
-1. Install git (so you can add your portage overlays later)
+1. Install git and other required tools (e.g. zfs if you have used zfs)
 1. Install `sys-kernel/gentoo-kernel-bin` (until you replace it)
-1. Create efibootmgr entry or install syslinux depending on whether your system uses EFI
+1. Generate an initramfs with dracut
+1. Create efibootmgr entry or install syslinux depending on whether your system uses EFI or BIOS
 1. Generate a basic fstab
-1. Ask for a root password
+1. Asks if a root password should be set
 
 Also, optionally the following will be done:
 
@@ -48,11 +45,19 @@ Also, optionally the following will be done:
 * Install dhcpcd (only for OpenRC)
 * Install additional packages provided in config
 
-Anything else is probably out of scope for this script,
-but you can obviously do anything later on when the system is booted.
-I highly recommend building a custom kernel. Have a look at the [Recommendations](#Recommendations) section.
+Anything else is probably out of scope for this script, but you can obviously do
+anything later on when the system is booted. Here are some things that you probably
+want to consider doing after the base system installation is finished:
 
-## Install
+* Read the news with `eselect news read`.
+* Compile a custom kernel and remove `gentoo-kernel-bin`
+* Adjust `/etc/portage/make.conf`
+  - Set `CFLAGS` to `-O2 -pipe -march=native` for native builds
+  - Set `CPU_FLAGS_X86` using the `cpuid2cpuflags` tool
+  - Set `FEATURES="buildpkg"` if you want to build binary packages
+* Use a safe umask like `umask 0077`
+
+## Usage
 
 Installing gentoo with this script is simple.
 
@@ -62,20 +67,12 @@ Installing gentoo with this script is simple.
 2. Clone this repository
 3. Run `./configure` or create your own `gentoo.conf` following the example file.
    Particularily pay attention to the device which will be partitioned.
-   The script will ask for confirmation
-   before doing any partitioning - but better be safe there.
-4. Execute `./install`. The script will tell you if your live
-   system is missing any required software.
+   The script will ask for confirmation before doing any partitioning - but better be safe here.
+4. Execute `./install`.
 
 The script should be able to run without any user supervision after partitioning, but depending
 on the current state of the gentoo repository you might need to intervene in case a package fails
 to emerge. The critical commands will ask you what to do in case of a failure.
-
-### Config
-
-The config file `gentoo.conf` allows you to adjust some parameters of the installation.
-The most important ones will probably be the device to partition, and the stage3 tarball name
-to install. By default you will get the hardened nomultilib profile without systemd.
 
 ### (Optional) sshd
 
@@ -85,13 +82,14 @@ algorithms to a reasonable subset, disable any password based authentication,
 and only allow root to login.
 
 You can provide keys that will be written to root's `.ssh/authorized_keys` file. This will allow
-you to directly continue your setup with infrastructure management software such as ansible or [simple_automation](https://github.com/oddlama/simple_automation).
+you to directly continue your setup with your favourite infrastructure management software.
 
 ### (Optional) Additional packages
 
 You can add any amount of additional packages to be installed on the target system.
-These will simply be passed to a final `emerge` call before the script is done, and autounmasking will also be done automatically.
-It is recommended to keep this to a minimum, because of the quite "interactive" nature of gentoo package management ;)
+These will simply be passed to a final `emerge` call before the script is done,
+where autounmasking will also be done automatically. It is recommended to keep
+this to a minimum, because of the quite "interactive" nature of gentoo package management ;)
 
 ### Troubleshooting
 
@@ -102,23 +100,6 @@ The script checks every command for success, so if anything fails during install
 you will be given a proper message of what went wrong. Inside the chroot,
 most commands will be executed in a checked loop, and allow you to interactively
 fix problems with a shell, to retry, or to skip the command.
-
-## Recommendations
-
-There are some things that you probably want to do after installing the base system,
-or should consider:
-
-* Read the news with `eselect news read`.
-* Use a custom kernel (config and hardening, see [autokernel](https://github.com/oddlama/autokernel)), and remove `gentoo-kernel-bin`
-* Adjust `/etc/portage/make.conf`
-  - Set `CFLAGS` to `-O2 -pipe -march=native` for native builds
-  - Set `CPU_FLAGS_X86` using the `cpuid2cpuflags` tool
-  - Set `FEATURES="buildpkg"` if you want to build binary packages
-* Use a safe umask like `umask 0077`
-
-## Acknowledgements
-
-This installer bundles a statically linked copy of newt
 
 ## References
 

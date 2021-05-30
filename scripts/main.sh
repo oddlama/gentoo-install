@@ -304,6 +304,25 @@ function main_install_gentoo_in_chroot() {
 		try emerge --verbose sys-fs/btrfs-progs
 	fi
 
+	# Install zfs kernel module and tools if we used zfs
+	if [[ $USED_ZFS == "true" ]]; then
+		einfo "Installing zfs"
+		try emerge --verbose sys-fs/zfs sys-fs/zfs-kmod
+
+		einfo "Enabling zfs services"
+		if [[ $SYSTEMD == "true" ]]; then
+			systemctl enable zfs.target        || die "Could not enable zfs.target service"
+			systemctl enable zfs-import-cache  || die "Could not enable zfs-import-cache service"
+			systemctl enable zfs-mount         || die "Could not enable zfs-mount service"
+			systemctl enable zfs-import.target || die "Could not enable zfs-import.target service"
+		else
+			rc-update add zfs-import boot   || die "Could not add zfs-import to boot services"
+			rc-update add zfs-mount boot    || die "Could not add zfs-mount to boot services"
+			rc-update add zfs-share default || die "Could not add zfs-share to default services"
+			rc-update add zfs-zed default   || die "Could not add zfs-zed to default services"
+		fi
+	fi
+
 	# Install kernel and initramfs
 	install_kernel
 
