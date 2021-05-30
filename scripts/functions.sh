@@ -104,12 +104,12 @@ function add_summary_entry() {
 
 	local ptr
 	case "$id" in
-		"$DISK_ID_BIOS")  ptr="[1;32m← bios[m" ;;
-		"$DISK_ID_EFI")   ptr="[1;32m← efi[m"  ;;
-		"$DISK_ID_SWAP")  ptr="[1;34m← swap[m" ;;
-		"$DISK_ID_ROOT")  ptr="[1;33m← root[m" ;;
+		"${DISK_ID_BIOS-__unused__}")  ptr="[1;32m← bios[m" ;;
+		"${DISK_ID_EFI-__unused__}")   ptr="[1;32m← efi[m"  ;;
+		"${DISK_ID_SWAP-__unused__}")  ptr="[1;34m← swap[m" ;;
+		"${DISK_ID_ROOT-__unused__}")  ptr="[1;33m← root[m" ;;
 		# \x1f characters compensate for printf byte count and unicode character count mismatch due to '←'
-		*)                ptr="[1;32m[m$(echo -e "\x1f\x1f")" ;;
+		*)                             ptr="[1;32m[m$(echo -e "\x1f\x1f")" ;;
 	esac
 
 	summary_tree[$parent]+=";$id"

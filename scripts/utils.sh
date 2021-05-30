@@ -338,7 +338,7 @@ function check_has_programs() {
 	if type pacman &>/dev/null; then
 		declare -A pacman_packages
 		pacman_packages=(
-			[ntpd]=openntpd
+			[ntpd]=ntp
 			[zfs]=""
 		)
 		echo "We have detected that pacman is available."
