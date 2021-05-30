@@ -6,7 +6,7 @@ function elog() {
 }
 
 function einfo() {
-	echo "[[1;33m*[m] [1;33m$*[m"
+	echo "[[1+[m] [1;33m$*[m"
 }
 
 function ewarn() {
