@@ -345,14 +345,18 @@ function check_has_programs() {
 		if ask "Do you want to install the missing programs automatically?"; then
 			local packages
 			local need_zfs=false
+
 			for program in "${failed[@]}"; do
+				[[ "$program" == "zfs" ]] \
+					&& need_zfs=true
+
 				if [[ -v "pacman_packages[$program]" ]]; then
-					packages+=("$program")
-				else
 					# Assignments to the empty string are explcitly ignored,
 					# as for example zfs needs to be handeled separately.
 					[[ -n "${pacman_packages[$program]}" ]] \
 						&& packages+=("${pacman_packages[$program]}")
+				else
+					packages+=("$program")
 				fi
 			done
 			pacman -Sy "${packages[@]}"
