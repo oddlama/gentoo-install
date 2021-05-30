@@ -822,7 +822,7 @@ function gentoo_chroot() {
 		gentoo_chroot "$1" /bin/bash --init-file <(echo 'init_bash')
 	fi
 
-	[[ -v EXECUTED_IN_CHROOT ]] \
+	[[ ${EXECUTED_IN_CHROOT-false} == "false" ]] \
 		|| die "Already in chroot"
 
 	local chroot_dir="$1"
