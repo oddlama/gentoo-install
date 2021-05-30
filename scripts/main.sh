@@ -123,6 +123,8 @@ function generate_initramfs() {
 		&& modules+=("crypt crypt-gpg")
 	[[ $USED_BTRFS == "true" ]] \
 		&& modules+=("btrfs")
+	[[ $USED_ZFS == "true" ]] \
+		&& modules+=("zfs")
 
 	local kver
 	kver="$(readlink /usr/src/linux)" \
@@ -144,7 +146,14 @@ function generate_initramfs() {
 }
 
 function get_cmdline() {
-	echo -n "rd.vconsole.keymap=$KEYMAP_INITRAMFS ${DISK_DRACUT_CMDLINE[*]} root=UUID=$(get_blkid_uuid_for_id "$DISK_ID_ROOT")"
+	local root_line
+	if [[ $USED_ZFS == "true" ]]; then
+		root_line="root=zfs:AUTO"
+	else
+		root_line="root=UUID=$(get_blkid_uuid_for_id "$DISK_ID_ROOT")"
+	fi
+
+	echo -n "rd.vconsole.keymap=$KEYMAP_INITRAMFS ${DISK_DRACUT_CMDLINE[*]} $root_line"
 }
 
 function install_kernel_efi() {

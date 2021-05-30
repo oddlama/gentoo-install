@@ -8,7 +8,7 @@ edited by hand if desired. An example configuration is provided with the reposit
 
 1. Download a copy or clone this repo
 1. Run `./configure` and save your configuration
-1. When using encryption, export your desired key with `export GENTOO_INSTALL_ENCRYPTION_KEY="mypassword"`
+1. When using encryption, export your desired key with `export GENTOO_INSTALL_ENCRYPTION_KEY='mypassword'`
 1. Run installation using `./install`
 
 Every option is explained in detail in `gentoo.conf.example` and in the help menu popups in the configurator.

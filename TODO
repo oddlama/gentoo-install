@@ -1,5 +1,1 @@
-- zfs support
-  - start systemd services
-  - create pool
-  - enable zstd
 - zfs selector dracut
