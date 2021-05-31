@@ -97,7 +97,7 @@ function check_encryption_key() {
 
 			while true; do
 				flush_stdin
-				read -s -r -p "Enter encryption key: " encryption_key_1 \
+				IFS="" read -s -r -p "Enter encryption key: " encryption_key_1 \
 					|| die "Error in read"
 				echo
 
@@ -105,7 +105,7 @@ function check_encryption_key() {
 					|| { ewarn "Your encryption key must be at least 8 characters long."; continue; }
 
 				flush_stdin
-				read -s -r -p "Repeat encryption key: " encryption_key_2 \
+				IFS="" read -s -r -p "Repeat encryption key: " encryption_key_2 \
 					|| die "Error in read"
 				echo
 
