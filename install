@@ -109,10 +109,10 @@ if [[ -z "$ACTION" ]]; then
 	fi
 fi
 
-if [[ -e "$CONFIG" ]]; then
+if [[ "$ACTION" != "chroot" ]]; then
 	# Load config if we aren't just chrooting
-	[[ "$ACTION" == "chroot" ]] \
-		continue
+	[[ -e "$CONFIG" ]] \
+		 || die "Configuration file '$CONFIG' does not exist. To run the configurator, omit '-i' flag or run ./configure"
 
 	# shellcheck disable=SC1090
 	source "$CONFIG" || die "Could not source config"
@@ -120,8 +120,6 @@ if [[ -e "$CONFIG" ]]; then
 		|| die "You have not properly read the config. Edit the config file and set I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY=true to continue."
 
 	preprocess_config
-elif [[ "$ACTION" != "chroot" ]]; then
-	die "Configuration file '$CONFIG' does not exist. To run the configurator, omit '-i' flag or run ./configure"
 fi
 
 [[ $EUID == 0 ]] \
