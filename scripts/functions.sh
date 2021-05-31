@@ -99,6 +99,7 @@ function check_encryption_key() {
 				flush_stdin
 				read -s -r -p "Enter encryption key: " encryption_key_1 \
 					|| die "Error in read"
+				echo
 
 				[[ ${#encryption_key_1} -ge 8 ]] \
 					|| { ewarn "Your encryption key must be at least 8 characters long."; continue; }
@@ -106,6 +107,7 @@ function check_encryption_key() {
 				flush_stdin
 				read -s -r -p "Repeat encryption key: " encryption_key_2 \
 					|| die "Error in read"
+				echo
 
 				[[ "$encryption_key_1" == "$encryption_key_2" ]] \
 					|| { ewarn "Encryption keys mismatch."; continue; }

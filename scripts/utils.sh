@@ -10,7 +10,7 @@ function einfo() {
 }
 
 function ewarn() {
-	echo "[[1;31m![m] [1;33m$*" >&2
+	echo "[[1;31m![m] [1;33m$*[m" >&2
 }
 
 function eerror() {
