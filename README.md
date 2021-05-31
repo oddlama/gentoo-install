@@ -27,6 +27,10 @@ The system will use `sys-kernel/gentoo-kernel-bin`, which should be suitable
 to boot most systems out of the box. It is strongly recommend to replace this kernel
 with a custom built one, when the system is functional.
 
+The installer should be able to run without any user supervision after partitioning, but depending
+on the current state of the gentoo repository you might need to intervene in case a package fails
+to emerge. The critical commands will ask you what to do in case of a failure.
+
 1. Partition disks (supports gpt, raid, luks)
 1. Download and cryptographically verify the newest stage3 tarball
 1. Extract the stage3 tarball
@@ -61,23 +65,6 @@ want to consider doing after the base system installation is finished:
 * Use a safe umask like `umask 0077`
 
 If you are looking for a way to detect and manage your kernel configuration, have a look at [autokernel](https://github.com/oddlama/autokernel).
-
-## Usage
-
-Installing gentoo with this script is simple.
-
-1. Boot into the live system of your choice. As the script requires some utilities,
-   I recommend using a live system where you can quickly install new software.
-   Any [Arch Linux](https://www.archlinux.org/download/) live iso works fine.
-2. Clone this repository
-3. Run `./configure` or create your own `gentoo.conf` following the example file.
-   Particularily pay attention to the device which will be partitioned.
-   The script will ask for confirmation before doing any partitioning - but better be safe here.
-4. Execute `./install`.
-
-The script should be able to run without any user supervision after partitioning, but depending
-on the current state of the gentoo repository you might need to intervene in case a package fails
-to emerge. The critical commands will ask you what to do in case of a failure.
 
 ### (Optional) sshd
 
