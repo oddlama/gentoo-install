@@ -146,14 +146,14 @@ function generate_initramfs() {
 }
 
 function get_cmdline() {
-	local root_line
-	if [[ $USED_ZFS == "true" ]]; then
-		root_line="root=zfs:AUTO"
-	else
-		root_line="root=UUID=$(get_blkid_uuid_for_id "$DISK_ID_ROOT")"
+	local cmdline=("rd.vconsole.keymap=$KEYMAP_INITRAMFS")
+	cmdline+=("${DISK_DRACUT_CMDLINE[@]}")
+
+	if [[ $USED_ZFS != "true" ]]; then
+		cmdline+=("root=UUID=$(get_blkid_uuid_for_id "$DISK_ID_ROOT")")
 	fi
 
-	echo -n "rd.vconsole.keymap=$KEYMAP_INITRAMFS ${DISK_DRACUT_CMDLINE[*]} $root_line"
+	echo -n "${cmdline[*]}"
 }
 
 function install_kernel_efi() {
