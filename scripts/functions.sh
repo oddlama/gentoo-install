@@ -111,7 +111,9 @@ function check_encryption_key() {
 
 				[[ "$encryption_key_1" == "$encryption_key_2" ]] \
 					|| { ewarn "Encryption keys mismatch."; continue; }
+				break
 			done
+
 			export GENTOO_INSTALL_ENCRYPTION_KEY="$encryption_key_1"
 		else
 			die "Please export GENTOO_INSTALL_ENCRYPTION_KEY with the desired key."
