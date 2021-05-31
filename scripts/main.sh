@@ -139,7 +139,6 @@ function generate_initramfs() {
 		--no-compress \
 		--no-hostonly \
 		--ro-mnt \
-		--omit          "systemd" \
 		--add           "bash ${modules[*]}" \
 		--force \
 		"$output"
