@@ -1,8 +1,14 @@
 ## About gentoo-install
 
-A installer for gentoo with a simple menuconfig inspired configuration TUI.
+This is an installer for gentoo with a simple configuration TUI inspired by menuconfig.
 The configurator is only used to generate a `gentoo.conf` file, which can also be
-edited by hand if desired. An example configuration is provided with the repository.
+edited by hand, or reused later if desired. An example configuration is provided with the repository.
+
+The installer supports the most common disk layouts, different file systems like ext4, ZFS and btrfs as well
+as additional layers such as LUKS or mdraid. It also supports both EFI (recommended) and BIOS boot,
+and can be used with systemd or OpenRC as the init system.
+
+![](contrib/screenshot_configure.png)
 
 ## Quick start
 
@@ -19,10 +25,6 @@ When installing, you will be asked to review the partitioning before anything cr
 
 ## Overview
 
-This script performs a reasonably minimal installation of gentoo. An EFI system is highly
-recommended, but legacy BIOS boot is also supported. The script supports both systemd (default)
-and OpenRC as the init system.
-
 The system will use `sys-kernel/gentoo-kernel-bin`, which should be suitable
 to boot most systems out of the box. It is strongly recommend to replace this kernel
 with a custom built one, when the system is functional.
@@ -30,6 +32,8 @@ with a custom built one, when the system is functional.
 The installer should be able to run without any user supervision after partitioning, but depending
 on the current state of the gentoo repository you might need to intervene in case a package fails
 to emerge. The critical commands will ask you what to do in case of a failure.
+
+Here is an outline of the steps that are carried out:
 
 1. Partition disks (supports gpt, raid, luks)
 1. Download and cryptographically verify the newest stage3 tarball

@@ -16,6 +16,7 @@
 # Be sure to only define one layout!
 
 # This function will be called when a custom zfs pool type has been chosen.
+# You do not need to change this, unless you have chosen a custom zfs pool type.
 # $1: either 'true' or 'false' determining if the pool should be encrypted
 # $2: a string describing all device paths (for error messages)
 # $@: device paths
