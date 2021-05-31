@@ -47,10 +47,12 @@ function check_config() {
 }
 
 function preprocess_config() {
+	disk_configuration
+
 	# Check encryption key if used
 	[[ $USED_ENCRYPTION == "true" ]] \
 		&& check_encryption_key
-	disk_configuration
+
 	check_config
 }
 
