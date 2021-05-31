@@ -47,26 +47,23 @@ Here is an outline of the steps that are carried out:
 1. Generate an initramfs with dracut
 1. Create efibootmgr entry or install syslinux depending on whether your system uses EFI or BIOS
 1. Generate fstab
-1. (Optional components from below)
+1. Depending on the configuration:
+   - (Optional) Install sshd with secure config
+   - (Optional) Install dhcpcd (if using OpenRC)
+   - (Optional) Install additional packages provided in config
 1. Asks if a root password should be set
 
-Also, optionally the following will be done:
-
-* Install sshd with secure config
-* Install dhcpcd (only for OpenRC)
-* Install additional packages provided in config
-
 Anything else is probably out of scope for this script, but you can obviously do
-anything later on when the system is booted. Here are some things that you probably
+what you want later on when the system is booted. Here are some things that you probably
 want to consider doing after the base system installation is finished:
 
-* Read the news with `eselect news read`.
-* Compile a custom kernel and remove `gentoo-kernel-bin`
-* Adjust `/etc/portage/make.conf`
-  - Set `CFLAGS` to `-O2 -pipe -march=native` for native builds
-  - Set `CPU_FLAGS_X86` using the `cpuid2cpuflags` tool
-  - Set `FEATURES="buildpkg"` if you want to build binary packages
-* Use a safe umask like `umask 0077`
+1. Read the news with `eselect news read`.
+2. Compile a custom kernel and remove `gentoo-kernel-bin`
+3. Adjust `/etc/portage/make.conf`
+   - Set `CFLAGS` to `-O2 -pipe -march=native` for native builds
+   - Set `CPU_FLAGS_X86` using the `cpuid2cpuflags` tool
+   - Set `FEATURES="buildpkg"` if you want to build binary packages
+4. Use a safe umask like `umask 0077`
 
 If you are looking for a way to detect and manage your kernel configuration, have a look at [autokernel](https://github.com/oddlama/autokernel).
 
@@ -89,8 +86,8 @@ this to a minimum, because of the quite "interactive" nature of gentoo package m
 
 ### Troubleshooting
 
-In theory, after the initial sanity check, the script should be able to finish unattendedly.
-But given the unpredictability of future gentoo versions, you might still run into an issue.
+After the initial sanity check, the script should be able to finish unattendedly.
+But given the unpredictability of future gentoo versions, you might still run into issues
 
 The script checks every command for success, so if anything fails during installation,
 you will be given a proper message of what went wrong. Inside the chroot,
