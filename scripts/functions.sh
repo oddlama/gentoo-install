@@ -89,7 +89,7 @@ function prepare_installation_environment() {
 }
 
 function check_encryption_key() {
-	if [[ -n "${GENTOO_INSTALL_ENCRYPTION_KEY+set}" ]]; then
+	if [[ -z "${GENTOO_INSTALL_ENCRYPTION_KEY+set}" ]]; then
 		elog "You have enabled encryption, but haven't specified a key in the environment variable GENTOO_INSTALL_ENCRYPTION_KEY."
 		if ask "Do you want to enter an encryption key now?"; then
 			local encryption_key_1
