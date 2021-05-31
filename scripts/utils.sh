@@ -332,8 +332,8 @@ function check_has_programs() {
 	[[ "${#failed[@]}" -eq 0 ]] \
 		&& return
 
-	echo "The following programs are required for the installer to work, but are currently missing on your system:" >&2
-	echo "  ${failed[*]}" >&2
+	elog "The following programs are required for the installer to work, but are currently missing on your system:" >&2
+	elog "  ${failed[*]}" >&2
 
 	if type pacman &>/dev/null; then
 		declare -A pacman_packages
@@ -341,7 +341,7 @@ function check_has_programs() {
 			[ntpd]=ntp
 			[zfs]=""
 		)
-		echo "We have detected that pacman is available."
+		elog "We have detected that pacman is available."
 		if ask "Do you want to install the missing programs automatically?"; then
 			local packages
 			local need_zfs=false
@@ -362,8 +362,8 @@ function check_has_programs() {
 			pacman -Sy "${packages[@]}"
 
 			if [[ "$need_zfs" == true ]]; then
-				echo "On an Arch live-stick you need the archzfs repository and some tools and modifications to use zfs."
-				echo "There is an automated installer available at https://eoli3n.github.io/archzfs/init."
+				elog "On an Arch live-stick you need the archzfs repository and some tools and modifications to use zfs."
+				elog "There is an automated installer available at https://eoli3n.github.io/archzfs/init."
 				if ask "Do you want to automatically download and execute this zfs installation script?"; then
 					curl -s "https://eoli3n.github.io/archzfs/init" | bash
 				fi

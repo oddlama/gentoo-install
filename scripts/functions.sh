@@ -47,6 +47,9 @@ function check_config() {
 }
 
 function preprocess_config() {
+	# Check encryption key if used
+	[[ $USED_ENCRYPTION == "true" ]] \
+		&& check_encryption_key
 	disk_configuration
 	check_config
 }
@@ -79,17 +82,37 @@ function prepare_installation_environment() {
 	# Check for existence of required programs
 	check_has_programs "${needed_programs[@]}"
 
-	# Check encryption key if used
-	[[ $USED_ENCRYPTION == "true" ]] \
-		&& check_encryption_key
-
 	# Sync time now to prevent issues later
 	sync_time
 }
 
 function check_encryption_key() {
-	[[ -n "${GENTOO_INSTALL_ENCRYPTION_KEY+set}" ]] \
-		|| die "You are using encryption but GENTOO_INSTALL_ENCRYPTION_KEY is unset or empty. Export it before running this script."
+	if [[ -n "${GENTOO_INSTALL_ENCRYPTION_KEY+set}" ]]; then
+		elog "You have enabled encryption, but haven't specified a key in the environment variable GENTOO_INSTALL_ENCRYPTION_KEY."
+		if ask "Do you want to enter an encryption key now?"; then
+			local encryption_key_1
+			local encryption_key_2
+
+			while true; do
+				flush_stdin
+				read -s -r -p "Enter encryption key: " encryption_key_1 \
+					|| die "Error in read"
+
+				[[ ${#encryption_key_1} -ge 8 ]] \
+					|| { ewarn "Your encryption key must be at least 8 characters long."; continue; }
+
+				flush_stdin
+				read -s -r -p "Repeat encryption key: " encryption_key_2 \
+					|| die "Error in read"
+
+				[[ "$encryption_key_1" == "$encryption_key_2" ]] \
+					|| { ewarn "Encryption keys mismatch."; continue; }
+			done
+			export GENTOO_INSTALL_ENCRYPTION_KEY="$encryption_key_1"
+		else
+			die "Please export GENTOO_INSTALL_ENCRYPTION_KEY with the desired key."
+		fi
+	fi
 
 	[[ ${#GENTOO_INSTALL_ENCRYPTION_KEY} -ge 8 ]] \
 		|| die "Your encryption key must be at least 8 characters long."

@@ -6,10 +6,13 @@ edited by hand if desired. An example configuration is provided with the reposit
 
 ## Quick start
 
-1. Download a copy or clone this repo
-1. Run `./configure` and save your configuration
-1. When using encryption, export your desired key with `export GENTOO_INSTALL_ENCRYPTION_KEY='mypassword'`
-1. Run installation using `./install`
+First, boot into a live environment of your choice. I recommend using an [Arch Linux](https://www.archlinux.org/download/) live iso,
+as the installer will then be able to automatically download required programs or setup zfs support on the fly. After that,
+proceed with the following steps:
+
+1. Either clone this repo or download and extract a copy
+1. Run `./configure` and save your desired configuration
+1. Begin installation using `./install`
 
 Every option is explained in detail in `gentoo.conf.example` and in the help menu popups in the configurator.
 When installing, you will be asked to review the partitioning before anything critical is done.
@@ -22,21 +25,21 @@ and OpenRC as the init system.
 
 The system will use `sys-kernel/gentoo-kernel-bin`, which should be suitable
 to boot most systems out of the box. It is strongly recommend to replace this kernel
-with a custom built one, when the system is functional. If you are looking for a way
-to detect and manage your kernel configuration, have a look at [autokernel](https://github.com/oddlama/autokernel).
+with a custom built one, when the system is functional.
 
 1. Partition disks (supports gpt, raid, luks)
 1. Download and cryptographically verify the newest stage3 tarball
 1. Extract the stage3 tarball
 1. Sync portage tree
-1. Configure portage (create zz-autounmask files, configure MAKEOPTS, EMERGE_DEFAULT_OPTS)
-1. Select the fastest gentoo mirrors
-1. Configure the base system
+1. Configure portage (create zz-autounmask files, configure `make.conf`)
+1. Select the fastest gentoo mirrors if desired
+1. Configure the base system (timezone, keymap, locales, ...)
 1. Install git and other required tools (e.g. zfs if you have used zfs)
-1. Install `sys-kernel/gentoo-kernel-bin` (until you replace it)
+1. Install `sys-kernel/gentoo-kernel-bin` (until you can compile your own)
 1. Generate an initramfs with dracut
 1. Create efibootmgr entry or install syslinux depending on whether your system uses EFI or BIOS
-1. Generate a basic fstab
+1. Generate fstab
+1. (Optional components from below)
 1. Asks if a root password should be set
 
 Also, optionally the following will be done:
@@ -56,6 +59,8 @@ want to consider doing after the base system installation is finished:
   - Set `CPU_FLAGS_X86` using the `cpuid2cpuflags` tool
   - Set `FEATURES="buildpkg"` if you want to build binary packages
 * Use a safe umask like `umask 0077`
+
+If you are looking for a way to detect and manage your kernel configuration, have a look at [autokernel](https://github.com/oddlama/autokernel).
 
 ## Usage
 

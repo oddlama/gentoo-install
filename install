@@ -109,16 +109,19 @@ if [[ -z "$ACTION" ]]; then
 	fi
 fi
 
-# Load config
-[[ -e "$CONFIG" ]] \
-	|| die "Configuration file '$CONFIG' does not exist. To run the configurator, omit '-i' or "
+# Load config if we aren't just chrooting
+if [[ -e "$CONFIG" ]]; then
+	[[ "$ACTION" == "chroot" ]] \
+		|| die "Configuration file '$CONFIG' does not exist. To run the configurator, omit '-i' or "
 
-# shellcheck disable=SC1090
-source "$CONFIG" || die "Could not source config"
-[[ $I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY == "true" ]] \
-	|| die "You have not properly read the config. Edit the config file and set I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY=true to continue."
+	# shellcheck disable=SC1090
+	source "$CONFIG" || die "Could not source config"
+	[[ $I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY == "true" ]] \
+		|| die "You have not properly read the config. Edit the config file and set I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY=true to continue."
 
-preprocess_config
+	preprocess_config
+fi
+
 [[ $EUID == 0 ]] \
 	|| die "Must be root"
 
