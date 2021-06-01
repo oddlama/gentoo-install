@@ -180,6 +180,8 @@ function disk_create_gpt() {
 	local ptuuid="${DISK_ID_TO_UUID[$new_id]}"
 
 	einfo "Creating new gpt partition table ($new_id) on $device_desc"
+	wipefs --quiet --all --force "$device" \
+		|| die "Could not erase previous file system signatures from '$device'"
 	sgdisk -Z -U "$ptuuid" "$device" >/dev/null \
 		|| die "Could not create new gpt partition table ($new_id) on '$device'"
 	partprobe "$device"
@@ -358,7 +360,11 @@ function disk_format() {
 	local device
 	device="$(resolve_device_by_id "$id")" \
 		|| die "Could not resolve device with id=$id"
+
 	einfo "Formatting $device ($id) with $type"
+	wipefs --quiet --all --force "$device" \
+		|| die "Could not erase previous file system signatures from '$device' ($id)"
+
 	case "$type" in
 		'bios'|'efi')
 			if [[ -v "arguments[label]" ]]; then
@@ -413,6 +419,7 @@ function format_zfs_standard() {
 	local devices=("$@")
 
 	einfo "Creating zfs pool on $devices_desc"
+
 	local extra_args=()
 	if [[ "$encrypt" == true ]]; then
 		extra_args+=(
@@ -476,6 +483,9 @@ function disk_format_zfs() {
 	done
 	devices_desc="${devices_desc:0:-2}"
 
+	wipefs --quiet --all --force "${devices[@]}" \
+		|| die "Could not erase previous file system signatures from $devices_desc"
+
 	if [[ "$pool_type" == "custom" ]]; then
 		format_zfs_custom "$encrypt" "$devices_desc" "${devices[@]}"
 	else
@@ -510,6 +520,9 @@ function disk_format_btrfs() {
 		devices_desc+="$dev ($id), "
 	done
 	devices_desc="${devices_desc:0:-2}"
+
+	wipefs --quiet --all --force "${devices[@]}" \
+		|| die "Could not erase previous file system signatures from $devices_desc"
 
 	# Collect extra arguments
 	extra_args=()
