@@ -178,7 +178,7 @@ PARTITIONING_BTRFS_RAID_TYPES=("raid0" "raid1")
 PARTITIONING_ZFS_POOL_TYPES=("standard" "custom")
 
 function create_single_disk_layout() {
-	create_classic_single_disk_layout
+	create_classic_single_disk_layout "$@"
 }
 
 function parse_swap() {
@@ -233,7 +233,7 @@ function create_zfs_centric_layout() {
 }
 
 function create_btrfs_raid_layout() {
-	create_btrfs_centric_layout
+	create_btrfs_centric_layout "$@"
 }
 
 function create_btrfs_centric_layout() {
@@ -327,7 +327,8 @@ function load_default_config() {
 	LOCALE="C.utf8"
 
 	function disk_configuration() {
-		create_zfs_centric_layout swap=8GiB type=efi encrypt=true pool_type=standard /dev/sdX
+		#create_zfs_centric_layout swap=8GiB type=efi encrypt=true pool_type=standard /dev/sdX
+		create_single_disk_layout swap=8GiB type=efi luks=true root_fs=ext4 /dev/sdX
 	}
 
 	SYSTEMD=true
