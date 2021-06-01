@@ -1198,6 +1198,12 @@ function save() {
 		KEYMAP_INITRAMFS="$KEYMAP"
 	fi
 
+	if [[ $INIT_SYSTEM == "systemd" ]]; then
+		SYSTEMD=true
+	else
+		SYSTEMD=false
+	fi
+
 	cat > "$1" <<EOF
 # vim: set ft=sh ts=4 sw=4 sts=-1 noet:
 # This file will be interpreted by /bin/bash.
