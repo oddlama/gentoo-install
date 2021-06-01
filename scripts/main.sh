@@ -386,8 +386,7 @@ function main_install_gentoo_in_chroot() {
 	einfo "Gentoo installation complete."
 	[[ $USED_LUKS == "true" ]] \
 		&& einfo "A backup of your luks headers can be found at '$LUKS_HEADER_BACKUP_DIR', in case you want to have a backup."
-	einfo "To chroot into the new system, simply execute the provided 'chroot' wrapper."
-	einfo "Otherwise, you may now reboot your system."
+	einfo "You may now reboot your system."
 }
 
 function main_install() {
