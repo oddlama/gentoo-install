@@ -172,6 +172,9 @@ function define_disk_layout() {
 	esac
 }
 
+INIT_SYSTEMS=("systemd" "OpenRC")
+ALL_GENTOO_ARCHS=("x86" "amd64" "arm" "arm64")
+
 ALL_PARTITIONING_SCHEMES=(
 	"classic_single_disk" "Classic single disk layout (boot, swap, root)"
 	"zfs_centric"         "ZFS centric (optional raid0/1 and encryption via zfs)"
@@ -185,6 +188,8 @@ PARTITIONING_ROOT_FS_TYPES=("ext4" "btrfs")
 PARTITIONING_BTRFS_RAID_TYPES=("raid0" "raid1")
 PARTITIONING_ZFS_POOL_TYPES=("standard" "custom")
 PARTITIONING_ZFS_COMPRESSIONS=("on" "gzip" "lz4" "lzjb" "zle" "zstd" "zstd-fast")
+
+PORTAGE_SYNC_TYPES=("git" "rsync")
 
 function create_single_disk_layout() {
 	create_classic_single_disk_layout "$@"
@@ -277,8 +282,6 @@ function create_btrfs_centric_layout() {
 
 get_all_keymaps
 get_all_timezones
-INIT_SYSTEMS=("systemd" "OpenRC")
-ALL_GENTOO_ARCHS=("x86" "amd64" "arm" "arm64")
 readarray -t SUPPORTED_LOCALES < "$(get_supported_locales)"
 readarray -t LOCALE_A < <(locale -a)
 
@@ -352,6 +355,10 @@ function load_default_config() {
 	}
 
 	SYSTEMD=true
+
+	PORTAGE_SYNC_TYPE="git"
+	PORTAGE_GIT_FULL_HISTORY=false
+	PORTAGE_GIT_MIRROR="https://anongit.gentoo.org/git/repo/sync/gentoo.git"
 
 	GENTOO_MIRROR="https://mirror.eu.oneandone.net/linux/distributions/gentoo/gentoo"
 	GENTOO_ARCH="amd64"
@@ -748,6 +755,9 @@ MENU_ITEMS=(
 	"LOCALE"
 	"--------"
 	"INIT_SYSTEM"
+	"PORTAGE_SYNC_TYPE"
+	"PORTAGE_GIT_FULL_HISTORY"
+	"PORTAGE_GIT_MIRROR"
 	"GENTOO_MIRROR"
 	"GENTOO_ARCH"
 	"SELECT_MIRRORS"
@@ -1138,6 +1148,47 @@ function INIT_SYSTEM_menu()  {
 	fi
 }
 
+function PORTAGE_SYNC_TYPE_tag()   { echo "Portage tree sync-type"; }
+function PORTAGE_SYNC_TYPE_label() { echo "($PORTAGE_SYNC_TYPE)"; }
+function PORTAGE_SYNC_TYPE_show()  { return 0; }
+function PORTAGE_SYNC_TYPE_help()  { echo "The portage tree sync-type."; }
+function PORTAGE_SYNC_TYPE_menu()  {
+	if menu_radiolist \
+		"Select sync-type" \
+		"Select the portage tree sync-type. Git is generally preferred for modern system installations." \
+		"$PORTAGE_SYNC_TYPE" \
+		"${PORTAGE_SYNC_TYPES[@]}"
+	then
+		# Set arch
+		PORTAGE_SYNC_TYPE="$dialog_out"
+		UNSAVED_CHANGES=true
+	else
+		# Return to menu
+		true
+	fi
+}
+
+function PORTAGE_GIT_FULL_HISTORY_tag()   { echo " ├ Download full history"; }
+function PORTAGE_GIT_FULL_HISTORY_label() { on_off_label "$PORTAGE_GIT_FULL_HISTORY" " ├ "; }
+function PORTAGE_GIT_FULL_HISTORY_show()  { one_of "$PORTAGE_SYNC_TYPE" "git"; }
+function PORTAGE_GIT_FULL_HISTORY_help()  { echo "Determines if the full git history of the portage tree will be downloaded. This can easily take up 1-2GB of disk space."; }
+function PORTAGE_GIT_FULL_HISTORY_menu()  {
+	on_off_toggle "PORTAGE_GIT_FULL_HISTORY"
+	UNSAVED_CHANGES=true
+}
+
+function PORTAGE_GIT_MIRROR_tag()   { echo " └ Git mirror"; }
+function PORTAGE_GIT_MIRROR_label() { echo " └ ($(ellipsis 20 "$PORTAGE_GIT_MIRROR"))"; }
+function PORTAGE_GIT_MIRROR_show()  { one_of "$PORTAGE_SYNC_TYPE" "git"; }
+function PORTAGE_GIT_MIRROR_help()  { echo "The portage git mirror is the git endpoint that is used to sync the portage tree."; }
+function PORTAGE_GIT_MIRROR_menu()  {
+	dialog \
+		--title "Select portage git mirror" \
+		--inputbox "Enter the portage git mirror that should be used to sync the portage tree." \
+		"${INPUTBOX_SIZE[@]}" "$PORTAGE_GIT_MIRROR"
+	UNSAVED_CHANGES=true
+}
+
 function GENTOO_MIRROR_tag()   { echo "Gentoo mirror"; }
 function GENTOO_MIRROR_label() { echo "($(ellipsis 20 "$GENTOO_MIRROR"))"; }
 function GENTOO_MIRROR_show()  { return 0; }
@@ -1281,12 +1332,15 @@ LOCALE=${LOCALE@Q}
 ################################################
 # Gentoo configuration
 
+SYSTEMD=${SYSTEMD@Q}
+PORTAGE_SYNC_TYPE=${PORTAGE_SYNC_TYPE@Q}
+PORTAGE_GIT_FULL_HISTORY=${PORTAGE_GIT_FULL_HISTORY@Q}
+PORTAGE_GIT_MIRROR=${PORTAGE_GIT_MIRROR@Q}
 GENTOO_MIRROR=${GENTOO_MIRROR@Q}
 GENTOO_ARCH=${GENTOO_ARCH@Q}
 STAGE3_BASENAME="stage3-\$GENTOO_ARCH$([[ $SYSTEMD == true ]] && echo -n "-systemd")"
 SELECT_MIRRORS=${SELECT_MIRRORS@Q}
 SELECT_MIRRORS_LARGE_FILE=${SELECT_MIRRORS_LARGE_FILE@Q}
-SYSTEMD=${SYSTEMD@Q}
 
 
 ################################################

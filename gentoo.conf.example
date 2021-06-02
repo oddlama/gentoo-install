@@ -54,10 +54,10 @@ function disk_configuration() {
 	#   swap=<size>                Create a swap partition with given size, or no swap
 	#                              at all if set to false
 	#   type=[efi|bios]            Selects the boot type. Defaults to efi if not given.
-	#   encrypt=[true|false]       Encrypt the zfs pool. Defaults to false if not given.
-	#   pool_type=[mirror|stripe]  Select zfs pool type. Defaults to stripe.
-	#create_zfs_centric_layout type=efi swap=8GiB encrypt=true pool_type=raid0 /dev/nvme0n1
-	#create_zfs_centric_layout type=efi swap=8GiB encrypt=true pool_type=raid0 /dev/nvme0n1 /dev/nvme1n1
+	#   encrypt=[true|false]       Encrypt the zfs datasets. Defaults to false if not given.
+	#   compress=[false|<compression>] Compress the zfs datasets. For valid values visit man zfsprops. Defaults to false if not given.
+	#   pool_type=[standard|custom]  Select zfs pool type. Custom pools allow you to do the pool creation yourself. Defaults to standard.
+	#create_zfs_centric_layout type=efi swap=8GiB encrypt=true compress=zstd pool_type=standard
 
 	# 3. create_raid0_luks_layout
 	#
@@ -202,6 +202,19 @@ LOCALE="C.utf8"
 ################################################
 # Gentoo configuration
 
+# Set to true if the stage3 tarball is based on systemd. In this case
+# we need to use slightly different utilities to setup the base system.
+SYSTEMD=true
+
+# Choose whether to download the portage tree via git or rsync.
+# Git syncing is significantly faster, and generally preferred for new installations.
+PORTAGE_SYNC_TYPE="git"
+# If you have chosen git, you may select to download the full history of the repository.
+# This can easily take up 1-2GB of disk space.
+PORTAGE_GIT_FULL_HISTORY=false
+# If you have chosen git, you may select the git repository mirror here.
+PORTAGE_GIT_MIRROR="https://anongit.gentoo.org/git/repo/sync/gentoo.git"
+
 # The selected gentoo mirror
 GENTOO_MIRROR="https://mirror.eu.oneandone.net/linux/distributions/gentoo/gentoo"
 #GENTOO_MIRROR="https://distfiles.gentoo.org"
@@ -222,10 +235,6 @@ SELECT_MIRRORS=true
 # from each mirror for more accurate test results. This can
 # take significantly longer (~5-10min).
 SELECT_MIRRORS_LARGE_FILE=false
-
-# Set to true if the stagr3 tarball is based on systemd. In this case
-# we need to use slightly different utilities to setup the base system.
-SYSTEMD=true
 
 
 ################################################
