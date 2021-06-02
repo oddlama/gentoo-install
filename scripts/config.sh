@@ -240,7 +240,7 @@ function format() {
 function format_zfs() {
 	USED_ZFS=true
 
-	local known_arguments=('+ids' '?pool_type' '?encrypt')
+	local known_arguments=('+ids' '?pool_type' '?encrypt' '?compress')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
 

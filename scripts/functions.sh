@@ -409,18 +409,26 @@ function disk_format() {
 }
 
 # This function will be called when a custom zfs pool type has been chosen.
-# $1: either 'true' or 'false' determining if the pool should be encrypted
-# $2: a string describing all device paths (for error messages)
+# $1: either 'true' or 'false' determining if the datasets should be encrypted
+# $2: either 'false' or a value determining the dataset compression algorithm
+# $3: a string describing all device paths (for error messages)
 # $@: device paths
 function format_zfs_standard() {
 	local encrypt="$1"
-	local device_desc="$2"
-	shift 2
+	local compress="$2"
+	local device_desc="$3"
+	shift 3
 	local devices=("$@")
+	local extra_args=()
 
 	einfo "Creating zfs pool on $devices_desc"
 
-	local extra_args=()
+	if [[ "$compress" != false ]]; then
+		extra_args+=(
+			"-O" "compression=$compress"
+			)
+	fi
+
 	if [[ "$encrypt" == true ]]; then
 		extra_args+=(
 			"-O" "encryption=aes-256-gcm"
@@ -440,7 +448,6 @@ function format_zfs_standard() {
 		-O mountpoint=none    \
 		-O canmount=noauto    \
 		-O devices=off        \
-		-O compression=zstd   \
 		"${extra_args[@]}"    \
 		rpool                 \
 		"${devices[@]}"       \
@@ -459,6 +466,7 @@ function disk_format_zfs() {
 	local ids="${arguments[ids]}"
 	local pool_type="${arguments[pool_type]}"
 	local encrypt="${arguments[encrypt]-false}"
+	local compress="${arguments[compress]-false}"
 	if [[ ${disk_action_summarize_only-false} == "true" ]]; then
 		local id
 		# Splitting is intentional here
@@ -487,9 +495,9 @@ function disk_format_zfs() {
 		|| die "Could not erase previous file system signatures from $devices_desc"
 
 	if [[ "$pool_type" == "custom" ]]; then
-		format_zfs_custom "$encrypt" "$devices_desc" "${devices[@]}"
+		format_zfs_custom "$devices_desc" "${devices[@]}"
 	else
-		format_zfs_standard "$encrypt" "$devices_desc" "${devices[@]}"
+		format_zfs_standard "$encrypt" "$compress" "$devices_desc" "${devices[@]}"
 	fi
 }
 

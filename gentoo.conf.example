@@ -17,8 +17,7 @@
 
 # This function will be called when a custom zfs pool type has been chosen.
 # You do not need to change this, unless you have chosen a custom zfs pool type.
-# $1: either 'true' or 'false' determining if the pool should be encrypted
-# $2: a string describing all device paths (for error messages)
+# $1: a string describing all device paths (for error messages)
 # $@: device paths
 function format_zfs_custom() {
 	# See format_zfs_standard() function in scripts/functions.sh for an example!

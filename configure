@@ -150,10 +150,18 @@ function define_swap() {
 	fi
 }
 
+function define_zfs_compression() {
+	if [[ $PARTITIONING_ZFS_USE_COMPRESSION != "false" ]]; then
+		echo -n "${PARTITIONING_ZFS_COMPRESSION@Q}"
+	else
+		echo -n "false"
+	fi
+}
+
 function define_disk_layout() {
 	case "$PARTITIONING_SCHEME" in
 		"classic_single_disk") define_disk_configuration_function "create_classic_single_disk_layout swap=$(define_swap) type=${PARTITIONING_BOOT_TYPE@Q} luks=${PARTITIONING_USE_LUKS@Q} root_fs=${PARTITIONING_ROOT_FS@Q}" "${PARTITIONING_DEVICE@Q}" ;;
-		"zfs_centric")         define_disk_configuration_function "create_zfs_centric_layout swap=$(define_swap) type=${PARTITIONING_BOOT_TYPE@Q} encrypt=${PARTITIONING_ZFS_ENCRYPTION@Q} pool_type=${PARTITIONING_ZFS_POOL_TYPE@Q}" "${PARTITIONING_DEVICES[@]@Q}" ;;
+		"zfs_centric")         define_disk_configuration_function "create_zfs_centric_layout swap=$(define_swap) type=${PARTITIONING_BOOT_TYPE@Q} encrypt=${PARTITIONING_ZFS_ENCRYPTION@Q} compress=$(define_zfs_compression) pool_type=${PARTITIONING_ZFS_POOL_TYPE@Q}" "${PARTITIONING_DEVICES[@]@Q}" ;;
 		"btrfs_centric")       define_disk_configuration_function "create_btrfs_centric_layout swap=$(define_swap) type=${PARTITIONING_BOOT_TYPE@Q} raid_type=${PARTITIONING_BTRFS_RAID_TYPE@Q} luks=${PARTITIONING_USE_LUKS@Q}" "${PARTITIONING_DEVICES[@]@Q}" ;;
 		"raid0_luks")          define_disk_configuration_function "create_raid0_luks_layout swap=$(define_swap) type=${PARTITIONING_BOOT_TYPE@Q} root_fs=${PARTITIONING_ROOT_FS@Q}" "${PARTITIONING_DEVICES[@]@Q}" ;;
 		"custom")
@@ -176,6 +184,7 @@ PARTITIONING_BOOT_TYPES=("efi" "bios")
 PARTITIONING_ROOT_FS_TYPES=("ext4" "btrfs")
 PARTITIONING_BTRFS_RAID_TYPES=("raid0" "raid1")
 PARTITIONING_ZFS_POOL_TYPES=("standard" "custom")
+PARTITIONING_ZFS_COMPRESSIONS=("on" "gzip" "lz4" "lzjb" "zle" "zstd" "zstd-fast")
 
 function create_single_disk_layout() {
 	create_classic_single_disk_layout "$@"
@@ -188,6 +197,16 @@ function parse_swap() {
 	else
 		PARTITIONING_USE_SWAP=true
 		PARTITIONING_SWAP="$1"
+	fi
+}
+
+function parse_zfs_compression() {
+	if [[ $1 == "false" ]]; then
+		PARTITIONING_ZFS_USE_COMPRESSION=false
+		PARTITIONING_ZFS_COMPRESSION=zstd
+	else
+		PARTITIONING_ZFS_USE_COMPRESSION=true
+		PARTITIONING_ZFS_COMPRESSION="$1"
 	fi
 }
 
@@ -221,7 +240,7 @@ function create_raid0_luks_layout() {
 function create_zfs_centric_layout() {
 	PARTITIONING_SCHEME="zfs_centric"
 
-	local known_arguments=('+swap' '?type' '?pool_type' '?encrypt')
+	local known_arguments=('+swap' '?type' '?pool_type' '?encrypt' '?compress')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
 
@@ -230,6 +249,7 @@ function create_zfs_centric_layout() {
 	PARTITIONING_BOOT_TYPE="${arguments[type]}"
 	PARTITIONING_ZFS_POOL_TYPE="${arguments[pool_type]:-standard}"
 	PARTITIONING_ZFS_ENCRYPTION="${arguments[encrypt]:-false}"
+	parse_zfs_compression "${arguments[compress]:-false}"
 }
 
 function create_btrfs_raid_layout() {
@@ -327,7 +347,7 @@ function load_default_config() {
 	LOCALE="C.utf8"
 
 	function disk_configuration() {
-		#create_zfs_centric_layout swap=8GiB type=efi encrypt=true pool_type=standard /dev/sdX
+		#create_zfs_centric_layout swap=8GiB type=efi encrypt=true compress=zstd pool_type=standard /dev/sdX
 		create_classic_single_disk_layout swap=8GiB type=efi luks=true root_fs=ext4 /dev/sdX
 	}
 
@@ -713,6 +733,8 @@ MENU_ITEMS=(
 	"PARTITIONING_USE_LUKS"
 	"PARTITIONING_ZFS_POOL_TYPE"
 	"PARTITIONING_ZFS_ENCRYPTION"
+	"PARTITIONING_ZFS_USE_COMPRESSION"
+	"PARTITIONING_ZFS_COMPRESSION"
 	"PARTITIONING_BTRFS_RAID_TYPE"
 	"PARTITIONING_DEVICE"
 	"PARTITIONING_DEVICES"
@@ -756,7 +778,7 @@ function PARTITIONING_SCHEME_menu()  {
 		# Set disk scheme
 		case "$dialog_out" in
 			"classic_single_disk") create_classic_single_disk_layout swap=8GiB type=efi luks=false root_fs=ext4 /dev/sdX ;;
-			"zfs_centric")         create_zfs_centric_layout swap=8GiB type=efi encrypt=true pool_type=standard /dev/sdX ;;
+			"zfs_centric")         create_zfs_centric_layout swap=8GiB type=efi encrypt=true compress=zstd pool_type=standard /dev/sdX ;;
 			"btrfs_centric")       create_btrfs_centric_layout swap=8GiB type=efi raid_type=raid0 luks=false /dev/sdX ;;
 			"raid0_luks")          create_raid0_luks_layout swap=8GiB type=efi root_fs=ext4 /dev/sdX /dev/sdY ;;
 			"custom")              PARTITIONING_SCHEME="$dialog_out" ;;
@@ -846,6 +868,35 @@ function PARTITIONING_ZFS_ENCRYPTION_help()  { echo "Determines if ZFS encryptio
 function PARTITIONING_ZFS_ENCRYPTION_menu()  {
 	on_off_toggle "PARTITIONING_ZFS_ENCRYPTION"
 	UNSAVED_CHANGES=true
+}
+
+function PARTITIONING_ZFS_USE_COMPRESSION_tag()   { echo " ├ Use ZFS Compression"; }
+function PARTITIONING_ZFS_USE_COMPRESSION_label() { on_off_label "$PARTITIONING_ZFS_USE_COMPRESSION" " ├ "; }
+function PARTITIONING_ZFS_USE_COMPRESSION_show()  { [[ $PARTITIONING_SCHEME != "custom" ]] && one_of "$PARTITIONING_SCHEME" "zfs_centric" && one_of "$PARTITIONING_ZFS_POOL_TYPE" "standard"; }
+function PARTITIONING_ZFS_USE_COMPRESSION_help()  { echo "Determines if compression should be enabled on the ZFS datasets."; }
+function PARTITIONING_ZFS_USE_COMPRESSION_menu()  {
+	on_off_toggle "PARTITIONING_ZFS_USE_COMPRESSION"
+	UNSAVED_CHANGES=true
+}
+
+function PARTITIONING_ZFS_COMPRESSION_tag()   { echo " │  └ Compression algorithm"; }
+function PARTITIONING_ZFS_COMPRESSION_label() { echo " │  └ ($PARTITIONING_ZFS_COMPRESSION)"; }
+function PARTITIONING_ZFS_COMPRESSION_show()  { [[ $PARTITIONING_SCHEME != "custom" ]] && one_of "$PARTITIONING_SCHEME" "zfs_centric" && one_of "$PARTITIONING_ZFS_POOL_TYPE" "standard" && is_on "$PARTITIONING_ZFS_USE_COMPRESSION"; }
+function PARTITIONING_ZFS_COMPRESSION_help()  { echo "Determines the compression algorithm used on the ZFS datasets. 'on' means to use the default compression algorithm determined by ZFS. If you need more granular control over the specific levels such as gzip-N or zstd-N, please use a custom pool."; }
+function PARTITIONING_ZFS_COMPRESSION_menu()  {
+	if menu_radiolist \
+		"Select ZFS compression algorithm" \
+		"Determines the compression algorithm used on the ZFS datasets. The special value 'on' means to use the default compression algorithm as determined by ZFS." \
+		"$PARTITIONING_ZFS_COMPRESSION" \
+		"${PARTITIONING_ZFS_COMPRESSIONS[@]}"
+	then
+		# Set timezone
+		PARTITIONING_ZFS_COMPRESSION="$dialog_out"
+		UNSAVED_CHANGES=true
+	else
+		# Return to menu
+		true
+	fi
 }
 
 function PARTITIONING_ZFS_POOL_TYPE_tag()   { echo " ├ Pool type"; }
