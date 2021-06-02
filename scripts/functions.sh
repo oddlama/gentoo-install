@@ -437,12 +437,15 @@ function format_zfs_standard() {
 			)
 	fi
 
+	local zfs_stdin
 	if [[ "$encrypt" == true ]]; then
 		extra_args+=(
 			"-O" "encryption=aes-256-gcm"
 			"-O" "keyformat=passphrase"
 			"-O" "keylocation=prompt"
 			)
+
+		zfs_stdin="$GENTOO_INSTALL_ENCRYPTION_KEY"
 	fi
 
 	# dnodesize=legacy might be needed for GRUB2, but auto is preferred for xattr=sa.
@@ -459,7 +462,7 @@ function format_zfs_standard() {
 		"${extra_args[@]}"    \
 		rpool                 \
 		"${devices[@]}"       \
-			<<< "$GENTOO_INSTALL_ENCRYPTION_KEY" \
+			<<< "$zfs_stdin"  \
 		|| die "Could not create zfs pool on $devices_desc"
 
 	zfs create rpool/ROOT \
