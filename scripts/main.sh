@@ -284,6 +284,18 @@ function main_install_gentoo_in_chroot() {
 
 	# Sync portage
 	einfo "Syncing portage tree"
+	try emerge-webrsync
+
+	# Configure basic system things like timezone, locale, ...
+	configure_base_system
+
+	# Prepare portage environment
+	configure_portage
+
+	# Install git (for git portage overlays)
+	einfo "Installing git"
+	try emerge --verbose dev-vcs/git
+
 	if [[ "$PORTAGE_SYNC_TYPE" == "git" ]]; then
 		mkdir_or_die 0755 "/etc/portage/repos.conf"
 		cat > /etc/portage/repos.conf/gentoo.conf <<EOF
@@ -301,20 +313,11 @@ sync-openpgp-key-path = /usr/share/openpgp-keys/gentoo-release.asc
 EOF
 		chmod 644 /etc/portage/repos.conf/gentoo.conf \
 			|| die "Could not change permissions of '/etc/portage/repos.conf/gentoo.conf'"
+		rm -rf /var/db/repos/gentoo \
+			|| die "Could not delete obsolete rsync gentoo repository"
 		try emerge --sync
 	else
-		try emerge-webrsync
 	fi
-
-	# Configure basic system things like timezone, locale, ...
-	configure_base_system
-
-	# Prepare portage environment
-	configure_portage
-
-	# Install git (for git portage overlays)
-	einfo "Installing git"
-	try emerge --verbose dev-vcs/git
 
 	# Install mdadm if we used raid (needed for uuid resolving)
 	if [[ $USED_RAID == "true" ]]; then
