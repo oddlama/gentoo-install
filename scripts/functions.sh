@@ -20,6 +20,14 @@ function check_config() {
 	[[ $KEYMAP =~ ^[0-9A-Za-z-]*$ ]] \
 		|| die "KEYMAP contains invalid characters"
 
+	if [[ "$SYSTEMD" == "true" ]]; then
+		[[ "$STAGE3_BASENAME" == *systemd* ]] \
+			|| die "Using systemd requires a systemd stage3 archive!"
+	else
+		[[ "$STAGE3_BASENAME" != *systemd* ]] \
+			|| die "Using OpenRC requires a non-systemd stage3 archive!"
+	fi
+
 	# Check hostname per RFC1123
 	local hostname_regex='^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$'
 	[[ $HOSTNAME =~ $hostname_regex ]] \
