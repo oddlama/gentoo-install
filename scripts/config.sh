@@ -342,7 +342,7 @@ function create_single_disk_layout() {
 #   encrypt=[true|false]       Encrypt zfs pool. Defaults to false if not given.
 #   pool_type=[stripe|mirror]  Select raid type. Defaults to stripe.
 function create_zfs_centric_layout() {
-	local known_arguments=('+swap' '?type' '?pool_type' '?encrypt')
+	local known_arguments=('+swap' '?type' '?pool_type' '?encrypt' '?compress')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
 
