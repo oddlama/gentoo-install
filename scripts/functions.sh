@@ -437,7 +437,7 @@ function format_zfs_standard() {
 			)
 	fi
 
-	local zfs_stdin
+	local zfs_stdin=""
 	if [[ "$encrypt" == true ]]; then
 		extra_args+=(
 			"-O" "encryption=aes-256-gcm"
