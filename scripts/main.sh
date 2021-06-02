@@ -284,7 +284,27 @@ function main_install_gentoo_in_chroot() {
 
 	# Sync portage
 	einfo "Syncing portage tree"
-	try emerge-webrsync
+	if [[ "$PORTAGE_SYNC_TYPE" == "git" ]]; then
+		mkdir_or_die 0755 "/etc/portage/repos.conf"
+		cat > /etc/portage/repos.conf/gentoo.conf <<EOF
+[DEFAULT]
+main-repo = gentoo
+
+[gentoo]
+location = /var/db/repos/gentoo
+sync-type = git
+sync-uri = $PORTAGE_GIT_MIRROR
+auto-sync = yes
+sync-depth = $([[ $PORTAGE_GIT_FULL_HISTORY == true ]] && echo -n 0 || echo -n 1)
+sync-git-verify-commit-signature = yes
+sync-openpgp-key-path = /usr/share/openpgp-keys/gentoo-release.asc
+EOF
+		chmod 644 /etc/portage/repos.conf/gentoo.conf \
+			|| die "Could not change permissions of '/etc/portage/repos.conf/gentoo.conf'"
+		try emerge --sync
+	else
+		try emerge-webrsync
+	fi
 
 	# Configure basic system things like timezone, locale, ...
 	configure_base_system
@@ -365,7 +385,7 @@ function main_install_gentoo_in_chroot() {
 		chown root:systemd-network /etc/systemd/network/20-wired-dhcp.network \
 			|| die "Could not change owner of '/etc/systemd/network/20-wired-dhcp.network'"
 		chmod 640 /etc/systemd/network/20-wired-dhcp.network \
-			|| die "Could not change owner of '/etc/systemd/network/20-wired-dhcp.network'"
+			|| die "Could not change permissions of '/etc/systemd/network/20-wired-dhcp.network'"
 	fi
 
 	# Install additional packages, if any.
