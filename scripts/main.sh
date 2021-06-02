@@ -316,7 +316,6 @@ EOF
 		rm -rf /var/db/repos/gentoo \
 			|| die "Could not delete obsolete rsync gentoo repository"
 		try emerge --sync
-	else
 	fi
 
 	# Install mdadm if we used raid (needed for uuid resolving)
