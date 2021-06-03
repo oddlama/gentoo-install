@@ -84,7 +84,7 @@ These will simply be passed to a final `emerge` call before the script is done,
 where autounmasking will also be done automatically. It is recommended to keep
 this to a minimum, because of the quite "interactive" nature of gentoo package management ;)
 
-### Troubleshooting
+## Troubleshooting and FAQ
 
 After the initial sanity check, the script should be able to finish unattendedly.
 But given the unpredictability of future gentoo versions, you might still run into issues
@@ -93,6 +93,13 @@ The script checks every command for success, so if anything fails during install
 you will be given a proper message of what went wrong. Inside the chroot,
 most commands will be executed in a checked loop, and allow you to interactively
 fix problems with a shell, to retry, or to skip the command.
+
+#### Q: I get errors after partitioning about blkid not being able to find a UUID
+
+**A:** Use `wipefs -a <DEVICE>` on your partitions or fully wipe the disk before use.
+The new partitions probably align with previously existing partitions that had
+filesystems on them. Some filesystems signatures like those of ZFS can coexist with
+other signatures and may cause blkid to find ambiguous information.
 
 ## References
 
