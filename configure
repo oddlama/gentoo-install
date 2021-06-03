@@ -177,7 +177,7 @@ ALL_GENTOO_ARCHS=("x86" "amd64" "arm" "arm64")
 
 ALL_PARTITIONING_SCHEMES=(
 	"classic_single_disk" "Classic single disk layout (boot, swap, root)"
-	"zfs_centric"         "ZFS centric (optional raid0/1 and encryption via zfs)"
+	"zfs_centric"         "ZFS centric (optional ZFS compression and encryption)"
 	"btrfs_centric"       "Btrfs centric (optional raid0/1 via btrfs)"
 	"raid0_luks"          "Raid0 (N>=2 disks) and luks for root"
 	"custom"              "Custom (edit the config manually later)"
