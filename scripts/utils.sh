@@ -123,11 +123,11 @@ function download() {
 function get_blkid_field_by_device() {
 	local blkid_field="$1"
 	local device="$2"
-	blkid -g \
-		|| die "Error while executing blkid -g"
+	blkid -g -c /dev/null \
+		|| die "Error while executing blkid"
 	partprobe &>/dev/null
 	local val
-	val="$(blkid -o export "$device")" \
+	val="$(blkid -c /dev/null -o export "$device")" \
 		|| die "Error while executing blkid '$device'"
 	val="$(grep -- "^$blkid_field=" <<< "$val")" \
 		|| die "Could not find $blkid_field=... in blkid output"
@@ -148,11 +148,11 @@ function get_blkid_uuid_for_id() {
 function get_device_by_blkid_field() {
 	local blkid_field="$1"
 	local field_value="$2"
-	blkid -g \
-		|| die "Error while executing blkid -g"
+	blkid -g -c /dev/null \
+		|| die "Error while executing blkid"
 	type partprobe &>/dev/null && partprobe &>/dev/null
 	local dev
-	dev="$(blkid -o export -t "$blkid_field=$field_value")" \
+	dev="$(blkid -c /dev/null -o export -t "$blkid_field=$field_value")" \
 		|| die "Error while executing blkid to find $blkid_field=$field_value"
 	dev="$(grep DEVNAME <<< "$dev")" \
 		|| die "Could not find DEVNAME=... in blkid output"
@@ -161,11 +161,19 @@ function get_device_by_blkid_field() {
 }
 
 function get_device_by_partuuid() {
-	get_device_by_blkid_field 'PARTUUID' "$1"
+	if [[ -e "/dev/disk/by-partuuid/$1" ]]; then
+		echo -n "/dev/disk/by-partuuid/$1"
+	else
+		get_device_by_blkid_field 'PARTUUID' "$1"
+	fi
 }
 
 function get_device_by_uuid() {
-	get_device_by_blkid_field 'UUID' "$1"
+	if [[ -e "/dev/disk/by-uuid/$1" ]]; then
+		echo -n "/dev/disk/by-uuid/$1"
+	else
+		get_device_by_blkid_field 'UUID' "$1"
+	fi
 }
 
 function cache_lsblk_output() {
