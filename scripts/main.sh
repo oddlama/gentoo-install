@@ -175,6 +175,8 @@ function install_kernel_efi() {
 	local efipartdev
 	efipartdev="$(resolve_device_by_id "$DISK_ID_EFI")" \
 		|| die "Could not resolve device with id=$DISK_ID_EFI"
+	efipartdev="$(realpath "$efipartdev")" \
+		|| die "Error in realpath '$efipartdev'"
 	local efipartnum="${efipartdev: -1}"
 	local gptdev
 	gptdev="$(resolve_device_by_id "${DISK_ID_PART_TO_GPT_ID[$DISK_ID_EFI]}")" \
