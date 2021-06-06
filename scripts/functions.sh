@@ -7,8 +7,7 @@ source "$GENTOO_INSTALL_REPO_DIR/scripts/protection.sh" || exit 1
 
 function sync_time() {
 	einfo "Syncing time"
-	ntpd -g -q \
-		|| die "Could not sync time with remote server"
+	try ntpd -g -q
 
 	einfo "Current date: $(LANG=C date)"
 	einfo "Writing time to hardware clock"
