@@ -809,7 +809,8 @@ function download_stage3() {
 
 		# Check hashes
 		einfo "Verifying tarball integrity"
-		rhash -P --check <(grep -B 1 'tar.xz$' "${CURRENT_STAGE3}.DIGESTS.asc") \
+		# Replace any absolute paths in the digest file with just the stage3 basename, so it will be found by rhash
+		rhash -P --check <(grep -B 1 'tar.xz$' "${CURRENT_STAGE3}.DIGESTS.asc" | sed -e 's/  .*stage3-/  stage3-/') \
 			|| die "Checksum mismatch!"
 
 		# Create verification file in case the script is restarted
