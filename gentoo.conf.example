@@ -224,8 +224,9 @@ GENTOO_ARCH="amd64"
 
 # The stage3 tarball to install
 STAGE3_BASENAME="stage3-$GENTOO_ARCH-systemd"
-#STAGE3_BASENAME="stage3-$GENTOO_ARCH-hardened+nomultilib"
-#STAGE3_BASENAME="stage3-$GENTOO_ARCH-hardened-selinux+nomultilib"
+#STAGE3_BASENAME="stage3-$GENTOO_ARCH-openrc"
+#STAGE3_BASENAME="stage3-$GENTOO_ARCH-desktop-systemd"
+#STAGE3_BASENAME="stage3-$GENTOO_ARCH-desktop-openrc"
 
 # If set to true, the best best gentoo mirrors will be selected
 # automatically by app-portage/mirrorselect
