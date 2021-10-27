@@ -32,9 +32,9 @@ function check_config() {
 	[[ $HOSTNAME =~ $hostname_regex ]] \
 		|| die "'$HOSTNAME' is not a valid hostname"
 
-	[[ -n $DISK_ID_ROOT ]] \
+	[[ -v "DISK_ID_ROOT" && -n $DISK_ID_ROOT ]] \
 		|| die "You must assign DISK_ID_ROOT"
-	[[ -n $DISK_ID_EFI ]] || [[ -n $DISK_ID_BIOS ]] \
+	[[ -v "DISK_ID_EFI" && -n $DISK_ID_EFI ]] || [[ -v "DISK_ID_BIOS" && -n $DISK_ID_BIOS ]] \
 		|| die "You must assign DISK_ID_EFI or DISK_ID_BIOS"
 
 	[[ -v "DISK_ID_BIOS" ]] && [[ ! -v "DISK_ID_TO_UUID[$DISK_ID_BIOS]" ]] \
