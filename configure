@@ -304,6 +304,7 @@ function load_selected_locales() {
 		((++i))
 	done
 
+	local IFS=" "
 	SELECTED_LOCALES="${sel_locales[*]}"
 }
 
