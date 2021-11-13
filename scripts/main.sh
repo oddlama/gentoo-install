@@ -352,8 +352,6 @@ EOF
 		else
 			rc-update add zfs-import boot   || die "Could not add zfs-import to boot services"
 			rc-update add zfs-mount boot    || die "Could not add zfs-mount to boot services"
-			rc-update add zfs-share default || die "Could not add zfs-share to default services"
-			rc-update add zfs-zed default   || die "Could not add zfs-zed to default services"
 		fi
 	fi
 
