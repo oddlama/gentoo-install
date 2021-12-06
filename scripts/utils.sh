@@ -331,10 +331,22 @@ function parse_arguments() {
 
 function check_has_programs() {
 	local failed=()
+	local tuple
 	local program
-	for program in "$@"; do
-		type "$program" &>/dev/null \
-			|| failed+=("$program")
+	local checkfile
+	for tuple in "$@"; do
+		program="${tuple%%=*}"
+		checkfile="${tuple##*=}"
+		if [[ -z "$checkfile" ]]; then
+			type "$program" &>/dev/null \
+				|| failed+=("$program")
+		elif [[ "${checkfile:0:1}" == "/" ]]
+			[[ -e "$checkfile" ]] \
+				|| failed+=("$program")
+		else
+			type "$checkfile" &>/dev/null \
+				|| failed+=("$program")
+		fi
 	done
 
 	[[ "${#failed[@]}" -eq 0 ]] \

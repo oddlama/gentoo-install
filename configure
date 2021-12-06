@@ -44,7 +44,7 @@ while [[ $# -gt 0 ]]; do
 	shift
 done
 
-check_has_programs dialog ncurses
+check_has_programs dialog ncurses=ncursesw6-config
 
 # Wrap dialog in two functions to prevent it from cluttering stderr.
 function dialog_wrapper() { dialog_out=$(command dialog --colors "$@" 3>&2 2>&1 1>&3 3>&-); }
