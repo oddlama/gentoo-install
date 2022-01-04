@@ -340,7 +340,7 @@ function check_has_programs() {
 		if [[ -z "$checkfile" ]]; then
 			type "$program" &>/dev/null \
 				|| failed+=("$program")
-		elif [[ "${checkfile:0:1}" == "/" ]]
+		elif [[ "${checkfile:0:1}" == "/" ]]; then
 			[[ -e "$checkfile" ]] \
 				|| failed+=("$program")
 		else
