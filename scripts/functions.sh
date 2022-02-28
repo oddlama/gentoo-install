@@ -792,7 +792,7 @@ function download_stage3() {
 	else
 		einfo "Downloading $STAGE3_BASENAME tarball"
 		download "$STAGE3_RELEASES/${CURRENT_STAGE3}" "${CURRENT_STAGE3}"
-		download "$STAGE3_RELEASES/${CURRENT_STAGE3}.DIGESTS.asc" "${CURRENT_STAGE3}.DIGESTS.asc"
+		download "$STAGE3_RELEASES/${CURRENT_STAGE3}.asc" "${CURRENT_STAGE3}.asc"
 
 		# Import gentoo keys
 		einfo "Importing gentoo gpg key"
@@ -803,14 +803,14 @@ function download_stage3() {
 			|| die "Could not import gentoo gpg key"
 
 		# Verify DIGESTS signature
-		einfo "Verifying DIGEST.asc signature"
-		gpg --quiet --verify "${CURRENT_STAGE3}.DIGESTS.asc" \
-			|| die "Signature of '${CURRENT_STAGE3}.DIGESTS.asc' invalid!"
+		einfo "Verifying tarball signature"
+		gpg --quiet --verify "${CURRENT_STAGE3}.asc" \
+			|| die "Signature of '${CURRENT_STAGE3}.asc' invalid!"
 
 		# Check hashes
 		einfo "Verifying tarball integrity"
 		# Replace any absolute paths in the digest file with just the stage3 basename, so it will be found by rhash
-		rhash -P --check <(grep -B 1 'tar.xz$' "${CURRENT_STAGE3}.DIGESTS.asc" | sed -e 's/  .*stage3-/  stage3-/') \
+		rhash -P --check <(grep -B 1 'tar.xz$' "${CURRENT_STAGE3}.DIGESTS" | sed -e 's/  .*stage3-/  stage3-/') \
 			|| die "Checksum mismatch!"
 
 		# Create verification file in case the script is restarted

@@ -90,6 +90,8 @@ function configure_portage() {
 		einfo "Adding ~$GENTOO_ARCH to ACCEPT_KEYWORDS"
 		echo "ACCEPT_KEYWORDS=\"~$GENTOO_ARCH\"" >> /etc/portage/make.conf \
 			|| die "Could not modify /etc/portage/make.conf"
+		chmod 644 /etc/portage/make.conf \
+			|| die "Could not chmod 644 /etc/portage/make.conf"
 	fi
 }
 

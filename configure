@@ -364,7 +364,7 @@ function load_default_config() {
 	GENTOO_MIRROR="https://mirror.eu.oneandone.net/linux/distributions/gentoo/gentoo"
 	GENTOO_ARCH="amd64"
 
-	SELECT_MIRRORS=true
+	SELECT_MIRRORS=false
 	SELECT_MIRRORS_LARGE_FILE=false
 
 	ADDITIONAL_PACKAGES=()
