@@ -105,7 +105,7 @@ function install_sshd() {
 	if [[ -n "$ROOT_SSH_AUTHORIZED_KEYS" ]]; then
 		einfo "Adding authorized keys for root"
 		touch_or_die 0600 "/root/.ssh/authorized_keys"
-		echo "$ROOT_SSH_AUTHORIZED_KEYS" > "$ROOT_HOME/.ssh/authorized_keys" \
+		echo "$ROOT_SSH_AUTHORIZED_KEYS" > "/root/.ssh/authorized_keys" \
 			|| die "Could not add ssh key to /root/.ssh/authorized_keys"
 	fi
 }
