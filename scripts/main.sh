@@ -168,12 +168,11 @@ function install_kernel_efi() {
 	kernel_file="$(find "/boot" -name "vmlinuz-*" -printf '%f\n' | sort -V | tail -n 1)" \
 		|| die "Could not list newest kernel file"
 
-	mkdir_or_die 0755 "/boot/efi/EFI"
-	cp "/boot/$kernel_file" "/boot/efi/EFI/vmlinuz.efi" \
+	cp "/boot/$kernel_file" "/boot/efi/vmlinuz.efi" \
 		|| die "Could not copy kernel to EFI partition"
 
 	# Generate initramfs
-	generate_initramfs "/boot/efi/EFI/initramfs.img"
+	generate_initramfs "/boot/efi/initramfs.img"
 
 	# Create boot entry
 	einfo "Creating efi boot entry"
@@ -186,7 +185,7 @@ function install_kernel_efi() {
 	local gptdev
 	gptdev="$(resolve_device_by_id "${DISK_ID_PART_TO_GPT_ID[$DISK_ID_EFI]}")" \
 		|| die "Could not resolve device with id=${DISK_ID_PART_TO_GPT_ID[$DISK_ID_EFI]}"
-	try efibootmgr --verbose --create --disk "$gptdev" --part "$efipartnum" --label "gentoo" --loader '\EFI\vmlinuz.efi' --unicode 'initrd=\EFI\initramfs.img'" $(get_cmdline)"
+	try efibootmgr --verbose --create --disk "$gptdev" --part "$efipartnum" --label "gentoo" --loader '\vmlinuz.efi' --unicode 'initrd=\initramfs.img'" $(get_cmdline)"
 }
 
 function generate_syslinux_cfg() {
