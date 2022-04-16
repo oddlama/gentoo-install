@@ -19,8 +19,8 @@ function eerror() {
 
 function die() {
 	eerror "$*"
-	[[ $$ == "$GENTOO_INSTALL_REPO_SCRIPT_PID" ]] \
-		|| kill "$GENTOO_INSTALL_REPO_SCRIPT_PID"
+	[[ -v GENTOO_INSTALL_REPO_SCRIPT_PID && $$ -ne $GENTOO_INSTALL_REPO_SCRIPT_PID ]] \
+		&& kill "$GENTOO_INSTALL_REPO_SCRIPT_PID"
 	exit 1
 }
 
