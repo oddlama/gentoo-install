@@ -147,6 +147,23 @@ function generate_initramfs() {
 		--add           "bash ${modules[*]}" \
 		--force \
 		"$output"
+
+	# Create script to repeat initramfs generation
+	cat > "$(dirname "$output")/generate_initramfs.sh" <<EOF
+#!/bin/bash
+kver="\$1"
+[[ -n "\$kver" ]] || { echo "usage \$0 <kernel_version>" >&2; exit 1; }
+dracut \\
+	--conf          "/dev/null" \\
+	--confdir       "/dev/null" \\
+	--kver          "\$kver" \\
+	--no-compress \\
+	--no-hostonly \\
+	--ro-mnt \\
+	--add           "bash ${modules[*]}" \\
+	--force \\
+	"$output"
+EOF
 }
 
 function get_cmdline() {
@@ -186,6 +203,12 @@ function install_kernel_efi() {
 	gptdev="$(resolve_device_by_id "${DISK_ID_PART_TO_GPT_ID[$DISK_ID_EFI]}")" \
 		|| die "Could not resolve device with id=${DISK_ID_PART_TO_GPT_ID[$DISK_ID_EFI]}"
 	try efibootmgr --verbose --create --disk "$gptdev" --part "$efipartnum" --label "gentoo" --loader '\vmlinuz.efi' --unicode 'initrd=\initramfs.img'" $(get_cmdline)"
+
+	# Create script to repeat adding efibootmgr entry
+	cat > "/boot/efi/efibootmgr_add_entry.sh" <<EOF
+#!/bin/bash
+efibootmgr --verbose --create --disk "$gptdev" --part "$efipartnum" --label "gentoo" --loader '\\vmlinuz.efi' --unicode 'initrd=\\initramfs.img'" $(get_cmdline)"
+EOF
 }
 
 function generate_syslinux_cfg() {
