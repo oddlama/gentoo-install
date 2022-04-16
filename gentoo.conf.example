@@ -228,6 +228,10 @@ STAGE3_BASENAME="stage3-$GENTOO_ARCH-systemd"
 #STAGE3_BASENAME="stage3-$GENTOO_ARCH-desktop-systemd"
 #STAGE3_BASENAME="stage3-$GENTOO_ARCH-desktop-openrc"
 
+# If set to true, the installer will add ACCEPT_KEYWORDS="~$GENTOO_ARCH"
+# to /etc/portage/make.conf to enable packages in testing.
+USE_PORTAGE_TESTING=true
+
 # If set to true, the best best gentoo mirrors will be selected
 # automatically by app-portage/mirrorselect
 SELECT_MIRRORS=true

@@ -364,6 +364,7 @@ function load_default_config() {
 	GENTOO_MIRROR="https://mirror.eu.oneandone.net/linux/distributions/gentoo/gentoo"
 	GENTOO_ARCH="amd64"
 
+	USE_PORTAGE_TESTING=true
 	SELECT_MIRRORS=false
 	SELECT_MIRRORS_LARGE_FILE=false
 
@@ -761,6 +762,7 @@ MENU_ITEMS=(
 	"PORTAGE_GIT_MIRROR"
 	"GENTOO_MIRROR"
 	"GENTOO_ARCH"
+	"USE_PORTAGE_TESTING"
 	"SELECT_MIRRORS"
 	"SELECT_MIRRORS_LARGE_FILE"
 	"--------"
@@ -1222,6 +1224,15 @@ function GENTOO_ARCH_menu()  {
 	fi
 }
 
+function USE_PORTAGE_TESTING_tag()   { echo "Run mirrorselect"; }
+function USE_PORTAGE_TESTING_label() { on_off_label "$USE_PORTAGE_TESTING"; }
+function USE_PORTAGE_TESTING_show()  { return 0; }
+function USE_PORTAGE_TESTING_help()  { echo "Determines if the system should use bleeding edge software from the respective architecture's testing branch. This will add ACCEPT_KEYWORDS=\"~\$GENTOO_ARCH\" to /etc/portage/make.conf"; }
+function USE_PORTAGE_TESTING_menu()  {
+	on_off_toggle "USE_PORTAGE_TESTING"
+	UNSAVED_CHANGES=true
+}
+
 function SELECT_MIRRORS_tag()   { echo "Run mirrorselect"; }
 function SELECT_MIRRORS_label() { on_off_label "$SELECT_MIRRORS"; }
 function SELECT_MIRRORS_show()  { return 0; }
@@ -1340,6 +1351,7 @@ PORTAGE_GIT_MIRROR=${PORTAGE_GIT_MIRROR@Q}
 GENTOO_MIRROR=${GENTOO_MIRROR@Q}
 GENTOO_ARCH=${GENTOO_ARCH@Q}
 STAGE3_BASENAME="stage3-\$GENTOO_ARCH$([[ $SYSTEMD == true ]] && echo -n "-systemd" || echo -n "-openrc")"
+USE_PORTAGE_TESTING=${USE_PORTAGE_TESTING@Q}
 SELECT_MIRRORS=${SELECT_MIRRORS@Q}
 SELECT_MIRRORS_LARGE_FILE=${SELECT_MIRRORS_LARGE_FILE@Q}
 

@@ -86,13 +86,16 @@ function configure_portage() {
 		[[ $SELECT_MIRRORS_LARGE_FILE == "true" ]] \
 			&& mirrorselect_params+=("-D")
 		try mirrorselect "${mirrorselect_params[@]}"
+	fi
 
+	if [[ $USE_PORTAGE_TESTING == "true" ]]; then
 		einfo "Adding ~$GENTOO_ARCH to ACCEPT_KEYWORDS"
 		echo "ACCEPT_KEYWORDS=\"~$GENTOO_ARCH\"" >> /etc/portage/make.conf \
 			|| die "Could not modify /etc/portage/make.conf"
-		chmod 644 /etc/portage/make.conf \
-			|| die "Could not chmod 644 /etc/portage/make.conf"
 	fi
+
+	chmod 644 /etc/portage/make.conf \
+		|| die "Could not chmod 644 /etc/portage/make.conf"
 }
 
 function install_sshd() {
