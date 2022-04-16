@@ -294,7 +294,7 @@ function create_classic_single_disk_layout() {
 	local root_fs="${arguments[root_fs]:-ext4}"
 
 	create_gpt new_id=gpt device="$device"
-	create_partition new_id="part_$type" id=gpt size=256MiB       type="$type"
+	create_partition new_id="part_$type" id=gpt size=512MiB       type="$type"
 	[[ $size_swap != "false" ]] \
 		&& create_partition new_id=part_swap    id=gpt size="$size_swap" type=swap
 	create_partition new_id=part_root    id=gpt size=remaining    type=linux
@@ -356,7 +356,7 @@ function create_zfs_centric_layout() {
 
 	# Create layout on first disk
 	create_gpt new_id="gpt_dev0" device="${extra_arguments[0]}"
-	create_partition new_id="part_${type}_dev0" id="gpt_dev0" size=256MiB       type="$type"
+	create_partition new_id="part_${type}_dev0" id="gpt_dev0" size=512MiB       type="$type"
 	[[ $size_swap != "false" ]] \
 		&& create_partition new_id="part_swap_dev0"    id="gpt_dev0" size="$size_swap" type=swap
 	create_partition new_id="part_root_dev0"    id="gpt_dev0" size=remaining    type=linux
@@ -408,7 +408,7 @@ function create_raid0_luks_layout() {
 
 	for i in "${!extra_arguments[@]}"; do
 		create_gpt new_id="gpt_dev${i}" device="${extra_arguments[$i]}"
-		create_partition new_id="part_${type}_dev${i}" id="gpt_dev${i}" size=256MiB       type="$type"
+		create_partition new_id="part_${type}_dev${i}" id="gpt_dev${i}" size=512MiB       type="$type"
 		[[ $size_swap != "false" ]] \
 			&& create_partition new_id="part_swap_dev${i}"    id="gpt_dev${i}" size="$size_swap" type=raid
 		create_partition new_id="part_root_dev${i}"    id="gpt_dev${i}" size=remaining    type=raid
@@ -466,7 +466,7 @@ function create_btrfs_centric_layout() {
 
 	# Create layout on first disk
 	create_gpt new_id="gpt_dev0" device="${extra_arguments[0]}"
-	create_partition new_id="part_${type}_dev0" id="gpt_dev0" size=256MiB       type="$type"
+	create_partition new_id="part_${type}_dev0" id="gpt_dev0" size=512MiB       type="$type"
 	[[ $size_swap != "false" ]] \
 		&& create_partition new_id="part_swap_dev0"    id="gpt_dev0" size="$size_swap" type=swap
 	create_partition new_id="part_root_dev0"    id="gpt_dev0" size=remaining    type=linux
