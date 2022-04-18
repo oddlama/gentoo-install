@@ -161,7 +161,7 @@ function define_zfs_compression() {
 function define_disk_layout() {
 	case "$PARTITIONING_SCHEME" in
 		"classic_single_disk") define_disk_configuration_function "create_classic_single_disk_layout swap=$(define_swap) type=${PARTITIONING_BOOT_TYPE@Q} luks=${PARTITIONING_USE_LUKS@Q} root_fs=${PARTITIONING_ROOT_FS@Q}" "${PARTITIONING_DEVICE@Q}" ;;
-		"zfs_centric")         define_disk_configuration_function "create_zfs_centric_layout swap=$(define_swap) type=${PARTITIONING_BOOT_TYPE@Q} encrypt=${PARTITIONING_ZFS_ENCRYPTION@Q} compress=$(define_zfs_compression) pool_type=${PARTITIONING_ZFS_POOL_TYPE@Q}" "${PARTITIONING_DEVICES[@]@Q}" ;;
+		"zfs_centric")         define_disk_configuration_function "create_zfs_centric_layout swap=$(define_swap) type=${PARTITIONING_BOOT_TYPE@Q} encrypt=${PARTITIONING_ZFS_USE_ENCRYPTION@Q} compress=$(define_zfs_compression) pool_type=${PARTITIONING_ZFS_POOL_TYPE@Q}" "${PARTITIONING_DEVICES[@]@Q}" ;;
 		"btrfs_centric")       define_disk_configuration_function "create_btrfs_centric_layout swap=$(define_swap) type=${PARTITIONING_BOOT_TYPE@Q} raid_type=${PARTITIONING_BTRFS_RAID_TYPE@Q} luks=${PARTITIONING_USE_LUKS@Q}" "${PARTITIONING_DEVICES[@]@Q}" ;;
 		"raid0_luks")          define_disk_configuration_function "create_raid0_luks_layout swap=$(define_swap) type=${PARTITIONING_BOOT_TYPE@Q} root_fs=${PARTITIONING_ROOT_FS@Q}" "${PARTITIONING_DEVICES[@]@Q}" ;;
 		"custom")
@@ -253,7 +253,7 @@ function create_zfs_centric_layout() {
 	parse_swap "${arguments[swap]}"
 	PARTITIONING_BOOT_TYPE="${arguments[type]}"
 	PARTITIONING_ZFS_POOL_TYPE="${arguments[pool_type]:-standard}"
-	PARTITIONING_ZFS_ENCRYPTION="${arguments[encrypt]:-false}"
+	PARTITIONING_ZFS_USE_ENCRYPTION="${arguments[encrypt]:-false}"
 	parse_zfs_compression "${arguments[compress]:-false}"
 }
 
@@ -741,7 +741,7 @@ MENU_ITEMS=(
 	"PARTITIONING_ROOT_FS"
 	"PARTITIONING_USE_LUKS"
 	"PARTITIONING_ZFS_POOL_TYPE"
-	"PARTITIONING_ZFS_ENCRYPTION"
+	"PARTITIONING_ZFS_USE_ENCRYPTION"
 	"PARTITIONING_ZFS_USE_COMPRESSION"
 	"PARTITIONING_ZFS_COMPRESSION"
 	"PARTITIONING_BTRFS_RAID_TYPE"
@@ -874,14 +874,17 @@ function PARTITIONING_USE_LUKS_menu()  {
 	UNSAVED_CHANGES=true
 }
 
-function PARTITIONING_ZFS_ENCRYPTION_tag()   { echo " ├ ZFS Encryption"; }
-function PARTITIONING_ZFS_ENCRYPTION_label() { on_off_label "$PARTITIONING_ZFS_ENCRYPTION" " ├ "; }
-function PARTITIONING_ZFS_ENCRYPTION_show()  { [[ $PARTITIONING_SCHEME != "custom" ]] && one_of "$PARTITIONING_SCHEME" "zfs_centric" && one_of "$PARTITIONING_ZFS_POOL_TYPE" "standard"; }
-function PARTITIONING_ZFS_ENCRYPTION_help()  { echo "Determines if ZFS encryption will be used to encrypt your root partition. You can export the desired encryption key via export GENTOO_INSTALL_ENCRYPTION_KEY='...' before installing if you don't want to be asked."; }
-function PARTITIONING_ZFS_ENCRYPTION_menu()  {
-	on_off_toggle "PARTITIONING_ZFS_ENCRYPTION"
+function PARTITIONING_ZFS_USE_ENCRYPTION_tag()   { echo " ├ ZFS Encryption"; }
+function PARTITIONING_ZFS_USE_ENCRYPTION_label() { on_off_label "$PARTITIONING_ZFS_USE_ENCRYPTION" " ├ "; }
+function PARTITIONING_ZFS_USE_ENCRYPTION_show()  { [[ $PARTITIONING_SCHEME != "custom" ]] && one_of "$PARTITIONING_SCHEME" "zfs_centric" && one_of "$PARTITIONING_ZFS_POOL_TYPE" "standard"; }
+function PARTITIONING_ZFS_USE_ENCRYPTION_help()  { echo "Determines if ZFS encryption will be used to encrypt your root partition. You can export the desired encryption key via export GENTOO_INSTALL_ENCRYPTION_KEY='...' before installing if you don't want to be asked."; }
+function PARTITIONING_ZFS_USE_ENCRYPTION_menu()  {
+	on_off_toggle "PARTITIONING_ZFS_USE_ENCRYPTION"
 	UNSAVED_CHANGES=true
 }
+
+# TODO keylocation prompt | file
+# TODO if loc is file, another checkbox to "autogenerate and save new key" openssl rand -hex 32 > file
 
 function PARTITIONING_ZFS_USE_COMPRESSION_tag()   { echo " ├ Use ZFS Compression"; }
 function PARTITIONING_ZFS_USE_COMPRESSION_label() { on_off_label "$PARTITIONING_ZFS_USE_COMPRESSION" " ├ "; }
@@ -1224,7 +1227,7 @@ function GENTOO_ARCH_menu()  {
 	fi
 }
 
-function USE_PORTAGE_TESTING_tag()   { echo "Run mirrorselect"; }
+function USE_PORTAGE_TESTING_tag()   { echo "Enable bleeding edge (~$GENTOO_ARCH)"; }
 function USE_PORTAGE_TESTING_label() { on_off_label "$USE_PORTAGE_TESTING"; }
 function USE_PORTAGE_TESTING_show()  { return 0; }
 function USE_PORTAGE_TESTING_help()  { echo "Determines if the system should use bleeding edge software from the respective architecture's testing branch. This will add ACCEPT_KEYWORDS=\"~\$GENTOO_ARCH\" to /etc/portage/make.conf"; }
