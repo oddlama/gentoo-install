@@ -792,7 +792,7 @@ function download_stage3() {
 	else
 		einfo "Downloading $STAGE3_BASENAME tarball"
 		download "$STAGE3_RELEASES/${CURRENT_STAGE3}" "${CURRENT_STAGE3}"
-		download "$STAGE3_RELEASES/${CURRENT_STAGE3}.asc" "${CURRENT_STAGE3}.asc"
+		download "$STAGE3_RELEASES/${CURRENT_STAGE3}.DIGESTS" "${CURRENT_STAGE3}.DIGESTS"
 
 		# Import gentoo keys
 		einfo "Importing gentoo gpg key"
@@ -804,8 +804,8 @@ function download_stage3() {
 
 		# Verify DIGESTS signature
 		einfo "Verifying tarball signature"
-		gpg --quiet --verify "${CURRENT_STAGE3}.asc" \
-			|| die "Signature of '${CURRENT_STAGE3}.asc' invalid!"
+		gpg --quiet --verify "${CURRENT_STAGE3}.DIGESTS" \
+			|| die "Signature of '${CURRENT_STAGE3}.DIGESTS' invalid!"
 
 		# Check hashes
 		einfo "Verifying tarball integrity"
