@@ -8,8 +8,7 @@ set -uo pipefail
 # Find the directory this script is stored in. (from: http://stackoverflow.com/questions/59895)
 function get_source_dir() {
 	local source="${BASH_SOURCE[0]}"
-	while [[ -h $source ]]
-	do
+	while [[ -h $source ]]; do
 		local tmp
 		tmp="$(cd -P "$(dirname "${source}")" && pwd)"
 		source="$(readlink "${source}")"
@@ -45,6 +44,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 check_has_programs dialog ncurses=ncursesw6-config
+
+# Determine whether EFI is available
+HAS_EFI_SUPPORT=$([[ -d /sys/firmware/efi ]] && echo -n "true" || echo -n "false")
+DEFAULT_BOOT_TYPE=$([[ $HAS_EFI_SUPPORT == true ]] && echo -n "efi" || echo -n "bios")
+EFI_UNSUPPORTED_MESSAGE_SHORT="Missing EFI support on this system!"
+EFI_UNSUPPORTED_MESSAGE="Apparently, your system does NOT support efi. Double-check before proceeding!"
 
 # Wrap dialog in two functions to prevent it from cluttering stderr.
 function dialog_wrapper() { dialog_out=$(command dialog --colors "$@" 3>&2 2>&1 1>&3 3>&-); }
@@ -194,7 +199,10 @@ ALL_PARTITIONING_SCHEMES=(
 	"custom"              "Custom (edit the config manually later)"
 )
 
-PARTITIONING_BOOT_TYPES=("efi" "bios")
+PARTITIONING_BOOT_TYPES=(
+	"efi" "efi$([[ $HAS_EFI_SUPPORT == true ]] && echo -n "" || echo -n " (!! $EFI_UNSUPPORTED_MESSAGE_SHORT !!)")"
+	"bios" "bios"
+)
 PARTITIONING_ROOT_FS_TYPES=("ext4" "btrfs")
 PARTITIONING_BTRFS_RAID_TYPES=("raid0" "raid1")
 PARTITIONING_ZFS_POOL_TYPES=("standard" "custom")
@@ -356,8 +364,8 @@ function load_default_config() {
 	LOCALE="C.utf8"
 
 	function disk_configuration() {
-		#create_zfs_centric_layout swap=8GiB type=efi encrypt=true compress=zstd pool_type=standard /dev/sdX
-		create_classic_single_disk_layout swap=8GiB type=efi luks=true root_fs=ext4 /dev/sdX
+		#create_zfs_centric_layout swap=8GiB type="$DEFAULT_BOOT_TYPE" encrypt=true compress=zstd pool_type=standard /dev/sdX
+		create_classic_single_disk_layout swap=8GiB type="$DEFAULT_BOOT_TYPE" luks=true root_fs=ext4 /dev/sdX
 	}
 
 	STAGE3_VARIANT="systemd"
@@ -794,10 +802,10 @@ function PARTITIONING_SCHEME_menu()  {
 	then
 		# Set disk scheme
 		case "$dialog_out" in
-			"classic_single_disk") create_classic_single_disk_layout swap=8GiB type=efi luks=false root_fs=ext4 /dev/sdX ;;
-			"zfs_centric")         create_zfs_centric_layout swap=8GiB type=efi encrypt=true compress=zstd pool_type=standard /dev/sdX ;;
-			"btrfs_centric")       create_btrfs_centric_layout swap=8GiB type=efi raid_type=raid0 luks=false /dev/sdX ;;
-			"raid0_luks")          create_raid0_luks_layout swap=8GiB type=efi root_fs=ext4 /dev/sdX /dev/sdY ;;
+			"classic_single_disk") create_classic_single_disk_layout swap=8GiB type="$DEFAULT_BOOT_TYPE" luks=false root_fs=ext4 /dev/sdX ;;
+			"zfs_centric")         create_zfs_centric_layout swap=8GiB type="$DEFAULT_BOOT_TYPE" encrypt=true compress=zstd pool_type=standard /dev/sdX ;;
+			"btrfs_centric")       create_btrfs_centric_layout swap=8GiB type="$DEFAULT_BOOT_TYPE" raid_type=raid0 luks=false /dev/sdX ;;
+			"raid0_luks")          create_raid0_luks_layout swap=8GiB type="$DEFAULT_BOOT_TYPE" root_fs=ext4 /dev/sdX /dev/sdY ;;
 			"custom")              PARTITIONING_SCHEME="$dialog_out" ;;
 		esac
 		UNSAVED_CHANGES=true
@@ -808,13 +816,13 @@ function PARTITIONING_SCHEME_menu()  {
 }
 
 function PARTITIONING_BOOT_TYPE_tag()   { echo " ├ Boot type"; }
-function PARTITIONING_BOOT_TYPE_label() { echo " ├ ($PARTITIONING_BOOT_TYPE)"; }
+function PARTITIONING_BOOT_TYPE_label() { echo " ├ ($PARTITIONING_BOOT_TYPE)$([[ $PARTITIONING_BOOT_TYPE == efi ]] &&echo -n " \Z1$EFI_UNSUPPORTED_MESSAGE_SHORT\Zn" || echo -n "")"; }
 function PARTITIONING_BOOT_TYPE_show()  { [[ $PARTITIONING_SCHEME != "custom" ]]; }
 function PARTITIONING_BOOT_TYPE_help()  { echo "Select whether to use EFI or BIOS boot."; }
 function PARTITIONING_BOOT_TYPE_menu()  {
-	if menu_radiolist \
+	if menu_radiolist_labeled \
 		"Select boot type" \
-		"Select whether your want to use EFI or BIOS boot." \
+		"Select whether your want to use EFI or BIOS boot.$(on_off_str "$HAS_EFI_SUPPORT" "" " \Z1$EFI_UNSUPPORTED_MESSAGE\Zn")" \
 		"$PARTITIONING_BOOT_TYPE" \
 		"${PARTITIONING_BOOT_TYPES[@]}"
 	then
