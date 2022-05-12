@@ -172,8 +172,19 @@ function define_disk_layout() {
 	esac
 }
 
-INIT_SYSTEMS=("systemd" "OpenRC")
 ALL_GENTOO_ARCHS=("x86" "amd64" "arm" "arm64")
+ALL_STAGE3_VARIANTS=(
+	"systemd"                             "systemd                            | Minimal systemd base (recommended)"
+	"openrc"                              "openrc                             | Minimal OpenRC base (recommended)"
+	"desktop-systemd"                     "desktop-systemd                    | OpenRC, desktop profile, might have blockers"
+	"desktop-openrc"                      "desktop-openrc                     | systemd, desktop profile, might have blockers"
+	"nomultilib-systemd"                  "nomultilib-systemd                 | Untested. Might work, but not explicitly tested"
+	"nomultilib-openrc"                   "nomultilib-openrc                  | Untested. Might work, but not explicitly tested"
+	"hardened-nomultilib-openrc"          "hardened-nomultilib-openrc         | Untested. Might work, but not explicitly tested"
+	"hardened-nomultilib-selinux-openrc"  "hardened-nomultilib-selinux-openrc | Untested. Might work, but not explicitly tested"
+	"hardened-openrc"                     "hardened-openrc                    | Untested. Might work, but not explicitly tested"
+	"hardened-selinux-openrc"             "hardened-selinux-openrc            | Untested. Might work, but not explicitly tested"
+)
 
 ALL_PARTITIONING_SCHEMES=(
 	"classic_single_disk" "Classic single disk layout (boot, swap, root)"
@@ -311,12 +322,6 @@ function load_selected_locales() {
 function process_config() {
 	disk_configuration
 
-	if [[ "$SYSTEMD" == true ]]; then
-		INIT_SYSTEM="systemd"
-	else
-		INIT_SYSTEM="OpenRC"
-	fi
-
 	if [[ "$KEYMAP" == "$KEYMAP_INITRAMFS" ]]; then
 		KEYMAP_INITRAMFS_OTHER=false
 	else
@@ -355,8 +360,7 @@ function load_default_config() {
 		create_classic_single_disk_layout swap=8GiB type=efi luks=true root_fs=ext4 /dev/sdX
 	}
 
-	SYSTEMD=true
-
+	STAGE3_VARIANT="systemd"
 	PORTAGE_SYNC_TYPE="git"
 	PORTAGE_GIT_FULL_HISTORY=false
 	PORTAGE_GIT_MIRROR="https://anongit.gentoo.org/git/repo/sync/gentoo.git"
@@ -756,7 +760,7 @@ MENU_ITEMS=(
 	"LOCALES"
 	"LOCALE"
 	"--------"
-	"INIT_SYSTEM"
+	"STAGE3_VARIANT"
 	"PORTAGE_SYNC_TYPE"
 	"PORTAGE_GIT_FULL_HISTORY"
 	"PORTAGE_GIT_MIRROR"
@@ -1134,19 +1138,18 @@ function LOCALE_menu()  {
 	fi
 }
 
-function INIT_SYSTEM_tag()   { echo "Init system"; }
-function INIT_SYSTEM_label() { echo "($INIT_SYSTEM)"; }
-function INIT_SYSTEM_show()  { return 0; }
-function INIT_SYSTEM_help()  { echo ""; }
-function INIT_SYSTEM_menu()  {
-	if menu_radiolist \
-		"Select init system" \
-		"Select the init system you want to use." \
-		"$INIT_SYSTEM" \
-		"${INIT_SYSTEMS[@]}"
+function STAGE3_VARIANT_tag()   { echo "Stage3 variant & Init system"; }
+function STAGE3_VARIANT_label() { echo "($STAGE3_VARIANT)"; }
+function STAGE3_VARIANT_show()  { return 0; }
+function STAGE3_VARIANT_help()  { echo "Select which stage3 tarball to use. Implicitly determines whether systemd or OpenRC is used. Not all stage3 variants have been tested with this installer. The basic installation process is always the same, but due to complex profiles, unexpected blockers may arise when emerge is called. Stick to the basic choices and change after bootstraping, unless you know how to invervene while installing."; }
+function STAGE3_VARIANT_menu()  {
+	if menu_radiolist_labeled \
+		"Select stage3 variant" \
+		"Select the base stage3 tarball variant to use for bootstrapping the system. Implicitly determines whether systemd or OpenRC is used. Not all stage3 variants have been tested with this installer. The basic installation process is always the same, but due to complex profiles, unexpected blockers may arise when emerge is called. Stick to the basic choices and change after bootstraping, unless you know how to invervene while installing." \
+		"$STAGE3_VARIANT" \
+		"${ALL_STAGE3_VARIANTS[@]}"
 	then
-		# Set init system
-		INIT_SYSTEM="$dialog_out"
+		STAGE3_VARIANT="$dialog_out"
 		UNSAVED_CHANGES=true
 	else
 		# Return to menu
@@ -1315,12 +1318,6 @@ function save() {
 		KEYMAP_INITRAMFS="$KEYMAP"
 	fi
 
-	if [[ $INIT_SYSTEM == "systemd" ]]; then
-		SYSTEMD=true
-	else
-		SYSTEMD=false
-	fi
-
 	cat > "$1" <<EOF
 # vim: set ft=sh ts=4 sw=4 sts=-1 noet:
 # This file will be interpreted by /bin/bash.
@@ -1347,16 +1344,17 @@ LOCALE=${LOCALE@Q}
 ################################################
 # Gentoo configuration
 
-SYSTEMD=${SYSTEMD@Q}
 PORTAGE_SYNC_TYPE=${PORTAGE_SYNC_TYPE@Q}
 PORTAGE_GIT_FULL_HISTORY=${PORTAGE_GIT_FULL_HISTORY@Q}
 PORTAGE_GIT_MIRROR=${PORTAGE_GIT_MIRROR@Q}
 GENTOO_MIRROR=${GENTOO_MIRROR@Q}
 GENTOO_ARCH=${GENTOO_ARCH@Q}
-STAGE3_BASENAME="stage3-\$GENTOO_ARCH$([[ $SYSTEMD == true ]] && echo -n "-systemd" || echo -n "-openrc")"
+STAGE3_VARIANT=${STAGE3_VARIANT@Q}
+STAGE3_BASENAME="stage3-\$GENTOO_ARCH-\$STAGE3_VARIANT"
 USE_PORTAGE_TESTING=${USE_PORTAGE_TESTING@Q}
 SELECT_MIRRORS=${SELECT_MIRRORS@Q}
 SELECT_MIRRORS_LARGE_FILE=${SELECT_MIRRORS_LARGE_FILE@Q}
+SYSTEMD=\$([[ \$STAGE3_VARIANT == *systemd* ]] && echo "true" || echo "false")
 
 
 ################################################

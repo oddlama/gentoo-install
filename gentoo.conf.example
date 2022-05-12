@@ -202,10 +202,6 @@ LOCALE="C.utf8"
 ################################################
 # Gentoo configuration
 
-# Set to true if the stage3 tarball is based on systemd. In this case
-# we need to use slightly different utilities to setup the base system.
-SYSTEMD=true
-
 # Choose whether to download the portage tree via git or rsync.
 # Git syncing is significantly faster, and generally preferred for new installations.
 PORTAGE_SYNC_TYPE="git"
@@ -222,11 +218,14 @@ GENTOO_MIRROR="https://mirror.eu.oneandone.net/linux/distributions/gentoo/gentoo
 # The architecture of the target system (only tested with amd64)
 GENTOO_ARCH="amd64"
 
-# The stage3 tarball to install
-STAGE3_BASENAME="stage3-$GENTOO_ARCH-systemd"
-#STAGE3_BASENAME="stage3-$GENTOO_ARCH-openrc"
-#STAGE3_BASENAME="stage3-$GENTOO_ARCH-desktop-systemd"
-#STAGE3_BASENAME="stage3-$GENTOO_ARCH-desktop-openrc"
+# The stage3 tarball variant to use. Determines whether systemd
+# or openrc is used based on whether "systemd" is contained in this string.
+STAGE3_VARIANT="systemd"
+# The stage3 tarball to download and bootstrap
+STAGE3_BASENAME="stage3-$GENTOO_ARCH-$STAGE3_VARIANT"
+# Automatically set to true, if the stage3 tarball is based on systemd. In this case
+# we need to use slightly different utilities to setup the base system.
+SYSTEMD=$([[ $STAGE3_VARIANT == *systemd* ]] && echo "true" || echo "false")
 
 # If set to true, the installer will add ACCEPT_KEYWORDS="~$GENTOO_ARCH"
 # to /etc/portage/make.conf to enable packages in testing.
