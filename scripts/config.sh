@@ -105,6 +105,20 @@ function verify_option() {
 }
 
 # Named arguments:
+# new_id:  Id for the existing device
+# device:  The block device
+function register_existing() {
+	local known_arguments=('+new_id' '+device')
+	local extra_arguments=()
+	declare -A arguments; parse_arguments "$@"
+
+	create_new_id new_id
+	local new_id="${arguments[new_id]}"
+	local device="${arguments[device]}"
+	create_resolve_entry_device "$new_id" "$device"
+}
+
+# Named arguments:
 # new_id:     Id for the new gpt table
 # device|id:  The operand block device or previously allocated id
 function create_gpt() {
@@ -332,6 +346,39 @@ function create_classic_single_disk_layout() {
 
 function create_single_disk_layout() {
 	die "'create_single_disk_layout' is deprecated, please use 'create_classic_single_disk_layout' instead. It is fully option-compatible to the old version."
+}
+
+# Skip partitioning, and use existing partitions.
+# Parameters:
+#   swap=<device|false>   Use the given device as swap, or no swap at all if set to false
+#   boot=<device>         Use the given device as the bios/efi partition.
+#   type=[efi|bios]       Selects the boot type. Defaults to efi if not given.
+function create_existing_partitions_layout() {
+	local known_arguments=('+swap' '+boot' '?type')
+	local extra_arguments=()
+	declare -A arguments; parse_arguments "$@"
+
+	[[ ${#extra_arguments[@]} -eq 1 ]] \
+		|| die_trace 1 "Expected exactly one positional argument (the device)"
+	local device="${extra_arguments[0]}"
+	local swap_device="${arguments[swap]}"
+	local boot_device="${arguments[boot]}"
+	local type="${arguments[type]:-efi}"
+
+	register_existing new_id="part_$type" device="$boot_device"
+	[[ $swap_device != "false" ]] \
+		&& register_existing new_id="part_swap" device="$swap_device"
+	register_existing new_id="part_root" device="$device"
+
+	if [[ $type == "efi" ]]; then
+		DISK_ID_EFI="part_$type"
+	else
+		DISK_ID_BIOS="part_$type"
+	fi
+	[[ $swap_device != "false" ]] \
+		&& DISK_ID_SWAP=part_swap
+	DISK_ID_ROOT="part_root"
+	DISK_ID_ROOT_TYPE="" # unknown, could be anything. Left empty to skip generating an fstab entry.
 }
 
 # Multiple disks, up to 3 partitions on first disk (efi, optional swap, root with zfs).

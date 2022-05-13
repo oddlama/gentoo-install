@@ -278,7 +278,7 @@ function generate_fstab() {
 	einfo "Generating fstab"
 	install -m0644 -o root -g root "$GENTOO_INSTALL_REPO_DIR/contrib/fstab" /etc/fstab \
 		|| die "Could not overwrite /etc/fstab"
-	if [[ $USED_ZFS != "true" ]]; then
+	if [[ $USED_ZFS != "true" && -n $DISK_ID_ROOT_TYPE ]]; then
 		add_fstab_entry "UUID=$(get_blkid_uuid_for_id "$DISK_ID_ROOT")" "/" "$DISK_ID_ROOT_TYPE" "$DISK_ID_ROOT_MOUNT_OPTS" "0 1"
 	fi
 	if [[ $IS_EFI == "true" ]]; then

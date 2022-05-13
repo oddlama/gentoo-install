@@ -1,6 +1,10 @@
 #!/bin/bash
 set -uo pipefail
 
+#todo "selector for disks by-id, or custom"
+#todo "test ZFS compression really on"
+#todo "disks by id also in resolve step"
+#todo "the device you want to partitoin ---> to use?"
 
 ################################################
 # Initialize script environment
@@ -164,8 +168,11 @@ function define_zfs_compression() {
 }
 
 function define_disk_layout() {
+	local swapdev
 	case "$PARTITIONING_SCHEME" in
 		"classic_single_disk") define_disk_configuration_function "create_classic_single_disk_layout swap=$(define_swap) type=${PARTITIONING_BOOT_TYPE@Q} luks=${PARTITIONING_USE_LUKS@Q} root_fs=${PARTITIONING_ROOT_FS@Q}" "${PARTITIONING_DEVICE@Q}" ;;
+		"existing_partitions") swapdev=${PARTITIONING_SWAP_DEVICE:-false}
+		                       define_disk_configuration_function "create_existing_partitions_layout boot=${PARTITIONING_BOOT_DEVICE@Q} swap=${swapdev@Q} type=${PARTITIONING_BOOT_TYPE@Q}" "${PARTITIONING_DEVICE@Q}" ;;
 		"zfs_centric")         define_disk_configuration_function "create_zfs_centric_layout swap=$(define_swap) type=${PARTITIONING_BOOT_TYPE@Q} encrypt=${PARTITIONING_ZFS_USE_ENCRYPTION@Q} compress=$(define_zfs_compression) pool_type=${PARTITIONING_ZFS_POOL_TYPE@Q}" "${PARTITIONING_DEVICES[@]@Q}" ;;
 		"btrfs_centric")       define_disk_configuration_function "create_btrfs_centric_layout swap=$(define_swap) type=${PARTITIONING_BOOT_TYPE@Q} raid_type=${PARTITIONING_BTRFS_RAID_TYPE@Q} luks=${PARTITIONING_USE_LUKS@Q}" "${PARTITIONING_DEVICES[@]@Q}" ;;
 		"raid0_luks")          define_disk_configuration_function "create_raid0_luks_layout swap=$(define_swap) type=${PARTITIONING_BOOT_TYPE@Q} root_fs=${PARTITIONING_ROOT_FS@Q}" "${PARTITIONING_DEVICES[@]@Q}" ;;
@@ -192,7 +199,8 @@ ALL_STAGE3_VARIANTS=(
 )
 
 ALL_PARTITIONING_SCHEMES=(
-	"classic_single_disk" "Classic single disk layout (boot, swap, root)"
+	"classic_single_disk" "Classic single disk layout (boot/efi, swap?, root)"
+	"existing_partitions" "Skip partitioning, use existing pre-formatted partitions"
 	"zfs_centric"         "ZFS centric (optional ZFS compression and encryption)"
 	"btrfs_centric"       "Btrfs centric (optional raid0/1 via btrfs)"
 	"raid0_luks"          "Raid0 (N>=2 disks) and luks for root"
@@ -246,6 +254,25 @@ function create_classic_single_disk_layout() {
 	PARTITIONING_BOOT_TYPE="${arguments[type]}"
 	PARTITIONING_USE_LUKS="${arguments[luks]:-false}"
 	PARTITIONING_ROOT_FS="${arguments[root_fs]:-ext4}"
+}
+
+function create_existing_partitions_layout() {
+	PARTITIONING_SCHEME="existing_partitions"
+
+	local known_arguments=('+swap' '+boot' '?type')
+	local extra_arguments=()
+	declare -A arguments; parse_arguments "$@"
+
+	PARTITIONING_DEVICE="${extra_arguments[0]}"
+	if [[ "${arguments[swap]}" == "false" ]]; then
+		PARTITIONING_USE_SWAP=false
+		PARTITIONING_SWAP_DEVICE=""
+	else
+		PARTITIONING_USE_SWAP=true
+		PARTITIONING_SWAP_DEVICE="${arguments[swap]}"
+	fi
+	PARTITIONING_BOOT_TYPE="${arguments[type]}"
+	PARTITIONING_BOOT_DEVICE="${arguments[boot]}"
 }
 
 function create_raid0_luks_layout() {
@@ -748,8 +775,10 @@ init_menu_size
 MENU_ITEMS=(
 	"PARTITIONING_SCHEME"
 	"PARTITIONING_BOOT_TYPE"
+	"PARTITIONING_BOOT_DEVICE"
 	"PARTITIONING_USE_SWAP"
 	"PARTITIONING_SWAP"
+	"PARTITIONING_SWAP_DEVICE"
 	"PARTITIONING_ROOT_FS"
 	"PARTITIONING_USE_LUKS"
 	"PARTITIONING_ZFS_POOL_TYPE"
@@ -803,6 +832,7 @@ function PARTITIONING_SCHEME_menu()  {
 		# Set disk scheme
 		case "$dialog_out" in
 			"classic_single_disk") create_classic_single_disk_layout swap=8GiB type="$DEFAULT_BOOT_TYPE" luks=false root_fs=ext4 /dev/sdX ;;
+			"existing_partitions") create_existing_partitions_layout boot=/dev/sdA swap=false type="$DEFAULT_BOOT_TYPE" /dev/sdX ;;
 			"zfs_centric")         create_zfs_centric_layout swap=8GiB type="$DEFAULT_BOOT_TYPE" encrypt=true compress=zstd pool_type=standard /dev/sdX ;;
 			"btrfs_centric")       create_btrfs_centric_layout swap=8GiB type="$DEFAULT_BOOT_TYPE" raid_type=raid0 luks=false /dev/sdX ;;
 			"raid0_luks")          create_raid0_luks_layout swap=8GiB type="$DEFAULT_BOOT_TYPE" root_fs=ext4 /dev/sdX /dev/sdY ;;
@@ -816,7 +846,7 @@ function PARTITIONING_SCHEME_menu()  {
 }
 
 function PARTITIONING_BOOT_TYPE_tag()   { echo " ├ Boot type"; }
-function PARTITIONING_BOOT_TYPE_label() { echo " ├ ($PARTITIONING_BOOT_TYPE)$([[ $PARTITIONING_BOOT_TYPE == efi ]] &&echo -n " \Z1$EFI_UNSUPPORTED_MESSAGE_SHORT\Zn" || echo -n "")"; }
+function PARTITIONING_BOOT_TYPE_label() { echo " ├ ($PARTITIONING_BOOT_TYPE)$([[ $PARTITIONING_BOOT_TYPE == efi && $HAS_EFI_SUPPORT == false ]] && echo -n " \Z1$EFI_UNSUPPORTED_MESSAGE_SHORT\Zn" || echo -n "")"; }
 function PARTITIONING_BOOT_TYPE_show()  { [[ $PARTITIONING_SCHEME != "custom" ]]; }
 function PARTITIONING_BOOT_TYPE_help()  { echo "Select whether to use EFI or BIOS boot."; }
 function PARTITIONING_BOOT_TYPE_menu()  {
@@ -835,6 +865,25 @@ function PARTITIONING_BOOT_TYPE_menu()  {
 	fi
 }
 
+function PARTITIONING_BOOT_DEVICE_tag()   { echo " ├ Boot Device"; }
+function PARTITIONING_BOOT_DEVICE_label() {
+	if [[ -e "$PARTITIONING_BOOT_DEVICE" ]]; then
+		echo " ├ ($PARTITIONING_BOOT_DEVICE)"
+	else
+		echo " ├ (\Z1$PARTITIONING_BOOT_DEVICE\Zn)"
+	fi
+}
+function PARTITIONING_BOOT_DEVICE_show()  { [[ $PARTITIONING_SCHEME != "custom" ]] && one_of "$PARTITIONING_SCHEME" "existing_partitions"; }
+function PARTITIONING_BOOT_DEVICE_help()  { echo "The device to use for the boot partition. For EFI systems this is the efi partition. Must be formatted already."; }
+function PARTITIONING_BOOT_DEVICE_menu()  {
+	dialog \
+		--title "Select boot device" \
+		--inputbox "Enter the path of the boot device which you want to partition. (e.g. /dev/sda)." \
+		"${INPUTBOX_SIZE[@]}" "$PARTITIONING_BOOT_DEVICE"
+	PARTITIONING_BOOT_DEVICE="$dialog_out"
+	UNSAVED_CHANGES=true
+}
+
 function PARTITIONING_USE_SWAP_tag()   { echo " ├ Use swap"; }
 function PARTITIONING_USE_SWAP_label() { on_off_label "$PARTITIONING_USE_SWAP" " ├ "; }
 function PARTITIONING_USE_SWAP_show()  { [[ $PARTITIONING_SCHEME != "custom" ]]; }
@@ -846,7 +895,7 @@ function PARTITIONING_USE_SWAP_menu()  {
 
 function PARTITIONING_SWAP_tag()   { echo " │  └ Swap amount"; }
 function PARTITIONING_SWAP_label() { echo " │  └ ($PARTITIONING_SWAP)"; }
-function PARTITIONING_SWAP_show()  { [[ $PARTITIONING_SCHEME != "custom" ]] && is_on "$PARTITIONING_USE_SWAP"; }
+function PARTITIONING_SWAP_show()  { [[ $PARTITIONING_SCHEME != "custom" ]] && is_on "$PARTITIONING_USE_SWAP" && ! one_of "$PARTITIONING_SCHEME" "existing_partitions"; }
 function PARTITIONING_SWAP_help()  { echo "Select the amount of swap to use."; }
 function PARTITIONING_SWAP_menu()  {
 	dialog \
@@ -854,6 +903,27 @@ function PARTITIONING_SWAP_menu()  {
 		--inputbox "Enter the amount of swap for the new system. Use the correct suffix (e.g. 16GiB, 1000MB)." \
 		"${INPUTBOX_SIZE[@]}" "$PARTITIONING_SWAP"
 	PARTITIONING_SWAP="$dialog_out"
+	UNSAVED_CHANGES=true
+}
+
+
+function PARTITIONING_SWAP_DEVICE_tag()   { echo " │  └ Swap Device"; }
+function PARTITIONING_SWAP_DEVICE_label() {
+	local dev=${PARTITIONING_SWAP_DEVICE:-/dev/sdB}
+	if [[ -e "$dev" ]]; then
+		echo " │  └ ($dev)"
+	else
+		echo " │  └ (\Z1$dev\Zn)"
+	fi
+}
+function PARTITIONING_SWAP_DEVICE_show()  { [[ $PARTITIONING_SCHEME != "custom" ]] && is_on "$PARTITIONING_USE_SWAP" && one_of "$PARTITIONING_SCHEME" "existing_partitions"; }
+function PARTITIONING_SWAP_DEVICE_help()  { echo "The device to use as swap."; }
+function PARTITIONING_SWAP_DEVICE_menu()  {
+	dialog \
+		--title "Select swap device" \
+		--inputbox "Enter the path of the swap device. (e.g. /dev/sda)" \
+		"${INPUTBOX_SIZE[@]}" "${PARTITIONING_SWAP_DEVICE:-/dev/sdB}"
+	PARTITIONING_SWAP_DEVICE="$dialog_out"
 	UNSAVED_CHANGES=true
 }
 
@@ -975,7 +1045,7 @@ function PARTITIONING_DEVICE_label() {
 		echo " └ (\Z1$PARTITIONING_DEVICE\Zn)"
 	fi
 }
-function PARTITIONING_DEVICE_show()  { [[ $PARTITIONING_SCHEME != "custom" ]] && one_of "$PARTITIONING_SCHEME" "classic_single_disk"; }
+function PARTITIONING_DEVICE_show()  { [[ $PARTITIONING_SCHEME != "custom" ]] && one_of "$PARTITIONING_SCHEME" "classic_single_disk" "existing_partitions"; }
 function PARTITIONING_DEVICE_help()  { echo "The block device to which the layout will be applied."; }
 function PARTITIONING_DEVICE_menu()  {
 	dialog \
