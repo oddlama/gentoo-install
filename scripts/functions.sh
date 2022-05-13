@@ -707,6 +707,16 @@ function summarize_disk_actions() {
 function apply_disk_configuration() {
 	summarize_disk_actions
 
+	if [[ ]]; then
+		elog "You have chosen an existing disk configuration. No devices will"
+		elog "actually be re-partitioned or formatted. Please make sure that all"
+		elog "devices are already formatted."
+	else
+		ewarn "Please ensure that all selected devices are fully unmounted and are"
+		ewarn "not otherwise in use by the system. This includes stopping mdadm arrays"
+		ewarn "and closing opened luks volumes if applicable for all relevant devices."
+		ewarn "Otherwise, automatic partitioning may fail."
+	fi
 	ask "Do you really want to apply this disk configuration?" \
 		|| die "Aborted"
 	countdown "Applying in " 5
