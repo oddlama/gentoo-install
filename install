@@ -96,7 +96,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Check configuration location
-[[ -z "${CONFIG%%$GENTOO_INSTALL_REPO_DIR*}" ]] \
+[[ -z "${CONFIG%%"$GENTOO_INSTALL_REPO_DIR"*}" ]] \
 	|| die "Configuration file must be inside the installation directory. This is needed so it is accessible from within the chroot environment."
 
 if [[ -z "$ACTION" ]]; then

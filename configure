@@ -2,8 +2,6 @@
 set -uo pipefail
 
 #todo "test ZFS compression really on"
-#todo "disks by id also in resolve step"
-#todo "the device you want to partitoin ---> to use?"
 
 ################################################
 # Initialize script environment
@@ -649,7 +647,8 @@ function menu_radiolist() {
 function menu_select_device() {
 	local title="$1"
 	local desc="$2"
-	local prev_selected=$(canonicalize_device "$3")
+	local prev_selected
+	prev_selected=$(canonicalize_device "$3")
 
 	while true; do
 		local all_devices=()

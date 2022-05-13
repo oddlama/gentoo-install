@@ -6,8 +6,6 @@ source "$GENTOO_INSTALL_REPO_DIR/scripts/protection.sh" || exit 1
 # Functions
 
 function install_stage3() {
-	[[ $# == 0 ]] || die "Too many arguments"
-
 	prepare_installation_environment
 	apply_disk_configuration
 	download_stage3

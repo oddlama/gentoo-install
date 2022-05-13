@@ -242,6 +242,14 @@ function create_resolve_entry_device() {
 # Return matching device from /dev/disk/by-id/ if possible,
 # otherwise return the parameter unchanged.
 function canonicalize_device() {
+	given_dev="$(realpath "$1")"
+	for dev in /dev/disk/by-id/*; do
+		if [[ "$(realpath "$dev")" == "$given_dev" ]]; then
+			echo -n "$dev"
+			return 0
+		fi
+	done
+
 	echo -n "$1"
 }
 
