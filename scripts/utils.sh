@@ -240,7 +240,7 @@ function create_resolve_entry_device() {
 }
 
 # Returns the basename of the device, if its path starts with /dev/disk/by-id/
-function shorten_dev() {
+function shorten_device() {
 	echo -n "${1#/dev/disk/by-id/}"
 }
 
