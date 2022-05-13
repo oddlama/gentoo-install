@@ -1,7 +1,6 @@
 #!/bin/bash
 set -uo pipefail
 
-#todo "selector for disks by-id, or custom"
 #todo "test ZFS compression really on"
 #todo "disks by id also in resolve step"
 #todo "the device you want to partitoin ---> to use?"
@@ -204,7 +203,7 @@ ALL_PARTITIONING_SCHEMES=(
 	"zfs_centric"         "ZFS centric (optional ZFS compression and encryption)"
 	"btrfs_centric"       "Btrfs centric (optional raid0/1 via btrfs)"
 	"raid0_luks"          "Raid0 (N>=2 disks) and luks for root"
-	"custom"              "Custom (edit the config manually later)"
+	"custom"              "Custom (expert option; edit the config manually later)"
 )
 
 PARTITIONING_BOOT_TYPES=(
@@ -489,7 +488,7 @@ function one_of() {
 # $2: description
 # $3: space separated index list of selected items (e.g. "0 1 5 6")
 # $@: all items
-function menu_splitlist()  {
+function menu_splitlist() {
 	local title="$1"
 	local description="$2"
 	local selected_index_list="$3"
@@ -594,7 +593,7 @@ function menu_radiolist_labeled() {
 # $2: description
 # $3: default item
 # $@: items
-function menu_radiolist()  {
+function menu_radiolist() {
 	local title="$1"
 	local description="$2"
 	local default_item="$3"
@@ -642,6 +641,51 @@ function menu_radiolist()  {
 		# <ESC><ESC>
 		return 1
 	fi
+}
+
+# $1: title
+# $2: description
+# $3: current device (will be canonicalized if possible)
+function menu_select_device() {
+	local title="$1"
+	local desc="$2"
+	local prev_selected=$(canonicalize_device "$3")
+
+	while true; do
+		local all_devices=()
+		for dev in /dev/disk/by-id/*; do
+			all_devices+=("$dev" "$(basename "$dev")")
+		done
+		all_devices+=("/dev/null" "<enter custom path>")
+
+		if menu_radiolist_labeled "$title" "$desc" "$prev_selected" "${all_devices[@]}"; then
+			if [[ "$dialog_out" == "/dev/null" ]]; then
+				while true; do
+					if dialog \
+						--title "$1" \
+						--inputbox "$([[ -e $prev_selected ]] || echo -n "\Z1The previously selected device $prev_selected does not exist!\Zn ")Enter the path of the desired device." \
+						"${INPUTBOX_SIZE[@]}" "$prev_selected"
+					then
+						# Repeat until selected device exists or cancelled
+						prev_selected="$dialog_out"
+						[[ ! -e "$dialog_out" ]] && continue
+						return 0
+					else
+						# <Cancel> -> return to previous menu
+						break
+					fi
+				done
+
+				# Return to radiolist
+				continue
+			else
+				return 0
+			fi
+		else
+			# <Cancel>
+			return 1
+		fi
+	done
 }
 
 function msgbox_help() {
@@ -856,7 +900,6 @@ function PARTITIONING_BOOT_TYPE_menu()  {
 		"$PARTITIONING_BOOT_TYPE" \
 		"${PARTITIONING_BOOT_TYPES[@]}"
 	then
-		# Set timezone
 		PARTITIONING_BOOT_TYPE="$dialog_out"
 		UNSAVED_CHANGES=true
 	else
@@ -876,12 +919,17 @@ function PARTITIONING_BOOT_DEVICE_label() {
 function PARTITIONING_BOOT_DEVICE_show()  { [[ $PARTITIONING_SCHEME != "custom" ]] && one_of "$PARTITIONING_SCHEME" "existing_partitions"; }
 function PARTITIONING_BOOT_DEVICE_help()  { echo "The device to use for the boot partition. For EFI systems this is the efi partition. Must be formatted already."; }
 function PARTITIONING_BOOT_DEVICE_menu()  {
-	dialog \
-		--title "Select boot device" \
-		--inputbox "Enter the path of the boot device which you want to partition. (e.g. /dev/sda)." \
-		"${INPUTBOX_SIZE[@]}" "$PARTITIONING_BOOT_DEVICE"
-	PARTITIONING_BOOT_DEVICE="$dialog_out"
-	UNSAVED_CHANGES=true
+	if menu_select_device \
+		"Select boot device" \
+		"Select the device containing the EFI filesystem or /boot partition respectively for systems using efi or bios boot." \
+		"$PARTITIONING_BOOT_DEVICE"
+	then
+		PARTITIONING_BOOT_DEVICE="$dialog_out"
+		UNSAVED_CHANGES=true
+	else
+		# Return to menu
+		true
+	fi
 }
 
 function PARTITIONING_USE_SWAP_tag()   { echo " ├ Use swap"; }
@@ -919,12 +967,17 @@ function PARTITIONING_SWAP_DEVICE_label() {
 function PARTITIONING_SWAP_DEVICE_show()  { [[ $PARTITIONING_SCHEME != "custom" ]] && is_on "$PARTITIONING_USE_SWAP" && one_of "$PARTITIONING_SCHEME" "existing_partitions"; }
 function PARTITIONING_SWAP_DEVICE_help()  { echo "The device to use as swap."; }
 function PARTITIONING_SWAP_DEVICE_menu()  {
-	dialog \
-		--title "Select swap device" \
-		--inputbox "Enter the path of the swap device. (e.g. /dev/sda)" \
-		"${INPUTBOX_SIZE[@]}" "${PARTITIONING_SWAP_DEVICE:-/dev/sdB}"
-	PARTITIONING_SWAP_DEVICE="$dialog_out"
-	UNSAVED_CHANGES=true
+	if menu_select_device \
+		"Select swap device" \
+		"Select the device to use as swap." \
+		"$PARTITIONING_SWAP_DEVICE"
+	then
+		PARTITIONING_SWAP_DEVICE="$dialog_out"
+		UNSAVED_CHANGES=true
+	else
+		# Return to menu
+		true
+	fi
 }
 
 function PARTITIONING_ROOT_FS_tag()   { echo " ├ Root filesystem"; }
@@ -938,7 +991,6 @@ function PARTITIONING_ROOT_FS_menu()  {
 		"$PARTITIONING_ROOT_FS" \
 		"${PARTITIONING_ROOT_FS_TYPES[@]}"
 	then
-		# Set timezone
 		PARTITIONING_ROOT_FS="$dialog_out"
 		UNSAVED_CHANGES=true
 	else
@@ -988,7 +1040,6 @@ function PARTITIONING_ZFS_COMPRESSION_menu()  {
 		"$PARTITIONING_ZFS_COMPRESSION" \
 		"${PARTITIONING_ZFS_COMPRESSIONS[@]}"
 	then
-		# Set timezone
 		PARTITIONING_ZFS_COMPRESSION="$dialog_out"
 		UNSAVED_CHANGES=true
 	else
@@ -1008,7 +1059,6 @@ function PARTITIONING_ZFS_POOL_TYPE_menu()  {
 		"$PARTITIONING_ZFS_POOL_TYPE" \
 		"${PARTITIONING_ZFS_POOL_TYPES[@]}"
 	then
-		# Set timezone
 		PARTITIONING_ZFS_POOL_TYPE="$dialog_out"
 		UNSAVED_CHANGES=true
 	else
@@ -1028,7 +1078,6 @@ function PARTITIONING_BTRFS_RAID_TYPE_menu()  {
 		"$PARTITIONING_BTRFS_RAID_TYPE" \
 		"${PARTITIONING_BTRFS_RAID_TYPES[@]}"
 	then
-		# Set timezone
 		PARTITIONING_BTRFS_RAID_TYPE="$dialog_out"
 		UNSAVED_CHANGES=true
 	else
@@ -1048,12 +1097,17 @@ function PARTITIONING_DEVICE_label() {
 function PARTITIONING_DEVICE_show()  { [[ $PARTITIONING_SCHEME != "custom" ]] && one_of "$PARTITIONING_SCHEME" "classic_single_disk" "existing_partitions"; }
 function PARTITIONING_DEVICE_help()  { echo "The block device to which the layout will be applied."; }
 function PARTITIONING_DEVICE_menu()  {
-	dialog \
-		--title "Select device" \
-		--inputbox "Enter the path of the device which you want to partition. (e.g. /dev/sda)." \
-		"${INPUTBOX_SIZE[@]}" "$PARTITIONING_DEVICE"
-	PARTITIONING_DEVICE="$dialog_out"
-	UNSAVED_CHANGES=true
+	if menu_select_device \
+		"Select root device" \
+		"Select the device to use as the root device." \
+		"$PARTITIONING_DEVICE"
+	then
+		PARTITIONING_DEVICE="$dialog_out"
+		UNSAVED_CHANGES=true
+	else
+		# Return to menu
+		true
+	fi
 }
 
 function PARTITIONING_DEVICES_tag()   { echo " └ Devices"; }
@@ -1120,7 +1174,6 @@ function TIMEZONE_menu()  {
 		"$TIMEZONE" \
 		"${ALL_TIMEZONES[@]}"
 	then
-		# Set timezone
 		TIMEZONE="$dialog_out"
 		UNSAVED_CHANGES=true
 	else
@@ -1140,7 +1193,6 @@ function KEYMAP_menu()  {
 		"$KEYMAP" \
 		"${ALL_KEYMAPS[@]}"
 	then
-		# Set keymap
 		KEYMAP="$dialog_out"
 		UNSAVED_CHANGES=true
 	else
@@ -1171,7 +1223,6 @@ function KEYMAP_INITRAMFS_menu()  {
 		"$KEYMAP_INITRAMFS" \
 		"${ALL_KEYMAPS[@]}"
 	then
-		# Set keymap
 		KEYMAP_INITRAMFS="$dialog_out"
 		UNSAVED_CHANGES=true
 	else
@@ -1186,7 +1237,6 @@ function LOCALES_show()  { return 0; }
 function LOCALES_help()  { echo "The locales to generate for the new system. Be careful that the syntax for locales is a different from the resulting name of the genereated locales of locale-gen. For example the locale 'en_US.utf8' is enabled via 'en_US.UTF-8 UTF-8')."; }
 function LOCALES_menu()  {
 	if menu_splitlist "Select locales" "Select which locales to generate." "$SELECTED_LOCALES" "${SUPPORTED_LOCALES[@]}"; then
-		# Set locales
 		SELECTED_LOCALES="$dialog_out"
 		recalculate_locales
 		UNSAVED_CHANGES=true
@@ -1207,7 +1257,6 @@ function LOCALE_menu()  {
 		"$LOCALE" \
 		"${LOCALE_A[@]}"
 	then
-		# Set locale
 		LOCALE="$dialog_out"
 		UNSAVED_CHANGES=true
 	else
@@ -1246,7 +1295,6 @@ function PORTAGE_SYNC_TYPE_menu()  {
 		"$PORTAGE_SYNC_TYPE" \
 		"${PORTAGE_SYNC_TYPES[@]}"
 	then
-		# Set arch
 		PORTAGE_SYNC_TYPE="$dialog_out"
 		UNSAVED_CHANGES=true
 	else
@@ -1299,7 +1347,6 @@ function GENTOO_ARCH_menu()  {
 		"$GENTOO_ARCH" \
 		"${ALL_GENTOO_ARCHS[@]}"
 	then
-		# Set arch
 		GENTOO_ARCH="$dialog_out"
 		UNSAVED_CHANGES=true
 	else

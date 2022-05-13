@@ -239,6 +239,12 @@ function create_resolve_entry_device() {
 	DISK_ID_TO_RESOLVABLE[$id]="device:$dev"
 }
 
+# Return matching device from /dev/disk/by-id/ if possible,
+# otherwise return the parameter unchanged.
+function canonicalize_device() {
+	echo -n "$1"
+}
+
 function resolve_device_by_id() {
 	local id="$1"
 	[[ -v DISK_ID_TO_RESOLVABLE[$id] ]] \
@@ -247,15 +253,18 @@ function resolve_device_by_id() {
 	local type="${DISK_ID_TO_RESOLVABLE[$id]%%:*}"
 	local arg="${DISK_ID_TO_RESOLVABLE[$id]#*:}"
 
+	local dev
 	case "$type" in
-		'partuuid') get_device_by_partuuid   "$arg" ;;
-		'ptuuid')   get_device_by_ptuuid     "$arg" ;;
-		'uuid')     get_device_by_uuid       "$arg" ;;
-		'mdadm')    get_device_by_mdadm_uuid "$arg" ;;
-		'luks')     get_device_by_luks_name  "$arg" ;;
-		'device')   echo -n "$arg" ;;
+		'partuuid') dev=$(get_device_by_partuuid   "$arg") ;;
+		'ptuuid')   dev=$(get_device_by_ptuuid     "$arg") ;;
+		'uuid')     dev=$(get_device_by_uuid       "$arg") ;;
+		'mdadm')    dev=$(get_device_by_mdadm_uuid "$arg") ;;
+		'luks')     dev=$(get_device_by_luks_name  "$arg") ;;
+		'device')   dev="$arg" ;;
 		*) die "Cannot resolve '$type:$arg' to device (unknown type)"
 	esac
+
+	canonicalize_device "$dev"
 }
 
 function load_or_generate_uuid() {
