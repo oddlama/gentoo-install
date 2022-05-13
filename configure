@@ -909,10 +909,12 @@ function PARTITIONING_BOOT_TYPE_menu()  {
 
 function PARTITIONING_BOOT_DEVICE_tag()   { echo " ├ Boot Device"; }
 function PARTITIONING_BOOT_DEVICE_label() {
+	local devshort=$PARTITIONING_BOOT_DEVICE
+	devshort=$(shorten_device "$devshort")
 	if [[ -e "$PARTITIONING_BOOT_DEVICE" ]]; then
-		echo " ├ ($PARTITIONING_BOOT_DEVICE)"
+		echo " ├ ($devshort)"
 	else
-		echo " ├ (\Z1$PARTITIONING_BOOT_DEVICE\Zn)"
+		echo " ├ (\Z1$devshort\Zn)"
 	fi
 }
 function PARTITIONING_BOOT_DEVICE_show()  { [[ $PARTITIONING_SCHEME != "custom" ]] && one_of "$PARTITIONING_SCHEME" "existing_partitions"; }
@@ -957,10 +959,12 @@ function PARTITIONING_SWAP_menu()  {
 function PARTITIONING_SWAP_DEVICE_tag()   { echo " │  └ Swap Device"; }
 function PARTITIONING_SWAP_DEVICE_label() {
 	local dev=${PARTITIONING_SWAP_DEVICE:-/dev/sdB}
+	local devshort
+	devshort=$(shorten_device "$dev")
 	if [[ -e "$dev" ]]; then
-		echo " │  └ ($dev)"
+		echo " │  └ ($devshort)"
 	else
-		echo " │  └ (\Z1$dev\Zn)"
+		echo " │  └ (\Z1$devshort\Zn)"
 	fi
 }
 function PARTITIONING_SWAP_DEVICE_show()  { [[ $PARTITIONING_SCHEME != "custom" ]] && is_on "$PARTITIONING_USE_SWAP" && one_of "$PARTITIONING_SCHEME" "existing_partitions"; }
@@ -1087,10 +1091,12 @@ function PARTITIONING_BTRFS_RAID_TYPE_menu()  {
 
 function PARTITIONING_DEVICE_tag()   { echo " └ Device"; }
 function PARTITIONING_DEVICE_label() {
+	local devshort=$PARTITIONING_DEVICE
+	devshort=$(shorten_device "$devshort")
 	if [[ -e "$PARTITIONING_DEVICE" ]]; then
-		echo " └ ($PARTITIONING_DEVICE)"
+		echo " └ ($devshort)"
 	else
-		echo " └ (\Z1$PARTITIONING_DEVICE\Zn)"
+		echo " └ (\Z1$devshort\Zn)"
 	fi
 }
 function PARTITIONING_DEVICE_show()  { [[ $PARTITIONING_SCHEME != "custom" ]] && one_of "$PARTITIONING_SCHEME" "classic_single_disk" "existing_partitions"; }

@@ -239,6 +239,11 @@ function create_resolve_entry_device() {
 	DISK_ID_TO_RESOLVABLE[$id]="device:$dev"
 }
 
+# Returns the basename of the device, if its path starts with /dev/disk/by-id/
+function shorten_dev() {
+	echo -n "${1#/dev/disk/by-id/}"
+}
+
 # Return matching device from /dev/disk/by-id/ if possible,
 # otherwise return the parameter unchanged.
 function canonicalize_device() {
