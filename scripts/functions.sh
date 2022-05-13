@@ -73,7 +73,7 @@ function prepare_installation_environment() {
 		ntpd
 		partprobe
 		python3
-		?rhash
+		"?rhash"
 		sha512sum
 		sgdisk
 		uuidgen

@@ -351,11 +351,22 @@ function parse_arguments() {
 	fi
 }
 
-# $1: array
-# $@: elements
-function append_to_array() {
-	declare -n _target_array=$1; shift
-	_target_array+=("$@")
+# $1: program
+# $2: checkfile
+function has_program() {
+	local program="$1"
+	local checkfile="$2"
+	if [[ -z "$checkfile" ]]; then
+		type "$program" &>/dev/null \
+			|| return 1
+	elif [[ "${checkfile:0:1}" == "/" ]]; then
+		[[ -e "$checkfile" ]] \
+			|| return 1
+	else
+		type "$checkfile" &>/dev/null \
+			|| return 1
+	fi
+	return 0
 }
 
 function check_wanted_programs() {
@@ -367,25 +378,16 @@ function check_wanted_programs() {
 	for tuple in "$@"; do
 		program="${tuple%%=*}"
 		checkfile="${tuple##*=}"
-		if [[ "$program" == "?"* ]]; then
-			program="${program#"?"}"
-			arr=missing_wanted
-		else
-			arr=missing_required
-		fi
-		if [[ -z "$checkfile" ]]; then
-			type "$program" &>/dev/null \
-				|| append_to_array "$arr" "$program"
-		elif [[ "${checkfile:0:1}" == "/" ]]; then
-			[[ -e "$checkfile" ]] \
-				|| append_to_array "$arr" "$program"
-		else
-			type "$checkfile" &>/dev/null \
-				|| append_to_array "$arr" "$program"
+		if ! has_program "${program#"?"}" "$checkfile"; then
+			if [[ "$program" == "?"* ]]; then
+				missing_wanted+=("${program#"?"}")
+			else
+				missing_required+=("$program")
+			fi
 		fi
 	done
 
-	[[ "${#missing_required[@]}" -eq 0 && "${#missing_required[@]}" -eq 0 ]] \
+	[[ "${#missing_required[@]}" -eq 0 && "${#missing_wanted[@]}" -eq 0 ]] \
 		&& return
 
 	if [[ "${#missing_required[@]}" -gt 0 ]]; then
