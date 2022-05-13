@@ -707,7 +707,7 @@ function summarize_disk_actions() {
 function apply_disk_configuration() {
 	summarize_disk_actions
 
-	if [[ ]]; then
+	if [[ $NO_PARTITIONING_OR_FORMATTING == true ]]; then
 		elog "You have chosen an existing disk configuration. No devices will"
 		elog "actually be re-partitioned or formatted. Please make sure that all"
 		elog "devices are already formatted."

@@ -27,6 +27,8 @@ USED_ZFS=false
 USED_BTRFS=false
 # Flag to track usage of encryption
 USED_ENCRYPTION=false
+# Flag to track whether partitioning or formatting is forbidden
+NO_PARTITIONING_OR_FORMATTING=false
 
 # An array of disk related actions to perform
 DISK_ACTIONS=()
@@ -355,6 +357,8 @@ function create_single_disk_layout() {
 #   boot=<device>         Use the given device as the bios/efi partition.
 #   type=[efi|bios]       Selects the boot type. Defaults to efi if not given.
 function create_existing_partitions_layout() {
+	NO_PARTITIONING_OR_FORMATTING=true
+
 	local known_arguments=('+swap' '+boot' '?type')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
