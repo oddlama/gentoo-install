@@ -791,7 +791,6 @@ function download_stage3() {
 		|| die "Could not cd into '$TMP_DIR'"
 
 	local STAGE3_RELEASES="$GENTOO_MIRROR/releases/amd64/autobuilds/current-$STAGE3_BASENAME/"
-	local sha512sums
 
 	# Download upstream list of files
 	CURRENT_STAGE3="$(download_stdout "$STAGE3_RELEASES")" \
@@ -832,7 +831,7 @@ function download_stage3() {
 		einfo "Verifying tarball integrity"
 		# Replace any absolute paths in the digest file with just the stage3 basename, so it will be found by rhash
 		digest_line=$(grep 'tar.xz$' "${CURRENT_STAGE3}.DIGESTS" | sed -e 's/  .*stage3-/  stage3-/')
-		if type "$program" &>/dev/null; then
+		if type rhash &>/dev/null; then
 			rhash -P --check <(echo "# SHA512"; echo "$digest_line") \
 				|| die "Checksum mismatch!"
 		else
