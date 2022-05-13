@@ -351,31 +351,51 @@ function parse_arguments() {
 	fi
 }
 
-function check_has_programs() {
-	local failed=()
+# $1: array
+# $@: elements
+function append_to_array() {
+	declare -n _target_array=$1; shift
+	_target_array+=("$@")
+}
+
+function check_wanted_programs() {
+	local missing_required=()
+	local missing_wanted=()
 	local tuple
 	local program
 	local checkfile
 	for tuple in "$@"; do
 		program="${tuple%%=*}"
 		checkfile="${tuple##*=}"
+		if [[ "$program" == "?"* ]]; then
+			program="${program#"?"}"
+			arr=missing_wanted
+		else
+			arr=missing_required
+		fi
 		if [[ -z "$checkfile" ]]; then
 			type "$program" &>/dev/null \
-				|| failed+=("$program")
+				|| append_to_array "$arr" "$program"
 		elif [[ "${checkfile:0:1}" == "/" ]]; then
 			[[ -e "$checkfile" ]] \
-				|| failed+=("$program")
+				|| append_to_array "$arr" "$program"
 		else
 			type "$checkfile" &>/dev/null \
-				|| failed+=("$program")
+				|| append_to_array "$arr" "$program"
 		fi
 	done
 
-	[[ "${#failed[@]}" -eq 0 ]] \
+	[[ "${#missing_required[@]}" -eq 0 && "${#missing_required[@]}" -eq 0 ]] \
 		&& return
 
-	elog "The following programs are required for the installer to work, but are currently missing on your system:" >&2
-	elog "  ${failed[*]}" >&2
+	if [[ "${#missing_required[@]}" -gt 0 ]]; then
+		elog "The following programs are required for the installer to work, but are currently missing on your system:" >&2
+		elog "  ${missing_required[*]}" >&2
+	fi
+	if [[ "${#missing_wanted[@]}" -gt 0 ]]; then
+		elog "Missing optional programs:" >&2
+		elog "  ${missing_wanted[*]}" >&2
+	fi
 
 	if type pacman &>/dev/null; then
 		declare -A pacman_packages
@@ -383,12 +403,12 @@ function check_has_programs() {
 			[ntpd]=ntp
 			[zfs]=""
 		)
-		elog "We have detected that pacman is available."
-		if ask "Do you want to install the missing programs automatically?"; then
+		elog "Detected pacman package manager."
+		if ask "Do you want to install all missing programs automatically?"; then
 			local packages
 			local need_zfs=false
 
-			for program in "${failed[@]}"; do
+			for program in "${missing_required[@]}" "${missing_wanted[@]}"; do
 				[[ "$program" == "zfs" ]] \
 					&& need_zfs=true
 
@@ -415,5 +435,9 @@ function check_has_programs() {
 		fi
 	fi
 
-	die "Aborted installer because of missing required programs."
+	if [[ "${#missing_required[@]}" -gt 0 ]]; then
+		die "Aborted installer because of missing required programs."
+	else
+		ask "Continue without recommended programs?"
+	fi
 }

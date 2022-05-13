@@ -66,30 +66,31 @@ function preprocess_config() {
 function prepare_installation_environment() {
 	einfo "Preparing installation environment"
 
-	local needed_programs=(
+	local wanted_programs=(
 		gpg
 		hwclock
 		lsblk
 		ntpd
 		partprobe
 		python3
-		rhash
+		?rhash
+		sha512sum
 		sgdisk
 		uuidgen
 		wget
 	)
 
 	[[ $USED_BTRFS == "true" ]] \
-		&& needed_programs+=(btrfs)
+		&& wanted_programs+=(btrfs)
 	[[ $USED_ZFS == "true" ]] \
-		&& needed_programs+=(zfs)
+		&& wanted_programs+=(zfs)
 	[[ $USED_RAID == "true" ]] \
-		&& needed_programs+=(mdadm)
+		&& wanted_programs+=(mdadm)
 	[[ $USED_LUKS == "true" ]] \
-		&& needed_programs+=(cryptsetup)
+		&& wanted_programs+=(cryptsetup)
 
 	# Check for existence of required programs
-	check_has_programs "${needed_programs[@]}"
+	check_wanted_programs "${wanted_programs[@]}"
 
 	# Sync time now to prevent issues later
 	sync_time
@@ -790,6 +791,7 @@ function download_stage3() {
 		|| die "Could not cd into '$TMP_DIR'"
 
 	local STAGE3_RELEASES="$GENTOO_MIRROR/releases/amd64/autobuilds/current-$STAGE3_BASENAME/"
+	local sha512sums
 
 	# Download upstream list of files
 	CURRENT_STAGE3="$(download_stdout "$STAGE3_RELEASES")" \
@@ -829,8 +831,14 @@ function download_stage3() {
 		# Check hashes
 		einfo "Verifying tarball integrity"
 		# Replace any absolute paths in the digest file with just the stage3 basename, so it will be found by rhash
-		rhash -P --check <(grep -B 1 'tar.xz$' "${CURRENT_STAGE3}.DIGESTS" | sed -e 's/  .*stage3-/  stage3-/') \
-			|| die "Checksum mismatch!"
+		digest_line=$(grep 'tar.xz$' "${CURRENT_STAGE3}.DIGESTS" | sed -e 's/  .*stage3-/  stage3-/')
+		if type "$program" &>/dev/null; then
+			rhash -P --check <(echo "# SHA512"; echo "$digest_line") \
+				|| die "Checksum mismatch!"
+		else
+			sha512sum --check <<< "$digest_line" \
+				|| die "Checksum mismatch!"
+		fi
 
 		# Create verification file in case the script is restarted
 		touch_or_die 0644 "$CURRENT_STAGE3_VERIFIED"

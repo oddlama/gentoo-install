@@ -44,7 +44,7 @@ while [[ $# -gt 0 ]]; do
 	shift
 done
 
-check_has_programs dialog ncurses=ncursesw6-config
+check_wanted_programs dialog ncurses=ncursesw6-config
 
 # Determine whether EFI is available
 HAS_EFI_SUPPORT=$([[ -d /sys/firmware/efi ]] && echo -n "true" || echo -n "false")
