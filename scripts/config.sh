@@ -116,6 +116,7 @@ function register_existing() {
 	local new_id="${arguments[new_id]}"
 	local device="${arguments[device]}"
 	create_resolve_entry_device "$new_id" "$device"
+	DISK_ACTIONS+=("action=existing" "$@" ";")
 }
 
 # Named arguments:
@@ -348,7 +349,7 @@ function create_single_disk_layout() {
 	die "'create_single_disk_layout' is deprecated, please use 'create_classic_single_disk_layout' instead. It is fully option-compatible to the old version."
 }
 
-# Skip partitioning, and use existing partitions.
+# Skip partitioning, and use existing pre-formatted partitions. These must be trivially mountable.
 # Parameters:
 #   swap=<device|false>   Use the given device as swap, or no swap at all if set to false
 #   boot=<device>         Use the given device as the bios/efi partition.

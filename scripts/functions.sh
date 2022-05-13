@@ -163,6 +163,14 @@ function summary_color_args() {
 	done
 }
 
+function disk_existing() {
+	local new_id="${arguments[new_id]}"
+	if [[ ${disk_action_summarize_only-false} == "true" ]]; then
+		add_summary_entry __root__ "$new_id" "${arguments[device]}" "(no-format, existing)" ""
+	fi
+	# no-op;
+}
+
 function disk_create_gpt() {
 	local new_id="${arguments[new_id]}"
 	if [[ ${disk_action_summarize_only-false} == "true" ]]; then
@@ -563,6 +571,7 @@ function apply_disk_action() {
 	unset known_arguments
 	unset arguments; declare -A arguments; parse_arguments "$@"
 	case "${arguments[action]}" in
+		'existing')          disk_existing         ;;
 		'create_gpt')        disk_create_gpt       ;;
 		'create_partition')  disk_create_partition ;;
 		'create_raid')       disk_create_raid      ;;
