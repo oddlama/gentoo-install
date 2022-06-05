@@ -135,9 +135,9 @@ function generate_initramfs() {
 	kver="${kver#linux-}"
 
 	# Generate initramfs
+		#--conf          "/dev/null" \
+		#--confdir       "/dev/null" \
 	try dracut \
-		--conf          "/dev/null" \
-		--confdir       "/dev/null" \
 		--kver          "$kver" \
 		--no-compress \
 		--no-hostonly \
