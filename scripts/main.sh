@@ -135,27 +135,28 @@ function generate_initramfs() {
 	kver="${kver#linux-}"
 
 	# Generate initramfs
-		#--conf          "/dev/null" \
-		#--confdir       "/dev/null" \
+		# TODO --conf          "/dev/null" \
+		# TODO --confdir       "/dev/null" \
 	try dracut \
 		--kver          "$kver" \
-		--no-compress \
+		--zstd \
 		--no-hostonly \
 		--ro-mnt \
 		--add           "bash ${modules[*]}" \
 		--force \
 		"$output"
 
+		# TODO --conf          "/dev/null" \\
+		# TODO --confdir       "/dev/null" \\
 	# Create script to repeat initramfs generation
 	cat > "$(dirname "$output")/generate_initramfs.sh" <<EOF
 #!/bin/bash
 kver="\$1"
-[[ -n "\$kver" ]] || { echo "usage \$0 <kernel_version>" >&2; exit 1; }
+output="\$2"
+[[ -n "\$kver" ]] || { echo "usage \$0 <kernel_version> <output>" >&2; exit 1; }
 dracut \\
-	--conf          "/dev/null" \\
-	--confdir       "/dev/null" \\
 	--kver          "\$kver" \\
-	--no-compress \\
+	--zstd \\
 	--no-hostonly \\
 	--ro-mnt \\
 	--add           "bash ${modules[*]}" \\
@@ -258,7 +259,7 @@ function install_kernel_bios() {
 function install_kernel() {
 	# Install vanilla kernel
 	einfo "Installing vanilla kernel and related tools"
-	try emerge --verbose sys-kernel/dracut sys-kernel/gentoo-kernel-bin
+	try emerge --verbose sys-kernel/dracut sys-kernel/gentoo-kernel-bin app-arch/zstd
 
 	if [[ $IS_EFI == "true" ]]; then
 		install_kernel_efi
@@ -395,14 +396,6 @@ EOF
 		install_sshd
 	fi
 
-	if [[ $SYSTEMD != "true" ]]; then
-		# Install and enable dhcpcd
-		einfo "Installing dhcpcd"
-		try emerge --verbose net-misc/dhcpcd
-
-		enable_service dhcpcd
-	fi
-
 	if [[ $SYSTEMD == "true" ]]; then
 		# Enable systemd networking and dhcp
 		enable_service systemd-networkd
@@ -413,6 +406,12 @@ EOF
 			|| die "Could not change owner of '/etc/systemd/network/20-wired-dhcp.network'"
 		chmod 640 /etc/systemd/network/20-wired-dhcp.network \
 			|| die "Could not change permissions of '/etc/systemd/network/20-wired-dhcp.network'"
+	else
+		# Install and enable dhcpcd
+		einfo "Installing dhcpcd"
+		try emerge --verbose net-misc/dhcpcd
+
+		enable_service dhcpcd
 	fi
 
 	# Install additional packages, if any.
