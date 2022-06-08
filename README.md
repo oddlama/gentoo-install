@@ -32,9 +32,12 @@ First, boot into a live environment of your choice. I recommend using an [Arch L
 as the installer will then be able to automatically download required programs or setup ZFS support on the fly.
 Afterwards, proceed with the following steps:
 
-1. Either clone this repo or download and extract a copy
-2. Run `./configure` and save your desired configuration
-3. Begin installation using `./install`
+```bash
+pacman -Sy git  # install git in live environment, then clone:
+git clone https://github.com/oddlama/gentoo-install && cd gentoo-install
+./configure     # configure to your liking
+./install       # begin installation
+```
 
 Every option is explained in detail in `gentoo.conf.example` and in the help menus of the TUI configurator.
 When installing, you will be asked to review the partitioning before anything critical is done.
