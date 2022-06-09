@@ -86,12 +86,6 @@ function configure_portage() {
 		try mirrorselect "${mirrorselect_params[@]}"
 	fi
 
-	if [[ $USE_PORTAGE_TESTING == "true" ]]; then
-		einfo "Adding ~$GENTOO_ARCH to ACCEPT_KEYWORDS"
-		echo "ACCEPT_KEYWORDS=\"~$GENTOO_ARCH\"" >> /etc/portage/make.conf \
-			|| die "Could not modify /etc/portage/make.conf"
-	fi
-
 	chmod 644 /etc/portage/make.conf \
 		|| die "Could not chmod 644 /etc/portage/make.conf"
 }
@@ -427,6 +421,15 @@ EOF
 	else
 		try passwd -d root
 		ewarn "Root password cleared, set one as soon as possible!"
+	fi
+
+	# If configured, change to gentoo testing at the last moment.
+	# This is to ensure a smooth installation process. You can deal
+	# with the blockers after installation ;)
+	if [[ $USE_PORTAGE_TESTING == "true" ]]; then
+		einfo "Adding ~$GENTOO_ARCH to ACCEPT_KEYWORDS"
+		echo "ACCEPT_KEYWORDS=\"~$GENTOO_ARCH\"" >> /etc/portage/make.conf \
+			|| die "Could not modify /etc/portage/make.conf"
 	fi
 
 	einfo "Gentoo installation complete."
