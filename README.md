@@ -9,18 +9,18 @@ as additional layers such as LUKS or mdraid. It also supports both EFI (recommen
 and can be used with systemd or OpenRC as the init system. SSH can also be configured to allow using an automation framework
 like [Ansible](https://github.com/ansible/ansible) or [Fora](https://github.com/oddlama/fora) to automate beyond system installation.
 
-This project might appeal to you if
-
-- you want to try gentoo without initially investing a lot of time, or fully committing to it yet.
-- you already are a gentoo expert but want an automatic and repeatable best-practices installation.
-
 [Usage](#usage) |
 [Overview](#overview) |
-[Recommendations](#recommendations) |
 [Updating the Kernel](#updating-the-kernel) |
+[Recommendations](#recommendations) |
 [FAQ](#troubleshooting-and-faq)
 
 ![](contrib/screenshot_configure.png)
+
+This installer might appeal to you if
+
+- you want to try gentoo without initially investing a lot of time, or fully committing to it yet.
+- you already are a gentoo expert but want an automatic and repeatable best-practices installation.
 
 Of course we do encourage everyone to install gentoo manually. You will learn a lot if you
 haven't done so already.
