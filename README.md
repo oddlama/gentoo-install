@@ -1,5 +1,3 @@
-![](contrib/screenshot_configure.png)
-
 ## About gentoo-install
 
 This project aspires to be your favourite way to install gentoo.
@@ -11,10 +9,13 @@ as additional layers such as LUKS or mdraid. It also supports both EFI (recommen
 and can be used with systemd or OpenRC as the init system. SSH can also be configured to allow using an automation framework
 like [Ansible](https://github.com/ansible/ansible) or [fora](https://oddlama.gitbook.io/fora/) to automate beyond system installation.
 
-- [#Usage](Usage)
-- [#Modern recommendations](Modern recommendations)
-- [#Features](Features)
-- [#FAQ](FAQ)
+[Why?](#Why) |
+[Usage](#Usage) |
+[Overview](#Overview) |
+[Recommendations](#Recommendations) |
+[FAQ](#FAQ)
+
+![](contrib/screenshot_configure.png)
 
 ## Why?
 
@@ -33,8 +34,9 @@ as the installer will then be able to automatically download required programs o
 Afterwards, proceed with the following steps:
 
 ```bash
-pacman -Sy git  # install git in live environment, then clone:
-git clone https://github.com/oddlama/gentoo-install && cd gentoo-install
+pacman -Sy git  # (Archlinux) Install git in live environment, then clone:
+git clone "https://github.com/oddlama/gentoo-install"
+cd gentoo-install
 ./configure     # configure to your liking
 ./install       # begin installation
 ```
@@ -55,13 +57,12 @@ with some parts depending on the chosen configuration:
 
 1. Partition disks (highly dependent on configuration)
 2. Download and extract stage3 tarball (with cryptographic verification)
-   (Continue in chroot from here)
+   \[Continues in chroot from here\]
 3. Setup portage (initial rsync/git sync, run mirrorselect, create zz-autounmask files)
 4. Base system configuration (hostname, timezone, keymap, locales)
 5. Install required packages (git, kernel, ...)
 6. Make system bootable (generate fstab, build initramfs, create efibootmgr/syslinux boot entry)
 7. Ensure minimal working system (automatic wired networking, install eix, set root password)
-
    - (Optional) Install sshd with secure config (no password logins)
    - (Optional) Install additional packages provided in config
 
@@ -93,6 +94,55 @@ These will simply be passed to a final `emerge` call before the script is done,
 where autounmasking will also be done automatically. It is recommended to keep
 this to a minimum, because of the quite "interactive" nature of gentoo package management ;)
 
+### Recommendations
+
+This project started out as a way of documenting a best-practices installation for myself.
+As the project grew larger, I've added more configuration options to suit legacy needs.
+Below I've outlined several decisions I've made for this project, or decisions you
+have during configuration. If you intend on setting up a modern system, you might want
+to check them out. Please keep in mind that those are all based on my personal opinions and
+experience. Your mileage may vary.
+
+#### EFI vs BIOS
+
+Use EFI. BIOS is old and deprecated for a long time now.
+Only certain VPS hosters may require you to use BIOS still (time to write to them about that!)
+
+#### EFIstub booting
+
+Don't install a bootloader when this script is done, except you absolutely need one.
+The kernel can directly be booted by EFI without need for a bootloader.
+By default, this script will use efibootmgr to add a bootentry directly to your "mainboard's bootselect" (typically F12).
+Nowadays, there's just no reason use GRUB, syslinux, or similar bootloaders by default.
+They only add additional time to your boot, and even dualbooting Windows works just fine without one.
+Only if you require frequent editing of kernel parameters, or want kernel autodiscovery from attached media
+you might want to consider using one of these. For the average (advanced) user this isn't necessary.
+
+#### Modern file systems
+
+I recommend using a modern file system like ZFS. It provides transparent block-level compression,
+instant snapshots and full-disk encryption. Generally encrypting your root fs doesn't cost you
+anything and protects your data in case you lose your device.
+
+#### Systemd vs OpenRC
+
+I will not entertain the religious eternal debate here. Both are fine init systems, and
+I've been using both *a lot*. If you cannot decide, here are some objective facts:
+
+- OpenRC is a service manager. Setting up all the other services is a lot of work, but you will learn a lot.
+- Systemd is an OS-level software suite. It brings an insane amount of features with a steep learning curve.
+
+Here's a non-exhaustive list of things you will ~do manually~ learn when using OpenRC,
+that are already provided for in systemd: udev, dhcp, acpi events (power/sleep button),
+cron jobs, reliable syslog, logrotate, process sandboxing, persistent backlight setting, persistent audio mute-status, user-owned login sessions, ...
+
+Make of this what you will, both have their own quirks. Choose your poison.
+
+#### Miscellaneous
+
+- Use the newer iwd for WIFI instead of wpa_supplicant
+- (If systemd) Use timers instead of cron jobs
+
 ## Updating the kernel
 
 By default, the installed system uses gentoo's binary kernel distribution (`sys-kernel/gentoo-kernel-bin`)
@@ -121,46 +171,32 @@ In both cases, the update procedure is as follows:
 4. Generate new initramfs for this kernel `generate_initramfs.sh <kver> "$initrd"`
 5. Copy new kernel `cp /boot/vmlinuz-<kver> "$kernel"`
 
-## Modern recommendations
-
-TODOOOOoo 
-
-Below are some recommendations for setting up a modern system.
-Please keep in mind that these are based on my (@oddlama's) personal opinions, but I've tried
-my best to explain the rationale behind those decisions. Still, your mileage may vary.
-I'll keep this project updated to This project will be updated to reflect my c
-After all, these are just recommendations.
-
-- kernel (bin vs own)
-- UUIDs
-- EFI
-- ZFS
-- systemd
-- encrypted system root
-- efistub
-- swap
-- zstd compression
-
 ## Troubleshooting and FAQ
-
-TODO the installer can chroot.
 
 After the initial sanity check, the script should be able to finish unattendedly.
 But given the unpredictability of future gentoo versions, you might still run into issues
+once in a while.
 
 The script checks every command for success, so if anything fails during installation,
 you will be given a proper message of what went wrong. Inside the chroot,
 most commands will be executed in a checked loop, and allow you to interactively
-fix problems with a shell, to retry, or to skip the command.
+fix problems with a shell, to retry, or to skip the command. You can report
+issues specific to this script on the issue tracker. To seek help
+regarding gentoo in general, visit the official [IRC](https://www.gentoo.org/get-involved/irc-channels/)
+or [Discord](https://discord.com/invite/gentoolinux).
+
+If you experience any issues after rebooting and need to fix something inside the chroot,
+you can use the installer to chroot into an existing system. Run `./install --help` for more infos.
 
 #### Q: I get errors after partitioning about blkid not being able to find a UUID
 
-**A:** Use `wipefs -a <DEVICE>` on your partitions or fully wipe the disk before use.
+**A:** Be sure that all devices are unmounted and not in use before starting the script.
+Use `wipefs -a <DEVICE>` on your partitions or fully wipe the disk before use.
 The new partitions probably align with previously existing partitions that had
 filesystems on them. Some filesystems signatures like those of ZFS can coexist with
 other signatures and may cause blkid to find ambiguous information.
 
 ## References
 
-* [Sakaki's EFI Install Guide](https://wiki.gentoo.org/wiki/Sakaki%27s_EFI_Install_Guide)
 * [Gentoo AMD64 Handbook](https://wiki.gentoo.org/wiki/Handbook:AMD64)
+* [Sakaki's EFI Install Guide](https://wiki.gentoo.org/wiki/Sakaki%27s_EFI_Install_Guide)
