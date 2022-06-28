@@ -1324,7 +1324,7 @@ function PORTAGE_GIT_FULL_HISTORY_menu()  {
 function PORTAGE_GIT_MIRROR_tag()   { echo " └ Git mirror"; }
 function PORTAGE_GIT_MIRROR_label() { echo " └ ($(ellipsis 20 "$PORTAGE_GIT_MIRROR"))"; }
 function PORTAGE_GIT_MIRROR_show()  { one_of "$PORTAGE_SYNC_TYPE" "git"; }
-function PORTAGE_GIT_MIRROR_help()  { echo "The portage git mirror is the git endpoint that is used to sync the portage tree."; }
+function PORTAGE_GIT_MIRROR_help()  { echo "The portage git mirror is the git endpoint that is used to sync the portage tree. You usually should not need to change this!"; }
 function PORTAGE_GIT_MIRROR_menu()  {
 	dialog \
 		--title "Select portage git mirror" \
@@ -1341,7 +1341,7 @@ function GENTOO_MIRROR_help()  { echo "Enter the initial gentoo mirror that shou
 function GENTOO_MIRROR_menu()  {
 	dialog \
 		--title "Select gentoo mirror" \
-		--inputbox "Enter the initial gentoo mirror that should be used for the installation process (until mirrorselect is run)." \
+		--inputbox "Enter the initial gentoo mirror that should be used for the system (or until mirrorselect is run). You need to enter the FULL PATH to the tree including relevant subdirectories. Leave this as it is if in doubt!" \
 		"${INPUTBOX_SIZE[@]}" "$GENTOO_MIRROR"
 	GENTOO_MIRROR=($dialog_out)
 	UNSAVED_CHANGES=true
