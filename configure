@@ -1330,6 +1330,7 @@ function PORTAGE_GIT_MIRROR_menu()  {
 		--title "Select portage git mirror" \
 		--inputbox "Enter the portage git mirror that should be used to sync the portage tree." \
 		"${INPUTBOX_SIZE[@]}" "$PORTAGE_GIT_MIRROR"
+	PORTAGE_GIT_MIRROR=($dialog_out)
 	UNSAVED_CHANGES=true
 }
 
@@ -1342,6 +1343,7 @@ function GENTOO_MIRROR_menu()  {
 		--title "Select gentoo mirror" \
 		--inputbox "Enter the initial gentoo mirror that should be used for the installation process (until mirrorselect is run)." \
 		"${INPUTBOX_SIZE[@]}" "$GENTOO_MIRROR"
+	GENTOO_MIRROR=($dialog_out)
 	UNSAVED_CHANGES=true
 }
 

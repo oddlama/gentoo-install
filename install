@@ -105,6 +105,7 @@ if [[ -z "$ACTION" ]]; then
 		ACTION="install"
 	else
 		# Default if configuration does not exists: Run configurator, and exit afterwards.
+		echo "You have not created a gentoo.conf. Starting configurator instead of installing."
 		exec "$GENTOO_INSTALL_REPO_DIR/configure" "$CONFIG"
 	fi
 fi
