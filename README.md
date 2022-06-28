@@ -145,9 +145,9 @@ you might want to consider using one of these. For the average (advanced) user t
 
 #### Modern file systems
 
-I recommend using a modern file system like ZFS. It provides transparent block-level compression,
-instant snapshots and full-disk encryption. Generally encrypting your root fs doesn't cost you
-anything and protects your data in case you lose your device.
+I recommend using a modern file system like ZFS, both on desktops and servers.
+It provides transparent block-level compression, instant snapshots and full-disk encryption.
+Generally encrypting your root fs doesn't cost you anything and protects your data in case you lose your device.
 
 #### Systemd vs OpenRC
 
@@ -184,6 +184,20 @@ or [Discord](https://discord.com/invite/gentoolinux).
 
 If you experience any issues after rebooting and need to fix something inside the chroot,
 you can use the installer to chroot into an existing system. Run `./install --help` for more infos.
+
+#### Q: ZFS cannot be installed in the chroot due to an unsupported kernel version
+
+**A:** The newest stable ZFS module may requires a kernel version that is newer than what is provided on gentoo stable.
+If you encounter this problem, you might be able to fix the problem by switching to testing by dropping to a shell temporarily:
+
+```
+# Press S<Enter> when ased about what to do next.
+# This opens an emergency shell in the chroot.
+echo 'ACCEPT_KEYWORDS="~amd64"' >> /etc/portage/make.conf # Enable testing for your architecture.
+emerge -v gentoo-kernel-bin                               # Update kernel to newest version
+exit # Ctrl-D
+# Now select 'retry' when asked about what to do next.
+```
 
 #### Q: I get errors after partitioning about blkid not being able to find a UUID
 
