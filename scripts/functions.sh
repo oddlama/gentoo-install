@@ -439,12 +439,6 @@ function format_zfs_standard() {
 
 	einfo "Creating zfs pool on $devices_desc"
 
-	if [[ "$compress" != false ]]; then
-		extra_args+=(
-			"-O" "compression=$compress"
-			)
-	fi
-
 	local zfs_stdin=""
 	if [[ "$encrypt" == true ]]; then
 		extra_args+=(
@@ -473,6 +467,10 @@ function format_zfs_standard() {
 			<<< "$zfs_stdin"  \
 		|| die "Could not create zfs pool on $devices_desc"
 
+	if [[ "$compress" != false ]]; then
+		zfs set "compression=$compress" rpool/ROOT \
+			|| die "Could enable compression on dataset 'rpool'"
+	fi
 	zfs create rpool/ROOT \
 		|| die "Could not create zfs dataset 'rpool/ROOT'"
 	zfs create -o mountpoint=/ rpool/ROOT/default \
