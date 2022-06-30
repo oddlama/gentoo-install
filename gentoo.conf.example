@@ -200,6 +200,28 @@ LOCALE="C.utf8"
 
 
 ################################################
+# Network configuration
+
+# The following network configuration only applies to systemd
+# configurations and will otherwise be ignore. All openrc based
+# configurations always just starts dhcpcd.
+
+# Enable systemd-networkd to configure internet
+SYSTEMD_NETWORKD=true
+# The interfaces to match and configure (systemd [Match] -> Name)
+SYSTEMD_NETWORKD_INTERFACE_NAME="en*"
+# Whether to use DHCP (systemd [Network] -> DHCP)
+SYSTEMD_NETWORKD_DHCP=true
+# If DHCP is disabled, assign the given list of addresses (systemd [Network] -> Address)
+SYSTEMD_NETWORKD_ADDRESSES=("192.168.1.100" "fd00::1")
+# If DHCP is disabled, use the given gateway
+SYSTEMD_NETWORKD_GATEWAY="192.168.1.1"
+# Enable sshd in initramfs to allow unlocking encrypted devices / enter emergency shell if needed.
+# Requires systemd. Visit https://github.com/gsauthof/dracut-sshd for more information.
+SYSTEMD_INITRAMFS_SSHD=false
+
+
+################################################
 # Gentoo configuration
 
 # Choose whether to download the portage tree via git or rsync.
@@ -250,7 +272,7 @@ ADDITIONAL_PACKAGES=()
 
 # Install and configure sshd (a reasonably secure config is provided, which
 # only allows the use of ed25519 keys, and requires pubkey authentication)
-INSTALL_SSHD=true
+ENABLE_SSHD=true
 
 # An ssh key to add to the authorized_keys file for the root user.
 # This variable will become the content of the authorized_keys file,

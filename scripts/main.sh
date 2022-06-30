@@ -90,12 +90,14 @@ function configure_portage() {
 		|| die "Could not chmod 644 /etc/portage/make.conf"
 }
 
-function install_sshd() {
-	einfo "Installing sshd"
+function enable_sshd() {
+	einfo "Installing and enabling sshd"
 	install -m0600 -o root -g root "$GENTOO_INSTALL_REPO_DIR/contrib/sshd_config" /etc/ssh/sshd_config \
 		|| die "Could not install /etc/ssh/sshd_config"
 	enable_service sshd
+}
 
+function install_authorized_keys() {
 	mkdir_or_die 0700 "/root/"
 	mkdir_or_die 0700 "/root/.ssh"
 
@@ -128,20 +130,31 @@ function generate_initramfs() {
 		|| die "Could not figure out kernel version from /usr/src/linux symlink."
 	kver="${kver#linux-}"
 
+	dracut_opts=()
+	if [[ $SYSTEMD == "true" && $SYSTEMD_INITRAMFS_SSHD == "true" ]]; then
+		try git clone https://github.com/gsauthof/dracut-sshd
+		try cp -r dracut-sshd/46sshd /usr/lib/dracut/modules.d
+		sed -e 's/^Type=notify/Type=simple/' \
+			-e 's@^\(ExecStart=/usr/sbin/sshd\) -D@\1 -e -D@' \
+			-i /usr/lib/dracut/modules.d/46sshd/sshd.service \
+			|| die "Could not replace sshd options in service file"
+		dracut_opts+=("--install" "/etc/systemd/network/20-wired.network")
+		modules+=("systemd-networkd")
+	fi
+
 	# Generate initramfs
-		# TODO --conf          "/dev/null" \
-		# TODO --confdir       "/dev/null" \
+	# TODO --conf          "/dev/null" \
+	# TODO --confdir       "/dev/null" \
 	try dracut \
 		--kver          "$kver" \
 		--zstd \
 		--no-hostonly \
 		--ro-mnt \
 		--add           "bash ${modules[*]}" \
+		"${dracut_opts[@]}" \
 		--force \
 		"$output"
 
-		# TODO --conf          "/dev/null" \\
-		# TODO --confdir       "/dev/null" \\
 	# Create script to repeat initramfs generation
 	cat > "$(dirname "$output")/generate_initramfs.sh" <<EOF
 #!/bin/bash
@@ -340,6 +353,9 @@ EOF
 		try emerge --sync
 	fi
 
+	# Install authorized_keys before dracut, which might need them for remote unlocking.
+	install_authorized_keys
+
 	# Install mdadm if we used raid (needed for uuid resolving)
 	if [[ $USED_RAID == "true" ]]; then
 		einfo "Installing mdadm"
@@ -385,27 +401,37 @@ EOF
 	einfo "Installing gentoolkit"
 	try emerge --verbose app-portage/gentoolkit
 
-	# Install and enable sshd
-	if [[ $INSTALL_SSHD == "true" ]]; then
-		install_sshd
-	fi
-
 	if [[ $SYSTEMD == "true" ]]; then
-		# Enable systemd networking and dhcp
-		enable_service systemd-networkd
-		enable_service systemd-resolved
-		echo -en "[Match]\nName=en*\n\n[Network]\nDHCP=yes" > /etc/systemd/network/20-wired-dhcp.network \
-			|| die "Could not write dhcp network config to '/etc/systemd/network/20-wired-dhcp.network'"
-		chown root:systemd-network /etc/systemd/network/20-wired-dhcp.network \
-			|| die "Could not change owner of '/etc/systemd/network/20-wired-dhcp.network'"
-		chmod 640 /etc/systemd/network/20-wired-dhcp.network \
-			|| die "Could not change permissions of '/etc/systemd/network/20-wired-dhcp.network'"
+		if [[ $SYSTEMD_NETWORKD == "true" ]]; then
+			# Enable systemd networking and dhcp
+			enable_service systemd-networkd
+			enable_service systemd-resolved
+			if [[ $SYSTEMD_NETWORKD_DHCP == "true" ]]; then
+				echo -en "[Match]\nName=${SYSTEMD_NETWORKD_INTERFACE_NAME}\n\n[Network]\nDHCP=yes" > /etc/systemd/network/20-wired.network \
+					|| die "Could not write dhcp network config to '/etc/systemd/network/20-wired.network'"
+			else
+				addresses=""
+				for addr in "${SYSTEMD_NETWORKD_ADDRESSES[@]}"; do
+					addresses="Address=$addr\n"
+				done
+				echo -en "[Match]\nName=${SYSTEMD_NETWORKD_INTERFACE_NAME}\n\n[Network]\n${addresses}Gateway=$SYSTEMD_NETWORKD_GATEWAY" > /etc/systemd/network/20-wired.network \
+					|| die "Could not write dhcp network config to '/etc/systemd/network/20-wired.network'"
+			fi
+			chown root:systemd-network /etc/systemd/network/20-wired.network \
+				|| die "Could not change owner of '/etc/systemd/network/20-wired.network'"
+			chmod 640 /etc/systemd/network/20-wired.network \
+				|| die "Could not change permissions of '/etc/systemd/network/20-wired.network'"
+		fi
 	else
 		# Install and enable dhcpcd
 		einfo "Installing dhcpcd"
 		try emerge --verbose net-misc/dhcpcd
 
 		enable_service dhcpcd
+	fi
+
+	if [[ $ENABLE_SSHD == "true" ]]; then
+		enable_sshd
 	fi
 
 	# Install additional packages, if any.

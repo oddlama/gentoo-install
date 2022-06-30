@@ -391,6 +391,13 @@ function load_default_config() {
 	LOCALES="C.UTF-8 UTF-8"
 	LOCALE="C.utf8"
 
+	SYSTEMD_NETWORKD=true
+	SYSTEMD_NETWORKD_INTERFACE_NAME="en*"
+	SYSTEMD_NETWORKD_DHCP=true
+	SYSTEMD_NETWORKD_ADDRESSES=("192.168.1.100" "fd00::1")
+	SYSTEMD_NETWORKD_GATEWAY="192.168.1.1"
+	SYSTEMD_INITRAMFS_SSHD=false
+
 	function disk_configuration() {
 		#create_zfs_centric_layout swap=8GiB type="$DEFAULT_BOOT_TYPE" encrypt=true compress=zstd pool_type=standard /dev/sdX
 		create_classic_single_disk_layout swap=8GiB type="$DEFAULT_BOOT_TYPE" luks=true root_fs=ext4 /dev/sdX
@@ -409,7 +416,7 @@ function load_default_config() {
 	SELECT_MIRRORS_LARGE_FILE=false
 
 	ADDITIONAL_PACKAGES=()
-	INSTALL_SSHD=true
+	ENABLE_SSHD=true
 	ROOT_SSH_AUTHORIZED_KEYS=""
 
 	# All settings are unsaved.
@@ -465,6 +472,12 @@ function on_off_str() {
 function on_off_label() {
 	local prefix="${2:-}"
 	on_off_str "$1" "${prefix}[*]" "${prefix}[ ]"
+}
+
+function on_off_label_inverted() {
+	local var=$1
+	shift
+	on_off_label "$(is_on "$var" && echo false || echo true)" "$@"
 }
 
 function is_on() {
@@ -843,6 +856,12 @@ MENU_ITEMS=(
 	"KEYMAP_INITRAMFS"
 	"LOCALES"
 	"LOCALE"
+	"SYSTEMD_NETWORKD"
+	"SYSTEMD_INITRAMFS_SSHD"
+	"SYSTEMD_NETWORKD_INTERFACE_NAME"
+	"SYSTEMD_NETWORKD_DHCP"
+	"SYSTEMD_NETWORKD_ADDRESSES"
+	"SYSTEMD_NETWORKD_GATEWAY"
 	"--------"
 	"STAGE3_VARIANT"
 	"PORTAGE_SYNC_TYPE"
@@ -854,7 +873,7 @@ MENU_ITEMS=(
 	"SELECT_MIRRORS"
 	"SELECT_MIRRORS_LARGE_FILE"
 	"--------"
-	"INSTALL_SSHD"
+	"ENABLE_SSHD"
 	"ROOT_SSH_AUTHORIZED_KEYS"
 	"ADDITIONAL_PACKAGES"
 )
@@ -1274,6 +1293,73 @@ function LOCALE_menu()  {
 	fi
 }
 
+function SYSTEMD_NETWORKD_tag()   { echo "Configure network"; }
+function SYSTEMD_NETWORKD_label() { on_off_label "$SYSTEMD_NETWORKD"; }
+function SYSTEMD_NETWORKD_show()  { [[ $STAGE3_VARIANT == *systemd* ]]; }
+function SYSTEMD_NETWORKD_help()  { echo "Enable systemd-network to configure networking on the new system."; }
+function SYSTEMD_NETWORKD_menu()  {
+	on_off_toggle "SYSTEMD_NETWORKD"
+	UNSAVED_CHANGES=true
+}
+
+function SYSTEMD_INITRAMFS_SSHD_tag()   { echo " ├ Enable sshd in initramfs"; }
+function SYSTEMD_INITRAMFS_SSHD_label() { on_off_label "$SYSTEMD_INITRAMFS_SSHD" " ├ "; }
+function SYSTEMD_INITRAMFS_SSHD_show()  { [[ $STAGE3_VARIANT == *systemd* ]] && is_on "$SYSTEMD_NETWORKD"; }
+function SYSTEMD_INITRAMFS_SSHD_help()  { echo "Install and enable sshd in the initramfs. This can be used to unlock encrypted partitions / ZFS via ssh, or to get an emergency shell. Visit https://github.com/gsauthof/dracut-sshd for more information."; }
+function SYSTEMD_INITRAMFS_SSHD_menu()  {
+	on_off_toggle "SYSTEMD_INITRAMFS_SSHD"
+	UNSAVED_CHANGES=true
+}
+
+function SYSTEMD_NETWORKD_INTERFACE_NAME_tag()   { echo " ├ Interface Name"; }
+function SYSTEMD_NETWORKD_INTERFACE_NAME_label() { echo " ├ ($(ellipsis 20 "$SYSTEMD_NETWORKD_INTERFACE_NAME"))"; }
+function SYSTEMD_NETWORKD_INTERFACE_NAME_show()  { [[ $STAGE3_VARIANT == *systemd* ]] && is_on "$SYSTEMD_NETWORKD"; }
+function SYSTEMD_NETWORKD_INTERFACE_NAME_help()  { echo "The network interface(s) to configure. Defaults to all interfaces matching en*."; }
+function SYSTEMD_NETWORKD_INTERFACE_NAME_menu()  {
+	dialog \
+		--title "Network Interface Name" \
+		--inputbox "Enter the network interface name which should be configured. Can include wildcards." \
+		"${INPUTBOX_SIZE[@]}" "$SYSTEMD_NETWORKD_INTERFACE_NAME"
+	SYSTEMD_NETWORKD_INTERFACE_NAME="$dialog_out"
+	UNSAVED_CHANGES=true
+}
+
+function SYSTEMD_NETWORKD_DHCP_tag()   { echo " └ Static IP"; }
+function SYSTEMD_NETWORKD_DHCP_label() { on_off_label_inverted "$SYSTEMD_NETWORKD_DHCP" " └ "; }
+function SYSTEMD_NETWORKD_DHCP_show()  { [[ $STAGE3_VARIANT == *systemd* ]] && is_on "$SYSTEMD_NETWORKD"; }
+function SYSTEMD_NETWORKD_DHCP_help()  { echo "Use DHCP to obtain network configuration."; }
+function SYSTEMD_NETWORKD_DHCP_menu()  {
+	on_off_toggle "SYSTEMD_NETWORKD_DHCP"
+	UNSAVED_CHANGES=true
+}
+
+function SYSTEMD_NETWORKD_ADDRESSES_tag()   { echo "   ├ Addresses"; }
+function SYSTEMD_NETWORKD_ADDRESSES_label() { echo "   ├ ($(ellipsis 20 "${SYSTEMD_NETWORKD_ADDRESSES[*]}"))"; }
+function SYSTEMD_NETWORKD_ADDRESSES_show()  { [[ $STAGE3_VARIANT == *systemd* ]] && is_on "$SYSTEMD_NETWORKD" && is_off "$SYSTEMD_NETWORKD_DHCP"; }
+function SYSTEMD_NETWORKD_ADDRESSES_help()  { echo "A space-separated list of addresses to assign to the network interface."; }
+function SYSTEMD_NETWORKD_ADDRESSES_menu()  {
+	dialog \
+		--title "Network Addresses" \
+		--inputbox "A space-separated list of addresses to assign to the network interface." \
+		"${INPUTBOX_SIZE[@]}" "${SYSTEMD_NETWORKD_ADDRESSES[*]}"
+	# shellcheck disable=SC2206
+	SYSTEMD_NETWORKD_ADDRESSES=($dialog_out)
+	UNSAVED_CHANGES=true
+}
+
+function SYSTEMD_NETWORKD_GATEWAY_tag()   { echo "   └ Gateway"; }
+function SYSTEMD_NETWORKD_GATEWAY_label() { echo "   └ ($(ellipsis 20 "$SYSTEMD_NETWORKD_GATEWAY"))"; }
+function SYSTEMD_NETWORKD_GATEWAY_show()  { [[ $STAGE3_VARIANT == *systemd* ]] && is_on "$SYSTEMD_NETWORKD" && is_off "$SYSTEMD_NETWORKD_DHCP"; }
+function SYSTEMD_NETWORKD_GATEWAY_help()  { echo "The gateway address for the network."; }
+function SYSTEMD_NETWORKD_GATEWAY_menu()  {
+	dialog \
+		--title "Network Gateway" \
+		--inputbox "The gateway address for the network." \
+		"${INPUTBOX_SIZE[@]}" "$SYSTEMD_NETWORKD_GATEWAY"
+	SYSTEMD_NETWORKD_GATEWAY="$dialog_out"
+	UNSAVED_CHANGES=true
+}
+
 function STAGE3_VARIANT_tag()   { echo "Stage3 variant & Init system"; }
 function STAGE3_VARIANT_label() { echo "($STAGE3_VARIANT)"; }
 function STAGE3_VARIANT_show()  { return 0; }
@@ -1330,7 +1416,7 @@ function PORTAGE_GIT_MIRROR_menu()  {
 		--title "Select portage git mirror" \
 		--inputbox "Enter the portage git mirror that should be used to sync the portage tree." \
 		"${INPUTBOX_SIZE[@]}" "$PORTAGE_GIT_MIRROR"
-	PORTAGE_GIT_MIRROR=($dialog_out)
+	PORTAGE_GIT_MIRROR="$dialog_out"
 	UNSAVED_CHANGES=true
 }
 
@@ -1343,7 +1429,7 @@ function GENTOO_MIRROR_menu()  {
 		--title "Select gentoo mirror" \
 		--inputbox "Enter the initial gentoo mirror that should be used for the system (or until mirrorselect is run). You need to enter the FULL PATH to the tree including relevant subdirectories. Leave this as it is if in doubt!" \
 		"${INPUTBOX_SIZE[@]}" "$GENTOO_MIRROR"
-	GENTOO_MIRROR=($dialog_out)
+	GENTOO_MIRROR="$dialog_out"
 	UNSAVED_CHANGES=true
 }
 
@@ -1393,12 +1479,12 @@ function SELECT_MIRRORS_LARGE_FILE_menu()  {
 	UNSAVED_CHANGES=true
 }
 
-function INSTALL_SSHD_tag()   { echo "Install sshd"; }
-function INSTALL_SSHD_label() { on_off_label "$INSTALL_SSHD"; }
-function INSTALL_SSHD_show()  { return 0; }
-function INSTALL_SSHD_help()  { echo "Install and enable sshd on the new system. A reasonably secure sshd configuration will be provided. It will by default only allow ed25519 keys, restrict key exchange algorithms to a reasonable subset, disable any password based authentication, and only allow root to login."; }
-function INSTALL_SSHD_menu()  {
-	on_off_toggle "INSTALL_SSHD"
+function ENABLE_SSHD_tag()   { echo "Enable sshd"; }
+function ENABLE_SSHD_label() { on_off_label "$ENABLE_SSHD"; }
+function ENABLE_SSHD_show()  { return 0; }
+function ENABLE_SSHD_help()  { echo "Install and enable sshd on the new system. A reasonably secure sshd configuration will be provided. It will by default only allow ed25519 keys, restrict key exchange algorithms to a reasonable subset, disable any password based authentication, and only allow root to login."; }
+function ENABLE_SSHD_menu()  {
+	on_off_toggle "ENABLE_SSHD"
 	UNSAVED_CHANGES=true
 }
 
@@ -1476,6 +1562,13 @@ KEYMAP_INITRAMFS=${KEYMAP_INITRAMFS@Q}
 LOCALES=${LOCALES@Q}
 LOCALE=${LOCALE@Q}
 
+SYSTEMD_NETWORKD=${SYSTEMD_NETWORKD@Q}
+SYSTEMD_NETWORKD_INTERFACE_NAME=${SYSTEMD_NETWORKD_INTERFACE_NAME@Q}
+SYSTEMD_NETWORKD_DHCP=${SYSTEMD_NETWORKD_DHCP@Q}
+SYSTEMD_NETWORKD_ADDRESSES=${SYSTEMD_NETWORKD_ADDRESSES@Q}
+SYSTEMD_NETWORKD_GATEWAY=${SYSTEMD_NETWORKD_GATEWAY@Q}
+SYSTEMD_INITRAMFS_SSHD=${SYSTEMD_INITRAMFS_SSHD@Q}
+
 
 ################################################
 # Gentoo configuration
@@ -1497,7 +1590,7 @@ SYSTEMD=\$([[ \$STAGE3_VARIANT == *systemd* ]] && echo "true" || echo "false")
 # Additional (optional) configuration
 
 ADDITIONAL_PACKAGES=(${ADDITIONAL_PACKAGES[@]@Q})
-INSTALL_SSHD=${INSTALL_SSHD@Q}
+ENABLE_SSHD=${ENABLE_SSHD@Q}
 ROOT_SSH_AUTHORIZED_KEYS=${ROOT_SSH_AUTHORIZED_KEYS@Q}
 
 
