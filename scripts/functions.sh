@@ -926,6 +926,7 @@ function gentoo_chroot() {
 	einfo "Mounting virtual filesystems"
 	(
 		mountpoint -q -- "$chroot_dir/proc" || mount -t proc /proc "$chroot_dir/proc" || exit 1
+		mountpoint -q -- "$chroot_dir/run"  || mount --rbind /run  "$chroot_dir/run"  || exit 1
 		mountpoint -q -- "$chroot_dir/tmp"  || mount --rbind /tmp  "$chroot_dir/tmp"  || exit 1
 		mountpoint -q -- "$chroot_dir/sys"  || {
 			mount --rbind /sys  "$chroot_dir/sys" &&
