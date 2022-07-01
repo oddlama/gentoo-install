@@ -132,6 +132,7 @@ function generate_initramfs() {
 
 	dracut_opts=()
 	if [[ $SYSTEMD == "true" && $SYSTEMD_INITRAMFS_SSHD == "true" ]]; then
+		cd /tmp || die "Could not change into /tmp"
 		try git clone https://github.com/gsauthof/dracut-sshd
 		try cp -r dracut-sshd/46sshd /usr/lib/dracut/modules.d
 		sed -e 's/^Type=notify/Type=simple/' \
