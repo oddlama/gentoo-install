@@ -950,10 +950,8 @@ function gentoo_chroot() {
 
 function enable_service() {
 	if [[ $SYSTEMD == "true" ]]; then
-		systemctl enable "$1" \
-			|| die "Could not enable $1 service"
+		try systemctl enable "$1"
 	else
-		rc-update add "$1" default \
-			|| die "Could not add $1 to default services"
+		try rc-update add "$1" default
 	fi
 }

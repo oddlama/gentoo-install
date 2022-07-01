@@ -167,6 +167,7 @@ dracut \\
 	--no-hostonly \\
 	--ro-mnt \\
 	--add           "bash ${modules[*]}" \\
+	${dracut_opts[@]@Q} \\
 	--force \\
 	"$output"
 EOF
@@ -266,7 +267,6 @@ function install_kernel_bios() {
 function install_kernel() {
 	# Install vanilla kernel
 	einfo "Installing vanilla kernel and related tools"
-	try emerge --verbose sys-kernel/dracut sys-kernel/gentoo-kernel-bin app-arch/zstd
 
 	if [[ $IS_EFI == "true" ]]; then
 		install_kernel_efi
@@ -353,8 +353,15 @@ EOF
 		try emerge --sync
 	fi
 
+	einfo "Generating ssh host keys"
+	try ssh-keygen -A
+
 	# Install authorized_keys before dracut, which might need them for remote unlocking.
 	install_authorized_keys
+
+	# Install required programs and kernel now, in oder to
+	# prevent emerging module before an imminent kernel upgrade
+	try emerge --verbose sys-kernel/dracut sys-kernel/gentoo-kernel-bin app-arch/zstd
 
 	# Install mdadm if we used raid (needed for uuid resolving)
 	if [[ $USED_RAID == "true" ]]; then
@@ -381,13 +388,13 @@ EOF
 
 		einfo "Enabling zfs services"
 		if [[ $SYSTEMD == "true" ]]; then
-			systemctl enable zfs.target        || die "Could not enable zfs.target service"
-			systemctl enable zfs-import-cache  || die "Could not enable zfs-import-cache service"
-			systemctl enable zfs-mount         || die "Could not enable zfs-mount service"
-			systemctl enable zfs-import.target || die "Could not enable zfs-import.target service"
+			try systemctl enable zfs.target
+			try systemctl enable zfs-import-cache
+			try systemctl enable zfs-mount
+			try systemctl enable zfs-import.target
 		else
-			rc-update add zfs-import boot   || die "Could not add zfs-import to boot services"
-			rc-update add zfs-mount boot    || die "Could not add zfs-mount to boot services"
+			try rc-update add zfs-import boot
+			try rc-update add zfs-mount boot
 		fi
 	fi
 
@@ -412,7 +419,7 @@ EOF
 			else
 				addresses=""
 				for addr in "${SYSTEMD_NETWORKD_ADDRESSES[@]}"; do
-					addresses="Address=$addr\n"
+					addresses="${addresses}Address=$addr\n"
 				done
 				echo -en "[Match]\nName=${SYSTEMD_NETWORKD_INTERFACE_NAME}\n\n[Network]\n${addresses}Gateway=$SYSTEMD_NETWORKD_GATEWAY" > /etc/systemd/network/20-wired.network \
 					|| die "Could not write dhcp network config to '/etc/systemd/network/20-wired.network'"
