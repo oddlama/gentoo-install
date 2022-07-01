@@ -212,8 +212,8 @@ SYSTEMD_NETWORKD=true
 SYSTEMD_NETWORKD_INTERFACE_NAME="en*"
 # Whether to use DHCP (systemd [Network] -> DHCP)
 SYSTEMD_NETWORKD_DHCP=true
-# If DHCP is disabled, assign the given list of addresses (systemd [Network] -> Address)
-SYSTEMD_NETWORKD_ADDRESSES=("192.168.1.100" "fd00::1")
+# If DHCP is disabled, assign the given list of addresses including CIDR mask. (systemd [Network] -> Address)
+SYSTEMD_NETWORKD_ADDRESSES=("192.168.1.100/32" "fd00::1/64")
 # If DHCP is disabled, use the given gateway
 SYSTEMD_NETWORKD_GATEWAY="192.168.1.1"
 # Enable sshd in initramfs to allow unlocking encrypted devices / enter emergency shell if needed.
