@@ -973,7 +973,8 @@ function PARTITIONING_SWAP_menu()  {
 	dialog \
 		--title "Select swap amount" \
 		--inputbox "Enter the amount of swap for the new system. Use the correct suffix (e.g. 16GiB, 1000MB)." \
-		"${INPUTBOX_SIZE[@]}" "$PARTITIONING_SWAP"
+		"${INPUTBOX_SIZE[@]}" "$PARTITIONING_SWAP" \
+		|| return 0
 	PARTITIONING_SWAP="$dialog_out"
 	UNSAVED_CHANGES=true
 }
@@ -1173,7 +1174,8 @@ function PARTITIONING_DEVICES_menu()  {
 	dialog \
 		--title "Select devices" \
 		--inputbox "Enter the path of all devices which you want to partition, separated by space. (e.g. /dev/sda /dev/sdb).$invalid_line" \
-		"${INPUTBOX_SIZE[@]}" "${PARTITIONING_DEVICES[*]}"
+		"${INPUTBOX_SIZE[@]}" "${PARTITIONING_DEVICES[*]}" \
+		|| return 0
 	read -ra PARTITIONING_DEVICES <<< "$dialog_out"
 	UNSAVED_CHANGES=true
 }
@@ -1186,7 +1188,8 @@ function HOSTNAME_menu()  {
 	dialog \
 		--title "Select hostname" \
 		--inputbox "Enter the hostname for your new system." \
-		"${INPUTBOX_SIZE[@]}" "$HOSTNAME"
+		"${INPUTBOX_SIZE[@]}" "$HOSTNAME" \
+		|| return 0
 	HOSTNAME="$dialog_out"
 	UNSAVED_CHANGES=true
 }
@@ -1319,7 +1322,8 @@ function SYSTEMD_NETWORKD_INTERFACE_NAME_menu()  {
 	dialog \
 		--title "Network Interface Name" \
 		--inputbox "Enter the network interface name which should be configured. Can include wildcards." \
-		"${INPUTBOX_SIZE[@]}" "$SYSTEMD_NETWORKD_INTERFACE_NAME"
+		"${INPUTBOX_SIZE[@]}" "$SYSTEMD_NETWORKD_INTERFACE_NAME" \
+		|| return 0
 	SYSTEMD_NETWORKD_INTERFACE_NAME="$dialog_out"
 	UNSAVED_CHANGES=true
 }
@@ -1341,7 +1345,8 @@ function SYSTEMD_NETWORKD_ADDRESSES_menu()  {
 	dialog \
 		--title "Network Addresses" \
 		--inputbox "A space-separated list of addresses to assign to the network interface." \
-		"${INPUTBOX_SIZE[@]}" "${SYSTEMD_NETWORKD_ADDRESSES[*]}"
+		"${INPUTBOX_SIZE[@]}" "${SYSTEMD_NETWORKD_ADDRESSES[*]}" \
+		|| return 0
 	# shellcheck disable=SC2206
 	SYSTEMD_NETWORKD_ADDRESSES=($dialog_out)
 	UNSAVED_CHANGES=true
@@ -1355,7 +1360,8 @@ function SYSTEMD_NETWORKD_GATEWAY_menu()  {
 	dialog \
 		--title "Network Gateway" \
 		--inputbox "The gateway address for the network." \
-		"${INPUTBOX_SIZE[@]}" "$SYSTEMD_NETWORKD_GATEWAY"
+		"${INPUTBOX_SIZE[@]}" "$SYSTEMD_NETWORKD_GATEWAY" \
+		|| return 0
 	SYSTEMD_NETWORKD_GATEWAY="$dialog_out"
 	UNSAVED_CHANGES=true
 }
@@ -1415,7 +1421,8 @@ function PORTAGE_GIT_MIRROR_menu()  {
 	dialog \
 		--title "Select portage git mirror" \
 		--inputbox "Enter the portage git mirror that should be used to sync the portage tree." \
-		"${INPUTBOX_SIZE[@]}" "$PORTAGE_GIT_MIRROR"
+		"${INPUTBOX_SIZE[@]}" "$PORTAGE_GIT_MIRROR" \
+		|| return 0
 	PORTAGE_GIT_MIRROR="$dialog_out"
 	UNSAVED_CHANGES=true
 }
@@ -1428,7 +1435,8 @@ function GENTOO_MIRROR_menu()  {
 	dialog \
 		--title "Select gentoo mirror" \
 		--inputbox "Enter the initial gentoo mirror that should be used for the system (or until mirrorselect is run). You need to enter the FULL PATH to the tree including relevant subdirectories. Leave this as it is if in doubt!" \
-		"${INPUTBOX_SIZE[@]}" "$GENTOO_MIRROR"
+		"${INPUTBOX_SIZE[@]}" "$GENTOO_MIRROR" \
+		|| return 0
 	GENTOO_MIRROR="$dialog_out"
 	UNSAVED_CHANGES=true
 }
