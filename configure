@@ -189,8 +189,8 @@ ALL_GENTOO_ARCHS=("x86" "amd64" "arm" "arm64")
 ALL_STAGE3_VARIANTS=(
 	"systemd"                             "systemd                            | Minimal systemd base (recommended)"
 	"openrc"                              "openrc                             | Minimal OpenRC base (recommended)"
-	"desktop-systemd"                     "desktop-systemd                    | OpenRC, desktop profile, might have blockers"
-	"desktop-openrc"                      "desktop-openrc                     | systemd, desktop profile, might have blockers"
+	"desktop-systemd"                     "desktop-systemd                    | systemd, desktop profile, might have blockers"
+	"desktop-openrc"                      "desktop-openrc                     | OpenRC, desktop profile, might have blockers"
 	"nomultilib-systemd"                  "nomultilib-systemd                 | Untested. Might work, but not explicitly tested"
 	"nomultilib-openrc"                   "nomultilib-openrc                  | Untested. Might work, but not explicitly tested"
 	"hardened-nomultilib-openrc"          "hardened-nomultilib-openrc         | Untested. Might work, but not explicitly tested"
