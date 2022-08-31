@@ -427,9 +427,9 @@ function check_wanted_programs() {
 
 			if [[ "$need_zfs" == true ]]; then
 				elog "On an Arch live-stick you need the archzfs repository and some tools and modifications to use zfs."
-				elog "There is an automated installer available at https://eoli3n.github.io/archzfs/init."
+				elog "There is an automated installer available at https://raw.githubusercontent.com/eoli3n/archiso-zfs/master/init."
 				if ask "Do you want to automatically download and execute this zfs installation script?"; then
-					curl -s "https://eoli3n.github.io/archzfs/init" | bash
+					curl -s "https://raw.githubusercontent.com/eoli3n/archiso-zfs/master/init" | bash
 				fi
 			fi
 
