@@ -74,6 +74,7 @@ function configure_portage() {
 	touch_or_die 0644 "/etc/portage/package.use/zz-autounmask"
 	mkdir_or_die 0755 "/etc/portage/package.keywords"
 	touch_or_die 0644 "/etc/portage/package.keywords/zz-autounmask"
+	touch_or_die 0644 "/etc/portage/package.license"
 
 	if [[ $SELECT_MIRRORS == "true" ]]; then
 		einfo "Temporarily installing mirrorselect"
@@ -274,6 +275,11 @@ function install_kernel() {
 	else
 		install_kernel_bios
 	fi
+
+	einfo "Installing linux-firmware"
+	echo "sys-kernel/linux-firmware linux-fw-redistributable no-source-code" >> /etc/portage/package.license \
+		|| die "Could not write to /etc/portage/package.license"
+	try emerge --verbose linux-firmware
 }
 
 function add_fstab_entry() {
@@ -382,6 +388,8 @@ EOF
 		try emerge --verbose sys-fs/btrfs-progs
 	fi
 
+	try emerge --verbose dev-vcs/git
+
 	# Install zfs kernel module and tools if we used zfs
 	if [[ $USED_ZFS == "true" ]]; then
 		einfo "Installing zfs"
@@ -469,7 +477,8 @@ EOF
 	einfo "Gentoo installation complete."
 	[[ $USED_LUKS == "true" ]] \
 		&& einfo "A backup of your luks headers can be found at '$LUKS_HEADER_BACKUP_DIR', in case you want to have a backup."
-	einfo "You may now reboot your system."
+	einfo "You may now reboot your system or execute ./install --chroot $ROOT_MOUNTPOINT to enter your system in a chroot."
+	einfo "Chrooting in this way is always possible in case you need to fix something after rebooting."
 }
 
 function main_install() {

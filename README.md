@@ -48,6 +48,10 @@ to emerge. The critical commands will ask you what to do in case of a failure. I
 problem you cannot solve, you might want to consider getting in contact with some experienced people
 on [IRC](https://www.gentoo.org/get-involved/irc-channels/) or [Discord](https://discord.com/invite/gentoolinux).
 
+If you need to enter an installed system in a chroot to fix something (e.g. after rebooting your live system),
+you can always clone the installer, mount your main drive under `/mnt` and use `./install --chroot /mnt` to
+just chroot into your system.
+
 ## Overview
 
 The installer performs the following main steps (in roughly this order),
