@@ -191,7 +191,7 @@ you can use the installer to chroot into an existing system. Run `./install --he
 If you encounter this problem, you might be able to fix the problem by switching to testing by dropping to a shell temporarily:
 
 ```
-# Press S<Enter> when ased about what to do next.
+# Press S<Enter> when asked about what to do next.
 # This opens an emergency shell in the chroot.
 echo 'ACCEPT_KEYWORDS="~amd64"' >> /etc/portage/make.conf # Enable testing for your architecture.
 emerge -v gentoo-kernel-bin                               # Update kernel to newest version

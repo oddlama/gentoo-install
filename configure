@@ -108,14 +108,6 @@ function get_all_timezones() {
 	readarray -t ALL_TIMEZONES < <(find /usr/share/zoneinfo -type f -printf "%P\n" | sort -u)
 }
 
-function get_supported_locales() {
-	if [[ -e /usr/share/i18n/SUPPORTED ]]; then
-		echo /usr/share/i18n/SUPPORTED
-	else
-		echo "$GENTOO_INSTALL_REPO_DIR/contrib/i18n_supported"
-	fi
-}
-
 function recalculate_locales() {
 	LOCALES=""
 	N_LOCALES=0
@@ -329,7 +321,7 @@ function create_btrfs_centric_layout() {
 
 get_all_keymaps
 get_all_timezones
-readarray -t SUPPORTED_LOCALES < "$(get_supported_locales)"
+readarray -t SUPPORTED_LOCALES < "$GENTOO_INSTALL_REPO_DIR/contrib/i18n_supported"
 readarray -t LOCALE_A < <(locale -a)
 
 
