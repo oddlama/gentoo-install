@@ -379,7 +379,7 @@ function check_wanted_programs() {
 		program="${tuple%%=*}"
 		checkfile=""
 		[[ "$tuple" == *=* ]] \
-			checkfile="${tuple##*=}"
+			&& checkfile="${tuple##*=}"
 		if ! has_program "${program#"?"}" "$checkfile"; then
 			if [[ "$program" == "?"* ]]; then
 				missing_wanted+=("${program#"?"}")
