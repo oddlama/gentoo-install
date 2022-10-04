@@ -239,6 +239,17 @@ function disk_create_partition() {
 	sgdisk -n "0:0:$arg_size" -t "0:$type" -u "0:$partuuid" $extra_args "$device" >/dev/null \
 		|| die "Could not create new gpt partition ($new_id) on '$device' ($id)"
 	partprobe "$device"
+
+        # On some system, we need to wait a bit for the $new_id symlink to show up.
+        local new_device
+	new_device="$(resolve_device_by_id "$new_id")" \
+		|| die "Could not resolve new device with id=$new_id"
+        for i in `seq 10`; do
+                if [ -f "$new_device" ]; then
+                        break
+                fi
+                sleep 1
+        done
 }
 
 function disk_create_raid() {
