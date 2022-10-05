@@ -240,15 +240,17 @@ function disk_create_partition() {
 		|| die "Could not create new gpt partition ($new_id) on '$device' ($id)"
 	partprobe "$device"
 
-        # On some system, we need to wait a bit for the $new_id symlink to show up.
-        local new_device
+	# On some system, we need to wait a bit for the partition to show up.
+	local new_device
 	new_device="$(resolve_device_by_id "$new_id")" \
 		|| die "Could not resolve new device with id=$new_id"
-        for i in {1..10}; do
-                [[ -f "$new_device" ]] && break
-                echo "Waiting for partition $new_device to appear, $i second..."
-                sleep 1
-        done
+	for i in {1..10}; do
+		[[ -e "$new_device" ]] && break
+		[[ "$i" -eq 1 ]] && printf "Waiting for partition ($new_device) to appear..."
+		printf " $((10 - i + 1))"
+		sleep 1
+		[[ "$i" -eq 10 ]] && echo
+	done
 }
 
 function disk_create_raid() {

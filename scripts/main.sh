@@ -161,7 +161,7 @@ function generate_initramfs() {
 	cat > "$(dirname "$output")/generate_initramfs.sh" <<EOF
 #!/bin/bash
 kver="\$1"
-output="\$2"
+output="\$2" # At setup time, this was "$output"
 [[ -n "\$kver" ]] || { echo "usage \$0 <kernel_version> <output>" >&2; exit 1; }
 dracut \\
 	--kver          "\$kver" \\
@@ -171,7 +171,7 @@ dracut \\
 	--add           "bash ${modules[*]}" \\
 	${dracut_opts[@]@Q} \\
 	--force \\
-	"$output"
+	"\$output"
 EOF
 }
 
@@ -216,6 +216,8 @@ function install_kernel_efi() {
 	# Create script to repeat adding efibootmgr entry
 	cat > "/boot/efi/efibootmgr_add_entry.sh" <<EOF
 #!/bin/bash
+# This is the command that was used to create the efibootmgr entry when the
+# system was installed using gentoo-install.
 efibootmgr --verbose --create --disk "$gptdev" --part "$efipartnum" --label "gentoo" --loader '\\vmlinuz.efi' --unicode 'initrd=\\initramfs.img'" $(get_cmdline)"
 EOF
 }
