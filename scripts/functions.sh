@@ -411,6 +411,9 @@ function disk_format() {
 				mkswap "$device" \
 					|| die "Could not format device '$device' ($id)"
 			fi
+
+			# Try to swapoff in case the system enabled swap automatically
+			swapoff "$device" &>/dev/null
 			;;
 		'ext4')
 			if [[ -v "arguments[label]" ]]; then
