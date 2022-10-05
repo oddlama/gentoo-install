@@ -244,10 +244,9 @@ function disk_create_partition() {
         local new_device
 	new_device="$(resolve_device_by_id "$new_id")" \
 		|| die "Could not resolve new device with id=$new_id"
-        for i in `seq 10`; do
-                if [ -f "$new_device" ]; then
-                        break
-                fi
+        for i in {1..10}; do
+                [[ -f "$new_device" ]] && break
+                echo "Waiting for partition $new_device to appear, $i second..."
                 sleep 1
         done
 }
