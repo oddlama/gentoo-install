@@ -147,6 +147,8 @@ They only add additional time to your boot, and even dualbooting Windows works j
 Only if you require frequent editing of kernel parameters, or want kernel autodiscovery from attached media
 you might want to consider using one of these. For the average (advanced) user this isn't necessary.
 
+If you want to add more boot options or want to learn about efibootmgr, refer to [this page on the gentoo wiki](https://wiki.gentoo.org/wiki/Efibootmgr).
+
 #### Modern file systems
 
 I recommend using a modern file system like ZFS, both on desktops and servers.
