@@ -246,8 +246,8 @@ function disk_create_partition() {
 		|| die "Could not resolve new device with id=$new_id"
 	for i in {1..10}; do
 		[[ -e "$new_device" ]] && break
-		[[ "$i" -eq 1 ]] && printf "Waiting for partition ($new_device) to appear..."
-		printf " $((10 - i + 1))"
+		[[ "$i" -eq 1 ]] && printf "Waiting for partition (%s) to appear..." "$new_device"
+		printf " %s" "$((10 - i + 1))"
 		sleep 1
 		[[ "$i" -eq 10 ]] && echo
 	done
