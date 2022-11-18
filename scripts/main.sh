@@ -149,7 +149,7 @@ function generate_initramfs() {
 	# TODO --confdir       "/dev/null" \
 	try dracut \
 		--kver          "$kver" \
-		--zstd \
+		--lz4 \
 		--no-hostonly \
 		--ro-mnt \
 		--add           "bash ${modules[*]}" \
@@ -165,7 +165,7 @@ output="\$2" # At setup time, this was "$output"
 [[ -n "\$kver" ]] || { echo "usage \$0 <kernel_version> <output>" >&2; exit 1; }
 dracut \\
 	--kver          "\$kver" \\
-	--zstd \\
+	--lz4 \\
 	--no-hostonly \\
 	--ro-mnt \\
 	--add           "bash ${modules[*]}" \\
@@ -370,7 +370,7 @@ EOF
 
 	# Install required programs and kernel now, in oder to
 	# prevent emerging module before an imminent kernel upgrade
-	try emerge --verbose sys-kernel/dracut sys-kernel/gentoo-kernel-bin app-arch/zstd
+	try emerge --verbose sys-kernel/dracut sys-kernel/gentoo-kernel-bin app-arch/lz4
 
 	# Install mdadm if we used raid (needed for uuid resolving)
 	if [[ $USED_RAID == "true" ]]; then
