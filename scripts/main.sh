@@ -52,6 +52,8 @@ function configure_base_system() {
 		einfo "Selecting timezone"
 		echo "$TIMEZONE" > /etc/timezone \
 			|| die "Could not write /etc/timezone"
+		chmod 644 /etc/timezone \
+			|| die "Could not set correct permissions for /etc/timezone"
 		try emerge -v --config sys-libs/timezone-data
 
 		# Set keymap
