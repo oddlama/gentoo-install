@@ -209,10 +209,16 @@ function install_kernel_efi() {
 		|| die "Could not resolve device with id=$DISK_ID_EFI"
 	efipartdev="$(realpath "$efipartdev")" \
 		|| die "Error in realpath '$efipartdev'"
-	local efipartnum="${efipartdev: -1}"
+	local efipartnum
+	efipartnum="$(cat "$efipartdev/partition")" \
+		|| die "Failed to find partition number for EFI partition $efipartdev"
 	local gptdev
-	gptdev="$(resolve_device_by_id "${DISK_ID_PART_TO_GPT_ID[$DISK_ID_EFI]}")" \
-		|| die "Could not resolve device with id=${DISK_ID_PART_TO_GPT_ID[$DISK_ID_EFI]}"
+	gptdev="/dev/$(basename "$(readlink -f "$efipartdev/..")")" \
+		|| die "Failed to find parent device for EFI partition $efipartdev"
+	if [[ ! -e "$gptdev" ]] || [[ -z "$gptdev" ]]; then
+		gptdev="$(resolve_device_by_id "${DISK_ID_PART_TO_GPT_ID[$DISK_ID_EFI]}")" \
+			|| die "Could not resolve device with id=${DISK_ID_PART_TO_GPT_ID[$DISK_ID_EFI]}"
+	fi
 	try efibootmgr --verbose --create --disk "$gptdev" --part "$efipartnum" --label "gentoo" --loader '\vmlinuz.efi' --unicode 'initrd=\initramfs.img'" $(get_cmdline)"
 
 	# Create script to repeat adding efibootmgr entry
