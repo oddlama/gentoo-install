@@ -209,11 +209,14 @@ function install_kernel_efi() {
 		|| die "Could not resolve device with id=$DISK_ID_EFI"
 	efipartdev="$(realpath "$efipartdev")" \
 		|| die "Error in realpath '$efipartdev'"
+	local sys_efipart
+	sys_efipart="/sys/class/block/$(basename "$efipartdev")" \
+		|| die "Could not construct /sys path to efi partition"
 	local efipartnum
-	efipartnum="$(cat "$efipartdev/partition")" \
+	efipartnum="$(cat "$sys_efipart/partition")" \
 		|| die "Failed to find partition number for EFI partition $efipartdev"
 	local gptdev
-	gptdev="/dev/$(basename "$(readlink -f "$efipartdev/..")")" \
+	gptdev="/dev/$(basename "$(readlink -f "$sys_efipart/..")")" \
 		|| die "Failed to find parent device for EFI partition $efipartdev"
 	if [[ ! -e "$gptdev" ]] || [[ -z "$gptdev" ]]; then
 		gptdev="$(resolve_device_by_id "${DISK_ID_PART_TO_GPT_ID[$DISK_ID_EFI]}")" \
