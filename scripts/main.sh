@@ -320,6 +320,8 @@ function generate_fstab() {
 function main_install_gentoo_in_chroot() {
 	[[ $# == 0 ]] || die "Too many arguments"
 
+	maybe_exec 'before_install'
+
 	# Remove the root password, making the account accessible for automated
 	# tasks during the period of installation.
 	einfo "Clearing root password"
@@ -342,9 +344,12 @@ function main_install_gentoo_in_chroot() {
 	try emerge-webrsync
 
 	# Configure basic system things like timezone, locale, ...
+	maybe_exec 'before_configure_base_system'
 	configure_base_system
+	maybe_exec 'after_configure_base_system'
 
 	# Prepare portage environment
+	maybe_exec 'before_configure_portage'
 	configure_portage
 
 	# Install git (for git portage overlays)
@@ -372,6 +377,7 @@ EOF
 			|| die "Could not delete obsolete rsync gentoo repository"
 		try emerge --sync
 	fi
+	maybe_exec 'after_configure_portage'
 
 	einfo "Generating ssh host keys"
 	try ssh-keygen -A
@@ -421,7 +427,9 @@ EOF
 	fi
 
 	# Install kernel and initramfs
+	maybe_exec 'before_install_kernel'
 	install_kernel
+	maybe_exec 'after_install_kernel'
 
 	# Generate a valid fstab file
 	generate_fstab
@@ -486,6 +494,8 @@ EOF
 		echo "ACCEPT_KEYWORDS=\"~$GENTOO_ARCH\"" >> /etc/portage/make.conf \
 			|| die "Could not modify /etc/portage/make.conf"
 	fi
+
+	maybe_exec 'after_install'
 
 	einfo "Gentoo installation complete."
 	[[ $USED_LUKS == "true" ]] \

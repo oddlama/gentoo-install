@@ -64,6 +64,8 @@ function preprocess_config() {
 }
 
 function prepare_installation_environment() {
+	maybe_exec 'before_prepare_environment'
+
 	einfo "Preparing installation environment"
 
 	local wanted_programs=(
@@ -94,6 +96,8 @@ function prepare_installation_environment() {
 
 	# Sync time now to prevent issues later
 	sync_time
+
+	maybe_exec 'after_prepare_environment'
 }
 
 function check_encryption_key() {
@@ -735,6 +739,8 @@ function apply_disk_configuration() {
 		|| die "Aborted"
 	countdown "Applying in " 5
 
+	maybe_exec 'before_disk_configuration'
+
 	einfo "Applying disk configuration"
 	apply_disk_actions
 
@@ -742,6 +748,8 @@ function apply_disk_configuration() {
 	elog "[1mNew lsblk output:[m"
 	for_line_in <(lsblk \
 		|| die "Error in lsblk") elog
+
+	maybe_exec 'after_disk_configuration'
 }
 
 function mount_efivars() {
@@ -819,6 +827,8 @@ function download_stage3() {
 	# File to indiciate successful verification
 	CURRENT_STAGE3_VERIFIED="${CURRENT_STAGE3}.verified"
 
+	maybe_exec 'before_download_stage3' "$STAGE3_BASENAME"
+
 	# Download file if not already downloaded
 	if [[ -e $CURRENT_STAGE3_VERIFIED ]]; then
 		einfo "$STAGE3_BASENAME tarball already downloaded and verified"
@@ -855,6 +865,8 @@ function download_stage3() {
 		# Create verification file in case the script is restarted
 		touch_or_die 0644 "$CURRENT_STAGE3_VERIFIED"
 	fi
+
+	maybe_exec 'after_download_stage3' "${CURRENT_STAGE3}"
 }
 
 function extract_stage3() {
@@ -864,6 +876,8 @@ function extract_stage3() {
 		|| die "CURRENT_STAGE3 is not set"
 	[[ -e "$TMP_DIR/$CURRENT_STAGE3" ]] \
 		|| die "stage3 file does not exist"
+
+	maybe_exec 'before_extract_stage3' "$TMP_DIR/$CURRENT_STAGE3" "$ROOT_MOUNTPOINT"
 
 	# Go to root directory
 	cd "$ROOT_MOUNTPOINT" \
@@ -879,6 +893,8 @@ function extract_stage3() {
 		|| die "Error while extracting tarball"
 	cd "$TMP_DIR" \
 		|| die "Could not cd into '$TMP_DIR'"
+
+	maybe_exec 'after_extract_stage3' "$TMP_DIR/$CURRENT_STAGE3" "$ROOT_MOUNTPOINT"
 }
 
 function gentoo_umount() {

@@ -445,3 +445,9 @@ function check_wanted_programs() {
 		ask "Continue without recommended programs?"
 	fi
 }
+
+# exec function if defined
+# $1 function name
+function maybe_exec() {
+	type "$1" >/dev/null 2>&1 && eval "$*"
+}
