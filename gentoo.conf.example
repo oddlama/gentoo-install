@@ -286,3 +286,76 @@ ROOT_SSH_AUTHORIZED_KEYS=""
 # To prove that you have read and edited the config
 # properly, set the following value to true.
 I_HAVE_READ_AND_EDITED_THE_CONFIG_PROPERLY=false
+
+################################################
+# Hooks
+
+# before_prepare_environment() {
+#   einfo 'before prepare environment'
+# }
+
+# after_prepare_environment() {
+#   einfo 'after prepare environment'
+# }
+
+# before_disk_configuration() {
+#   einfo 'before disk configuration'
+# }
+
+# after_disk_configuration() {
+#   einfo 'after disk configuration'
+# }
+
+# before_download_stage3() {
+#   einfo "stage3 basename: $1"
+#   einfo 'before download stage3'
+# }
+
+# after_download_stage3() {
+#   einfo "stage3 downloaded file name: $1"
+#   einfo 'after download stage3'
+# }
+
+# before_extract_stage3() {
+#   einfo "stage3 downloaded file path: $1"
+#   einfo "root mountpoint: $1"
+#   einfo 'before extract stage3'
+# }
+
+# after_extract_stage3() {
+#   einfo "stage3 downloaded file path: $1"
+#   einfo "root mountpoint: $1"
+#   einfo 'after extract stage3'
+# }
+
+# before_install() {
+#   einfo 'before install'
+# }
+
+# after_install() {
+#   einfo 'after install'
+# }
+
+# before_configure_base_system() {
+#   einfo 'before configure base system'
+# }
+
+# after_configure_base_system() {
+#   einfo 'after configure base system'
+# }
+
+# before_configure_portage() {
+#   einfo 'before configure portage'
+# }
+
+# after_configure_portage() {
+#   einfo 'after configure portage'
+# }
+
+# before_install_kernel() {
+#   einfo 'before install kernel'
+# }
+
+# after_install_kernel() {
+#   einfo 'after install kernel'
+# }
