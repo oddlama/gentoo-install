@@ -447,7 +447,7 @@ function check_wanted_programs() {
 }
 
 # exec function if defined
-# $1 function name
+# $@ function name and arguments
 function maybe_exec() {
-	type "$1" >/dev/null 2>&1 && eval "$*"
+	type "$1" &>/dev/null && "$@"
 }
