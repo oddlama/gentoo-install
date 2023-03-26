@@ -401,6 +401,14 @@ EOF
 		try emerge --verbose sys-fs/cryptsetup
 	fi
 
+	if [[ $SYSTEMD == "true" && $USED_LUKS == "true" ]] ; then
+		einfo "Enabling cryptsetup USE flag"
+		echo 'USE="cryptsetup"' >> /etc/portage/make.conf \
+			|| die "Could not append to /etc/portage/make.conf"
+		einfo "Remerging @world with cryptsetup"
+		try emerge --verbose --changed-use --deep @world
+	fi
+
 	# Install btrfs-progs if we used btrfs
 	if [[ $USED_BTRFS == "true" ]]; then
 		einfo "Installing btrfs-progs"
