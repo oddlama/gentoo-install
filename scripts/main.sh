@@ -402,11 +402,11 @@ EOF
 	fi
 
 	if [[ $SYSTEMD == "true" && $USED_LUKS == "true" ]] ; then
-		einfo "Enabling cryptsetup USE flag"
-		echo 'USE="cryptsetup"' >> /etc/portage/make.conf \
-			|| die "Could not append to /etc/portage/make.conf"
-		einfo "Remerging @world with cryptsetup"
-		try emerge --verbose --changed-use --deep @world
+		einfo "Enabling cryptsetup USE flag on sys-apps/systemd"
+		echo "sys-apps/systemd cryptsetup" > /etc/portage/package.use/systemd \
+			|| die "Could not write /etc/portage/package.use/systemd"
+		einfo "Rebuilding systemd with changed USE flag"
+		try emerge --verbose --changed-use --oneshot sys-apps/systemd
 	fi
 
 	# Install btrfs-progs if we used btrfs
