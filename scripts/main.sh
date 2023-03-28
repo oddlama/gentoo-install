@@ -401,6 +401,14 @@ EOF
 		try emerge --verbose sys-fs/cryptsetup
 	fi
 
+	if [[ $SYSTEMD == "true" && $USED_LUKS == "true" ]] ; then
+		einfo "Enabling cryptsetup USE flag on sys-apps/systemd"
+		echo "sys-apps/systemd cryptsetup" > /etc/portage/package.use/systemd \
+			|| die "Could not write /etc/portage/package.use/systemd"
+		einfo "Rebuilding systemd with changed USE flag"
+		try emerge --verbose --changed-use --oneshot sys-apps/systemd
+	fi
+
 	# Install btrfs-progs if we used btrfs
 	if [[ $USED_BTRFS == "true" ]]; then
 		einfo "Installing btrfs-progs"
