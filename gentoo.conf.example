@@ -248,6 +248,8 @@ STAGE3_BASENAME="stage3-$GENTOO_ARCH-$STAGE3_VARIANT"
 # Automatically set to true, if the stage3 tarball is based on systemd. In this case
 # we need to use slightly different utilities to setup the base system.
 SYSTEMD=$([[ $STAGE3_VARIANT == *systemd* ]] && echo "true" || echo "false")
+# Automatically set to true, if the stage3 tarball is based on musl.
+MUSL=$([[ $STAGE3_VARIANT == *musl* ]] && echo "true" || echo "false")
 
 # If set to true, the installer will add ACCEPT_KEYWORDS="~$GENTOO_ARCH"
 # to /etc/portage/make.conf to enable packages in testing.
