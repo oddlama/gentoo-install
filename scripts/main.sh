@@ -13,13 +13,18 @@ function install_stage3() {
 }
 
 function configure_base_system() {
-	if [[ $SYSTEMD == "true" ]]; then
+	if [[ $MUSL == "true" ]]; then
+		einfo "Installing musl-locales"
+		try emerge --verbose sys-apps/musl-locales
+	else
 		einfo "Generating locales"
 		echo "$LOCALES" > /etc/locale.gen \
 			|| die "Could not write /etc/locale.gen"
 		locale-gen \
 			|| die "Could not generate locales"
+	fi
 
+	if [[ $SYSTEMD == "true" ]]; then
 		einfo "Setting machine-id"
 		systemd-machine-id-setup \
 			|| die "Could not setup systemd machine id"
@@ -43,11 +48,6 @@ function configure_base_system() {
 		ln -sfn "../usr/share/zoneinfo/$TIMEZONE" /etc/localtime \
 			|| die "Could not change /etc/localtime link"
 	else
-		if [[ $MUSL == "true" ]]; then
-			einfo "Installing musl-locales"
-			try emerge --verbose sys-apps/musl-locales
-		fi
-
 		# Set hostname
 		einfo "Selecting hostname"
 		sed -i "/hostname=/c\\hostname=\"$HOSTNAME\"" /etc/conf.d/hostname \
