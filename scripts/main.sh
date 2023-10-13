@@ -43,8 +43,10 @@ function configure_base_system() {
 		ln -sfn "../usr/share/zoneinfo/$TIMEZONE" /etc/localtime \
 			|| die "Could not change /etc/localtime link"
 	else
-		einfo "Installing musl-locales"
-		try emerge --verbose sys-apps/musl-locales
+		if [[ $MUSL == "true" ]]; then
+			einfo "Installing musl-locales"
+			try emerge --verbose sys-apps/musl-locales
+		fi
 
 		# Set hostname
 		einfo "Selecting hostname"

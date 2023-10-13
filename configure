@@ -1595,6 +1595,7 @@ USE_PORTAGE_TESTING=${USE_PORTAGE_TESTING@Q}
 SELECT_MIRRORS=${SELECT_MIRRORS@Q}
 SELECT_MIRRORS_LARGE_FILE=${SELECT_MIRRORS_LARGE_FILE@Q}
 SYSTEMD=\$([[ \$STAGE3_VARIANT == *systemd* ]] && echo "true" || echo "false")
+MUSL=\$([[ \$STAGE3_VARIANT == *musl* ]] && echo "true" || echo "false")
 
 
 ################################################
