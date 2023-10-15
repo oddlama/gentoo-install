@@ -392,7 +392,7 @@ function load_default_config() {
 	KEYMAP="$(get_default_keymap)"
 	KEYMAP_INITRAMFS="$KEYMAP"
 	LOCALES="C.UTF-8 UTF-8"
-	LOCALE="C.utf8"
+	LOCALE="C.UTF-8"
 
 	SYSTEMD_NETWORKD=true
 	SYSTEMD_NETWORKD_INTERFACE_NAME="en*"
