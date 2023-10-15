@@ -191,7 +191,7 @@ LOCALES=""
 # list entries (e.g. .UTF-8 vs .utf8). See `locale -a` for all available locales.
 # Although `locale -a` lists the suffix in lower case without any hyphens, it is best to always use UTF-8 in preference to utf8.
 LOCALE="C.UTF-8"
-# For a german system you could use:
+# For a German system you could use:
 # LOCALES="
 # de_DE.UTF-8 UTF-8
 # de_DE ISO-8859-1
@@ -204,7 +204,7 @@ LOCALE="C.UTF-8"
 # Network configuration
 
 # The following network configuration only applies to systemd
-# configurations and will otherwise be ignore. All openrc based
+# configurations and will otherwise be ignored. All OpenRC based
 # configurations always just starts dhcpcd.
 
 # Enable systemd-networkd to configure internet
@@ -242,7 +242,7 @@ GENTOO_MIRROR="https://mirror.eu.oneandone.net/linux/distributions/gentoo/gentoo
 GENTOO_ARCH="amd64"
 
 # The stage3 tarball variant to use. Determines whether systemd
-# or openrc is used based on whether "systemd" is contained in this string.
+# or OpenRC is used based on whether "systemd" is contained in this string.
 STAGE3_VARIANT="systemd"
 # The stage3 tarball to download and bootstrap
 STAGE3_BASENAME="stage3-$GENTOO_ARCH-$STAGE3_VARIANT"
@@ -256,7 +256,7 @@ MUSL=$([[ $STAGE3_VARIANT == *musl* ]] && echo "true" || echo "false")
 # to /etc/portage/make.conf to enable packages in testing.
 USE_PORTAGE_TESTING=true
 
-# If set to true, the best best gentoo mirrors will be selected
+# If set to true, the best gentoo mirrors will be selected
 # automatically by app-portage/mirrorselect
 SELECT_MIRRORS=true
 

@@ -142,7 +142,7 @@ Only certain VPS hosters may require you to use BIOS still (time to write to the
 Don't install a bootloader when this script is done, except you absolutely need one.
 The kernel can directly be booted by EFI without need for a bootloader.
 By default, this script will use efibootmgr to add a bootentry directly to your "mainboard's bootselect" (typically F12).
-Nowadays, there's just no reason use GRUB, syslinux, or similar bootloaders by default.
+Nowadays, there's just no reason to use GRUB, syslinux, or similar bootloaders by default.
 They only add additional time to your boot, and even dualbooting Windows works just fine without one.
 Only if you require frequent editing of kernel parameters, or want kernel autodiscovery from attached media
 you might want to consider using one of these. For the average (advanced) user this isn't necessary.
@@ -153,7 +153,7 @@ If you want to add more boot options or want to learn about efibootmgr, refer to
 
 I recommend using a modern file system like ZFS, both on desktops and servers.
 It provides transparent block-level compression, instant snapshots and full-disk encryption.
-Generally encrypting your root fs doesn't cost you anything and protects your data in case you lose your device.
+Generally, encrypting your root fs doesn't cost you anything and protects your data in case you lose your device.
 
 #### Systemd vs OpenRC
 
@@ -171,7 +171,7 @@ Make of this what you will, both have their own quirks. Choose your poison.
 
 #### Miscellaneous
 
-- Use the newer iwd for WIFI instead of wpa_supplicant
+- Use the newer iwd for WiFi instead of wpa_supplicant
 - (If systemd) Use timers instead of cron jobs
 
 ## Troubleshooting and FAQ
@@ -193,7 +193,7 @@ you can use the installer to chroot into an existing system. Run `./install --he
 
 #### Q: ZFS cannot be installed in the chroot due to an unsupported kernel version
 
-**A:** The newest stable ZFS module may requires a kernel version that is newer than what is provided on gentoo stable.
+**A:** The newest stable ZFS module may require a kernel version that is newer than what is provided on gentoo stable.
 If you encounter this problem, you might be able to fix the problem by switching to testing by dropping to a shell temporarily:
 
 ```

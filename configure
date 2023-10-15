@@ -382,7 +382,7 @@ function load_config() {
 	# shellcheck disable=SC1090
 	source "$1" || die "Could not load given configuration."
 
-	# After loading a config no unsaved changes exist.
+	# After loading a config, no unsaved changes exist.
 	UNSAVED_CHANGES=false
 }
 
@@ -921,7 +921,7 @@ function PARTITIONING_BOOT_TYPE_help()  { echo "Select whether to use EFI or BIO
 function PARTITIONING_BOOT_TYPE_menu()  {
 	if menu_radiolist_labeled \
 		"Select boot type" \
-		"Select whether your want to use EFI or BIOS boot.$(on_off_str "$HAS_EFI_SUPPORT" "" " \Z1$EFI_UNSUPPORTED_MESSAGE\Zn")" \
+		"Select whether you want to use EFI or BIOS boot.$(on_off_str "$HAS_EFI_SUPPORT" "" " \Z1$EFI_UNSUPPORTED_MESSAGE\Zn")" \
 		"$PARTITIONING_BOOT_TYPE" \
 		"${PARTITIONING_BOOT_TYPES[@]}"
 	then
@@ -1268,7 +1268,7 @@ function KEYMAP_INITRAMFS_menu()  {
 function LOCALES_tag()   { echo "Locales"; }
 function LOCALES_label() { echo "$N_LOCALES selected"; }
 function LOCALES_show()  { return 0; }
-function LOCALES_help()  { echo "The locales to generate for the new system. Be careful that the syntax for locales is a different from the resulting name of the genereated locales of locale-gen. For example the locale 'en_US.utf8' is enabled via 'en_US.UTF-8 UTF-8')."; }
+function LOCALES_help()  { echo "The locales to generate for the new system. Be careful that the syntax for locales is a different from the resulting name of the generated locales of locale-gen. For example, the locale 'en_US.utf8' is enabled via 'en_US.UTF-8 UTF-8')."; }
 function LOCALES_menu()  {
 	if menu_splitlist "Select locales" "Select which locales to generate." "$SELECTED_LOCALES" "${SUPPORTED_LOCALES[@]}"; then
 		SELECTED_LOCALES="$dialog_out"
@@ -1372,11 +1372,11 @@ function SYSTEMD_NETWORKD_GATEWAY_menu()  {
 function STAGE3_VARIANT_tag()   { echo "Stage3 variant & Init system"; }
 function STAGE3_VARIANT_label() { echo "($STAGE3_VARIANT)"; }
 function STAGE3_VARIANT_show()  { return 0; }
-function STAGE3_VARIANT_help()  { echo "Select which stage3 tarball to use. Implicitly determines whether systemd or OpenRC is used. Not all stage3 variants have been tested with this installer. The basic installation process is always the same, but due to complex profiles, unexpected blockers may arise when emerge is called. Stick to the basic choices and change after bootstraping, unless you know how to invervene while installing."; }
+function STAGE3_VARIANT_help()  { echo "Select which stage3 tarball to use. Implicitly determines whether systemd or OpenRC is used. Not all stage3 variants have been tested with this installer. The basic installation process is always the same, but due to complex profiles, unexpected blockers may arise when emerge is called. Stick to the basic choices and change after bootstrapping, unless you know how to intervene while installing."; }
 function STAGE3_VARIANT_menu()  {
 	if menu_radiolist_labeled \
 		"Select stage3 variant" \
-		"Select the base stage3 tarball variant to use for bootstrapping the system. Implicitly determines whether systemd or OpenRC is used. Not all stage3 variants have been tested with this installer. The basic installation process is always the same, but due to complex profiles, unexpected blockers may arise when emerge is called. Stick to the basic choices and change after bootstraping, unless you know how to invervene while installing." \
+		"Select the base stage3 tarball variant to use for bootstrapping the system. Implicitly determines whether systemd or OpenRC is used. Not all stage3 variants have been tested with this installer. The basic installation process is always the same, but due to complex profiles, unexpected blockers may arise when emerge is called. Stick to the basic choices and change after bootstrapping, unless you know how to intervene while installing." \
 		"$STAGE3_VARIANT" \
 		"${ALL_STAGE3_VARIANTS[@]}"
 	then

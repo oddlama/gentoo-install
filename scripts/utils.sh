@@ -417,8 +417,8 @@ function check_wanted_programs() {
 					&& need_zfs=true
 
 				if [[ -v "pacman_packages[$program]" ]]; then
-					# Assignments to the empty string are explcitly ignored,
-					# as for example zfs needs to be handeled separately.
+					# Assignments to the empty string are explicitly ignored,
+					# as for example, zfs needs to be handled separately.
 					[[ -n "${pacman_packages[$program]}" ]] \
 						&& packages+=("${pacman_packages[$program]}")
 				else
