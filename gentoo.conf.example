@@ -74,7 +74,22 @@ function disk_configuration() {
 	# Careful: You will get N times the swap amount, so be sure to divide beforehand.
 	#create_raid0_luks_layout swap=4GiB type=efi root_fs=ext4 /dev/sd{X,Y}
 
-	# 4. create_btrfs_centric_layout
+	# 4. create_raid1_luks_layout
+	#
+	# This layout creates the single disk layout on multiple disks and combines
+	# the swap and root partitions in separate raid1 arrays. Useful if you e.g. have
+	# several nvme drives and want data redundancy. Only one boot partition will actually
+	# be used though.
+	#
+	# Parameters:
+	#   swap=<size>           Create a swap partition with given size for each disk,
+	#                         or no swap at all if set to false
+	#   type=[efi|bios]       Selects the boot type. Defaults to efi if not given.
+	#   root_fs=[ext4|btrfs]  Root filesystem
+	# Careful: You will get N times the swap amount, so be sure to divide beforehand.
+	#create_raid1_luks_layout swap=4GiB type=efi root_fs=ext4 /dev/sd{X,Y}
+
+	# 5. create_btrfs_centric_layout
 	#
 	# This layout is the same as the single_disk_layout, but uses btrfs as the root
 	# filesystem and allows you to put additional disks into the btrfs device pool.
