@@ -276,6 +276,7 @@ function disk_create_raid() {
 
 	local devices_desc=""
 	local devices=()
+	local extra_args=()
 	local id
 	local dev
 	# Splitting is intentional here
@@ -291,31 +292,24 @@ function disk_create_raid() {
 	local mddevice="/dev/md/$name"
 	local uuid="${DISK_ID_TO_UUID[$new_id]}"
 
+	extra_args=()
 	if [[ ${level} == 1 ]]; then
-		einfo "Creating raid$level ($new_id) on $devices_desc"
-		mdadm \
-				--create "$mddevice" \
-				--verbose \
-				--homehost="$HOSTNAME" \
-				--metadata=1.0 \
-				--raid-devices="${#devices[@]}" \
-				--uuid="$uuid" \
-				--level="$level" \
-				"${devices[@]}" \
-			|| die "Could not create raid$level array '$mddevice' ($new_id) on $devices_desc"
+		extra_args+=("--metadata=1.0")
 	else
-		einfo "Creating raid$level ($new_id) on $devices_desc"
-		mdadm \
-				--create "$mddevice" \
-				--verbose \
-				--homehost="$HOSTNAME" \
-				--metadata=1.2 \
-				--raid-devices="${#devices[@]}" \
-				--uuid="$uuid" \
-				--level="$level" \
-				"${devices[@]}" \
-			|| die "Could not create raid$level array '$mddevice' ($new_id) on $devices_desc"
+		extra_args+=("--metadata=1.2")
 	fi
+
+	einfo "Creating raid$level ($new_id) on $devices_desc"
+	mdadm \
+			--create "$mddevice" \
+			--verbose \
+			--homehost="$HOSTNAME" \
+			"${extra_args[@]}" \
+			--raid-devices="${#devices[@]}" \
+			--uuid="$uuid" \
+			--level="$level" \
+			"${devices[@]}" \
+		|| die "Could not create raid$level array '$mddevice' ($new_id) on $devices_desc"
 }
 
 function disk_create_luks() {

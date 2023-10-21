@@ -1168,7 +1168,7 @@ function PARTITIONING_DEVICES_label() {
 
 	if [[ "$invalid" -gt 0 ]]; then
 		echo " └ (${#PARTITIONING_DEVICES[@]} devices, \Z1$invalid invalid\Zn)"
-	elif [[ "${#PARTITIONING_DEVICES[@]}" -eq 1 && "$PARTITIONING_SCHEME" == "raid0_luks" || "$PARTITIONING_SCHEME" == "raid1_luks" ]]; then
+	elif [[ "${#PARTITIONING_DEVICES[@]}" -eq 1 && ("$PARTITIONING_SCHEME" == "raid0_luks" || "$PARTITIONING_SCHEME" == "raid1_luks") ]]; then
 		echo " └ (${#PARTITIONING_DEVICES[@]} devices, \Z1need at least 2\Zn)"
 	elif [[ "${#PARTITIONING_DEVICES[@]}" -eq 0 ]]; then
 		echo " └ (${#PARTITIONING_DEVICES[@]} devices, \Z1need at least 1\Zn)"
