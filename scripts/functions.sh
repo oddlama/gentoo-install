@@ -276,7 +276,6 @@ function disk_create_raid() {
 
 	local devices_desc=""
 	local devices=()
-	local extra_args=()
 	local id
 	local dev
 	# Splitting is intentional here
