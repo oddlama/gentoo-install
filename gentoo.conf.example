@@ -35,10 +35,10 @@ function disk_configuration() {
 	#
 	# Parameters:
 	#   swap=<size>           Create a swap partition with given size, or no swap
-	#                         at all if set to false
+	#                         at all if set to false.
 	#   type=[efi|bios]       Selects the boot type. Defaults to efi if not given.
 	#   luks=[true|false]     Encrypt root partition. Defaults to false if not given.
-	#   root_fs=[ext4|btrfs]  Root filesystem
+	#   root_fs=[ext4|btrfs]  Root filesystem. Defaults to ext4 if not given.
 	#create_classic_single_disk_layout swap=8GiB type=efi luks=true root_fs=ext4 /dev/sdX
 
 	# 2. create_btrfs_centric_layout
@@ -52,7 +52,7 @@ function disk_configuration() {
 	#
 	# Parameters:
 	#   swap=<size>                Create a swap partition with given size, or no swap
-	#                              at all if set to false
+	#                              at all if set to false.
 	#   type=[efi|bios]            Selects the boot type. Defaults to efi if not given.
 	#   encrypt=[true|false]       Encrypt the zfs datasets. Defaults to false if not given.
 	#   compress=[false|<compression>] Compress the zfs datasets. For valid values visit man zfsprops. Defaults to false if not given.
@@ -68,9 +68,10 @@ function disk_configuration() {
 	#
 	# Parameters:
 	#   swap=<size>           Create a swap partition with given size for each disk,
-	#                         or no swap at all if set to false
+	#                         or no swap at all if set to false.
 	#   type=[efi|bios]       Selects the boot type. Defaults to efi if not given.
-	#   root_fs=[ext4|btrfs]  Root filesystem
+	#   luks=[true|false]     Encrypt root partition. Defaults to true if not given.
+	#   root_fs=[ext4|btrfs]  Root filesystem. Defaults to ext4 if not given.
 	# Careful: You will get N times the swap amount, so be sure to divide beforehand.
 	#create_raid0_luks_layout swap=4GiB type=efi root_fs=ext4 /dev/sd{X,Y}
 
@@ -83,9 +84,10 @@ function disk_configuration() {
 	#
 	# Parameters:
 	#   swap=<size>           Create a swap partition with given size for each disk,
-	#                         or no swap at all if set to false
+	#                         or no swap at all if set to false.
 	#   type=[efi|bios]       Selects the boot type. Defaults to efi if not given.
-	#   root_fs=[ext4|btrfs]  Root filesystem
+	#   luks=[true|false]     Encrypt root partition. Defaults to true if not given.
+	#   root_fs=[ext4|btrfs]  Root filesystem. Defaults to ext4 if not given.
 	# Careful: You will get N times the swap amount, so be sure to divide beforehand.
 	#create_raid1_luks_layout swap=4GiB type=efi root_fs=ext4 /dev/sd{X,Y}
 
@@ -100,7 +102,7 @@ function disk_configuration() {
 	#
 	# Parameters:
 	#   swap=<size>                Create a swap partition with given size, or no swap
-	#                              at all if set to false
+	#                              at all if set to false.
 	#   type=[efi|bios]            Selects the boot type. Defaults to efi if not given.
 	#   luks=[true|false]          Encrypt root partition and btrfs devices. Defaults
 	#                              to false if not given.
