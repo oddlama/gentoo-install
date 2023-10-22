@@ -169,6 +169,7 @@ function define_disk_layout() {
 		"zfs_centric")         define_disk_configuration_function "create_zfs_centric_layout swap=$(define_swap) type=${PARTITIONING_BOOT_TYPE@Q} encrypt=${PARTITIONING_ZFS_USE_ENCRYPTION@Q} compress=$(define_zfs_compression) pool_type=${PARTITIONING_ZFS_POOL_TYPE@Q}" "${PARTITIONING_DEVICES[@]@Q}" ;;
 		"btrfs_centric")       define_disk_configuration_function "create_btrfs_centric_layout swap=$(define_swap) type=${PARTITIONING_BOOT_TYPE@Q} raid_type=${PARTITIONING_BTRFS_RAID_TYPE@Q} luks=${PARTITIONING_USE_LUKS@Q}" "${PARTITIONING_DEVICES[@]@Q}" ;;
 		"raid0_luks")          define_disk_configuration_function "create_raid0_luks_layout swap=$(define_swap) type=${PARTITIONING_BOOT_TYPE@Q} root_fs=${PARTITIONING_ROOT_FS@Q}" "${PARTITIONING_DEVICES[@]@Q}" ;;
+		"raid1_luks")          define_disk_configuration_function "create_raid1_luks_layout swap=$(define_swap) type=${PARTITIONING_BOOT_TYPE@Q} root_fs=${PARTITIONING_ROOT_FS@Q}" "${PARTITIONING_DEVICES[@]@Q}" ;;
 		"custom")
 			# Show current function declaration, trim trailing whitespace
 			declare -f disk_configuration \
@@ -208,6 +209,7 @@ ALL_PARTITIONING_SCHEMES=(
 	"zfs_centric"         "ZFS centric (optional ZFS compression and encryption)"
 	"btrfs_centric"       "Btrfs centric (optional raid0/1 via btrfs)"
 	"raid0_luks"          "Raid0 (N>=2 disks) and luks for root"
+	"raid1_luks"          "Raid1 (N>=2 disks) and luks for root"
 	"custom"              "Custom (expert option; edit the config manually later)"
 )
 
@@ -281,6 +283,19 @@ function create_existing_partitions_layout() {
 
 function create_raid0_luks_layout() {
 	PARTITIONING_SCHEME="raid0_luks"
+
+	local known_arguments=('+swap' '?type' '?root_fs')
+	local extra_arguments=()
+	declare -A arguments; parse_arguments "$@"
+
+	PARTITIONING_DEVICES=("${extra_arguments[@]}")
+	parse_swap "${arguments[swap]}"
+	PARTITIONING_BOOT_TYPE="${arguments[type]}"
+	PARTITIONING_ROOT_FS="${arguments[root_fs]:-ext4}"
+}
+
+function create_raid1_luks_layout() {
+	PARTITIONING_SCHEME="raid1_luks"
 
 	local known_arguments=('+swap' '?type' '?root_fs')
 	local extra_arguments=()
@@ -905,6 +920,7 @@ function PARTITIONING_SCHEME_menu()  {
 			"zfs_centric")         create_zfs_centric_layout swap=8GiB type="$DEFAULT_BOOT_TYPE" encrypt=true compress=zstd pool_type=standard /dev/sdX ;;
 			"btrfs_centric")       create_btrfs_centric_layout swap=8GiB type="$DEFAULT_BOOT_TYPE" raid_type=raid0 luks=false /dev/sdX ;;
 			"raid0_luks")          create_raid0_luks_layout swap=8GiB type="$DEFAULT_BOOT_TYPE" root_fs=ext4 /dev/sdX /dev/sdY ;;
+			"raid1_luks")          create_raid1_luks_layout swap=8GiB type="$DEFAULT_BOOT_TYPE" root_fs=ext4 /dev/sdX /dev/sdY ;;
 			"custom")              PARTITIONING_SCHEME="$dialog_out" ;;
 		esac
 		UNSAVED_CHANGES=true
@@ -1012,7 +1028,7 @@ function PARTITIONING_SWAP_DEVICE_menu()  {
 
 function PARTITIONING_ROOT_FS_tag()   { echo " ├ Root filesystem"; }
 function PARTITIONING_ROOT_FS_label() { echo " ├ ($PARTITIONING_ROOT_FS)"; }
-function PARTITIONING_ROOT_FS_show()  { [[ $PARTITIONING_SCHEME != "custom" ]] && one_of "$PARTITIONING_SCHEME" "classic_single_disk" "raid0_luks"; }
+function PARTITIONING_ROOT_FS_show()  { [[ $PARTITIONING_SCHEME != "custom" ]] && one_of "$PARTITIONING_SCHEME" "classic_single_disk" "raid0_luks" "raid1_luks"; }
 function PARTITIONING_ROOT_FS_help()  { echo "Select the amount of swap to use."; }
 function PARTITIONING_ROOT_FS_menu()  {
 	if menu_radiolist \
@@ -1152,7 +1168,7 @@ function PARTITIONING_DEVICES_label() {
 
 	if [[ "$invalid" -gt 0 ]]; then
 		echo " └ (${#PARTITIONING_DEVICES[@]} devices, \Z1$invalid invalid\Zn)"
-	elif [[ "${#PARTITIONING_DEVICES[@]}" -eq 1 && "$PARTITIONING_SCHEME" == "raid0_luks" ]]; then
+	elif [[ "${#PARTITIONING_DEVICES[@]}" -eq 1 && ("$PARTITIONING_SCHEME" == "raid0_luks" || "$PARTITIONING_SCHEME" == "raid1_luks") ]]; then
 		echo " └ (${#PARTITIONING_DEVICES[@]} devices, \Z1need at least 2\Zn)"
 	elif [[ "${#PARTITIONING_DEVICES[@]}" -eq 0 ]]; then
 		echo " └ (${#PARTITIONING_DEVICES[@]} devices, \Z1need at least 1\Zn)"
@@ -1160,7 +1176,7 @@ function PARTITIONING_DEVICES_label() {
 		echo " └ (${#PARTITIONING_DEVICES[@]} devices)"
 	fi
 }
-function PARTITIONING_DEVICES_show()  { [[ $PARTITIONING_SCHEME != "custom" ]] && one_of "$PARTITIONING_SCHEME" "raid0_luks" "zfs_centric" "btrfs_centric"; }
+function PARTITIONING_DEVICES_show()  { [[ $PARTITIONING_SCHEME != "custom" ]] && one_of "$PARTITIONING_SCHEME" "raid0_luks" "raid1_luks" "zfs_centric" "btrfs_centric"; }
 function PARTITIONING_DEVICES_help()  { echo "The block devices to which the layout will be applied."; }
 function PARTITIONING_DEVICES_menu()  {
 	local invalid=()

@@ -291,12 +291,19 @@ function disk_create_raid() {
 	local mddevice="/dev/md/$name"
 	local uuid="${DISK_ID_TO_UUID[$new_id]}"
 
+	extra_args=()
+	if [[ ${level} == 1 ]]; then
+		extra_args+=("--metadata=1.0")
+	else
+		extra_args+=("--metadata=1.2")
+	fi
+
 	einfo "Creating raid$level ($new_id) on $devices_desc"
 	mdadm \
 			--create "$mddevice" \
 			--verbose \
 			--homehost="$HOSTNAME" \
-			--metadata=1.2 \
+			"${extra_args[@]}" \
 			--raid-devices="${#devices[@]}" \
 			--uuid="$uuid" \
 			--level="$level" \

@@ -496,6 +496,63 @@ function create_raid0_luks_layout() {
 	fi
 }
 
+# Multiple disks, with raid 1 and luks
+# - efi:  partition on all disks, but only first disk used
+# - swap: raid 1 → fs
+# - root: raid 1 → luks → fs
+# Parameters:
+#   swap=<size>           Create a swap partition with given size for each disk, or no swap at all if set to false
+#   type=[efi|bios]       Selects the boot type. Defaults to efi if not given.
+#   root_fs=[ext4|btrfs]  Root filesystem
+function create_raid1_luks_layout() {
+	local known_arguments=('+swap' '?type' '?root_fs')
+	local extra_arguments=()
+	declare -A arguments; parse_arguments "$@"
+
+	[[ ${#extra_arguments[@]} -gt 0 ]] \
+		|| die_trace 1 "Expected at least one positional argument (the devices)"
+	local size_swap="${arguments[swap]}"
+	local type="${arguments[type]:-efi}"
+	local root_fs="${arguments[root_fs]:-ext4}"
+
+	for i in "${!extra_arguments[@]}"; do
+		create_gpt new_id="gpt_dev${i}" device="${extra_arguments[$i]}"
+		create_partition new_id="part_${type}_dev${i}" id="gpt_dev${i}" size=512MiB       type="$type"
+		[[ $size_swap != "false" ]] \
+			&& create_partition new_id="part_swap_dev${i}"    id="gpt_dev${i}" size="$size_swap" type=raid
+		create_partition new_id="part_root_dev${i}"    id="gpt_dev${i}" size=remaining    type=raid
+	done
+
+	[[ $size_swap != "false" ]] \
+		&& create_raid new_id=part_raid_swap name="swap" level=1 ids="$(expand_ids '^part_swap_dev[[:digit:]]$')"
+	create_raid new_id=part_raid_root name="root" level=1 ids="$(expand_ids '^part_root_dev[[:digit:]]$')"
+	create_luks new_id=part_luks_root name="root" id=part_raid_root
+
+	format id="part_${type}_dev0" type="$type" label="$type"
+	[[ $size_swap != "false" ]] \
+		&& format id=part_raid_swap type=swap label=swap
+	format id=part_luks_root type="$root_fs" label=root
+
+	if [[ $type == "efi" ]]; then
+		DISK_ID_EFI="part_${type}_dev0"
+	else
+		DISK_ID_BIOS="part_${type}_dev0"
+	fi
+	[[ $size_swap != "false" ]] \
+		&& DISK_ID_SWAP=part_raid_swap
+	DISK_ID_ROOT=part_luks_root
+
+	if [[ $root_fs == "btrfs" ]]; then
+		DISK_ID_ROOT_TYPE="btrfs"
+		DISK_ID_ROOT_MOUNT_OPTS="defaults,noatime,compress=zstd,subvol=/root"
+	elif [[ $root_fs == "ext4" ]]; then
+		DISK_ID_ROOT_TYPE="ext4"
+		DISK_ID_ROOT_MOUNT_OPTS="defaults,noatime,errors=remount-ro,discard"
+	else
+		die "Unsupported root filesystem type"
+	fi
+}
+
 # Multiple disks, up to 3 partitions on first disk (efi, optional swap, root with btrfs).
 # Additional devices will be first encrypted and then put directly into btrfs array.
 # Parameters:
