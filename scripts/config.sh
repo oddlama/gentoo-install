@@ -293,10 +293,10 @@ function expand_ids() {
 
 # Single disk, 3 partitions (efi, swap, root)
 # Parameters:
-#   swap=<size>           Create a swap partition with given size, or no swap at all if set to false
+#   swap=<size>           Create a swap partition with given size, or no swap at all if set to false.
 #   type=[efi|bios]       Selects the boot type. Defaults to efi if not given.
 #   luks=[true|false]     Encrypt root partition. Defaults to false if not given.
-#   root_fs=[ext4|btrfs]  Root filesystem
+#   root_fs=[ext4|btrfs]  Root filesystem. Defaults to ext4 if not given.
 function create_classic_single_disk_layout() {
 	local known_arguments=('+swap' '?type' '?luks' '?root_fs')
 	local extra_arguments=()
@@ -353,7 +353,7 @@ function create_single_disk_layout() {
 
 # Skip partitioning, and use existing pre-formatted partitions. These must be trivially mountable.
 # Parameters:
-#   swap=<device|false>   Use the given device as swap, or no swap at all if set to false
+#   swap=<device|false>   Use the given device as swap, or no swap at all if set to false.
 #   boot=<device>         Use the given device as the bios/efi partition.
 #   type=[efi|bios]       Selects the boot type. Defaults to efi if not given.
 function create_existing_partitions_layout() {
@@ -389,7 +389,7 @@ function create_existing_partitions_layout() {
 # Multiple disks, up to 3 partitions on first disk (efi, optional swap, root with zfs).
 # Additional devices will be added to the zfs pool.
 # Parameters:
-#   swap=<size>                Create a swap partition with given size, or no swap at all if set to false
+#   swap=<size>                Create a swap partition with given size, or no swap at all if set to false.
 #   type=[efi|bios]            Selects the boot type. Defaults to efi if not given.
 #   encrypt=[true|false]       Encrypt zfs pool. Defaults to false if not given.
 #   pool_type=[stripe|mirror]  Select raid type. Defaults to stripe.
@@ -444,11 +444,12 @@ function create_zfs_centric_layout() {
 # - swap: raid 0 → fs
 # - root: raid 0 → luks → fs
 # Parameters:
-#   swap=<size>           Create a swap partition with given size for each disk, or no swap at all if set to false
+#   swap=<size>           Create a swap partition with given size for each disk, or no swap at all if set to false.
 #   type=[efi|bios]       Selects the boot type. Defaults to efi if not given.
-#   root_fs=[ext4|btrfs]  Root filesystem
+#   luks=[true|false]     Encrypt root partition. Defaults to true if not given.
+#   root_fs=[ext4|btrfs]  Root filesystem. Defaults to ext4 if not given.
 function create_raid0_luks_layout() {
-	local known_arguments=('+swap' '?type' '?root_fs')
+	local known_arguments=('+swap' '?type' '?luks' '?root_fs')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
 
@@ -456,6 +457,7 @@ function create_raid0_luks_layout() {
 		|| die_trace 1 "Expected at least one positional argument (the devices)"
 	local size_swap="${arguments[swap]}"
 	local type="${arguments[type]:-efi}"
+	local use_luks="${arguments[luks]:-true}"
 	local root_fs="${arguments[root_fs]:-ext4}"
 
 	for i in "${!extra_arguments[@]}"; do
@@ -469,12 +471,17 @@ function create_raid0_luks_layout() {
 	[[ $size_swap != "false" ]] \
 		&& create_raid new_id=part_raid_swap name="swap" level=0 ids="$(expand_ids '^part_swap_dev[[:digit:]]$')"
 	create_raid new_id=part_raid_root name="root" level=0 ids="$(expand_ids '^part_root_dev[[:digit:]]$')"
-	create_luks new_id=part_luks_root name="root" id=part_raid_root
+
+	local root_id="part_root"
+	if [[ "$use_luks" == "true" ]]; then
+		create_luks new_id=part_luks_root name="root" id=part_raid_root
+		root_id="part_luks_root"
+	fi
 
 	format id="part_${type}_dev0" type="$type" label="$type"
 	[[ $size_swap != "false" ]] \
 		&& format id=part_raid_swap type=swap label=swap
-	format id=part_luks_root type="$root_fs" label=root
+	format id="$root_id" type="$root_fs" label=root
 
 	if [[ $type == "efi" ]]; then
 		DISK_ID_EFI="part_${type}_dev0"
@@ -483,7 +490,7 @@ function create_raid0_luks_layout() {
 	fi
 	[[ $size_swap != "false" ]] \
 		&& DISK_ID_SWAP=part_raid_swap
-	DISK_ID_ROOT=part_luks_root
+	DISK_ID_ROOT="$root_id"
 
 	if [[ $root_fs == "btrfs" ]]; then
 		DISK_ID_ROOT_TYPE="btrfs"
@@ -501,11 +508,12 @@ function create_raid0_luks_layout() {
 # - swap: raid 1 → fs
 # - root: raid 1 → luks → fs
 # Parameters:
-#   swap=<size>           Create a swap partition with given size for each disk, or no swap at all if set to false
+#   swap=<size>           Create a swap partition with given size for each disk, or no swap at all if set to false.
 #   type=[efi|bios]       Selects the boot type. Defaults to efi if not given.
-#   root_fs=[ext4|btrfs]  Root filesystem
+#   luks=[true|false]     Encrypt root partition. Defaults to true if not given.
+#   root_fs=[ext4|btrfs]  Root filesystem. Defaults to ext4 if not given.
 function create_raid1_luks_layout() {
-	local known_arguments=('+swap' '?type' '?root_fs')
+	local known_arguments=('+swap' '?type' '?luks' '?root_fs')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
 
@@ -513,6 +521,7 @@ function create_raid1_luks_layout() {
 		|| die_trace 1 "Expected at least one positional argument (the devices)"
 	local size_swap="${arguments[swap]}"
 	local type="${arguments[type]:-efi}"
+	local use_luks="${arguments[luks]:-true}"
 	local root_fs="${arguments[root_fs]:-ext4}"
 
 	for i in "${!extra_arguments[@]}"; do
@@ -526,12 +535,17 @@ function create_raid1_luks_layout() {
 	[[ $size_swap != "false" ]] \
 		&& create_raid new_id=part_raid_swap name="swap" level=1 ids="$(expand_ids '^part_swap_dev[[:digit:]]$')"
 	create_raid new_id=part_raid_root name="root" level=1 ids="$(expand_ids '^part_root_dev[[:digit:]]$')"
-	create_luks new_id=part_luks_root name="root" id=part_raid_root
+
+	local root_id="part_root"
+	if [[ "$use_luks" == "true" ]]; then
+		create_luks new_id=part_luks_root name="root" id=part_raid_root
+		root_id="part_luks_root"
+	fi
 
 	format id="part_${type}_dev0" type="$type" label="$type"
 	[[ $size_swap != "false" ]] \
 		&& format id=part_raid_swap type=swap label=swap
-	format id=part_luks_root type="$root_fs" label=root
+	format id="$root_id" type="$root_fs" label=root
 
 	if [[ $type == "efi" ]]; then
 		DISK_ID_EFI="part_${type}_dev0"
@@ -540,7 +554,7 @@ function create_raid1_luks_layout() {
 	fi
 	[[ $size_swap != "false" ]] \
 		&& DISK_ID_SWAP=part_raid_swap
-	DISK_ID_ROOT=part_luks_root
+	DISK_ID_ROOT="$root_id"
 
 	if [[ $root_fs == "btrfs" ]]; then
 		DISK_ID_ROOT_TYPE="btrfs"
@@ -556,7 +570,7 @@ function create_raid1_luks_layout() {
 # Multiple disks, up to 3 partitions on first disk (efi, optional swap, root with btrfs).
 # Additional devices will be first encrypted and then put directly into btrfs array.
 # Parameters:
-#   swap=<size>                Create a swap partition with given size, or no swap at all if set to false
+#   swap=<size>                Create a swap partition with given size, or no swap at all if set to false.
 #   type=[efi|bios]            Selects the boot type. Defaults to efi if not given.
 #   luks=[true|false]          Encrypt root partition and btrfs devices. Defaults to false if not given.
 #   raid_type=[raid0|raid1]    Select raid type. Defaults to raid0.
