@@ -15,6 +15,9 @@ function install_stage3() {
 function configure_base_system() {
 	if [[ $MUSL == "true" ]]; then
 		einfo "Installing musl-locales"
+		if [[ $USE_PORTAGE_TESTING == "false" ]]; then
+			echo "sys-apps/musl-locales" >> /etc/portage/package.accept_keywords/musl-locales
+		fi
 		try emerge --verbose sys-apps/musl-locales
 	else
 		einfo "Generating locales"
