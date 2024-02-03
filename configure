@@ -437,7 +437,9 @@ function load_default_config() {
 
 	ADDITIONAL_PACKAGES=()
 	ENABLE_SSHD=true
+	ENABLE_BINPKG=false
 	ROOT_SSH_AUTHORIZED_KEYS=""
+	
 
 	# All settings are unsaved.
 	UNSAVED_CHANGES=true
@@ -894,6 +896,7 @@ MENU_ITEMS=(
 	"SELECT_MIRRORS_LARGE_FILE"
 	"--------"
 	"ENABLE_SSHD"
+	"ENABLE_BINPKG"
 	"ROOT_SSH_AUTHORIZED_KEYS"
 	"ADDITIONAL_PACKAGES"
 )
@@ -1517,6 +1520,15 @@ function ENABLE_SSHD_menu()  {
 	UNSAVED_CHANGES=true
 }
 
+function ENABLE_BINPKG_tag()   { echo "Enable binary packages"; }
+function ENABLE_BINPKG_label() { on_off_label "$ENABLE_BINPKG"; }
+function ENABLE_BINPKG_show()  { return 0; }
+function ENABLE_BINPKG_help()  { echo "Use binary packages if available."; }
+function ENABLE_BINPKG_menu()  {
+	on_off_toggle "ENABLE_BINPKG"
+	UNSAVED_CHANGES=true
+}
+
 function ROOT_SSH_AUTHORIZED_KEYS_tag()   { echo "Authorized keys (root)"; }
 function ROOT_SSH_AUTHORIZED_KEYS_label() { echo "$(sed '/^\s*#/d;/^\s*$/d' <<< "$ROOT_SSH_AUTHORIZED_KEYS" | wc -l) keys"; }
 function ROOT_SSH_AUTHORIZED_KEYS_show()  { return 0; }
@@ -1621,6 +1633,7 @@ MUSL=\$([[ \$STAGE3_VARIANT == *musl* ]] && echo "true" || echo "false")
 
 ADDITIONAL_PACKAGES=(${ADDITIONAL_PACKAGES[@]@Q})
 ENABLE_SSHD=${ENABLE_SSHD@Q}
+ENABLE_BINPKG=${ENABLE_BINPKG@Q}
 ROOT_SSH_AUTHORIZED_KEYS=${ROOT_SSH_AUTHORIZED_KEYS@Q}
 
 

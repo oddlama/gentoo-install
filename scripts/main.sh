@@ -104,6 +104,10 @@ function configure_portage() {
 		try mirrorselect "${mirrorselect_params[@]}"
 	fi
 
+	if [[ $ENABLE_BINPKG == "true" ]]; then
+		echo 'FEATURES="getbinpkg"' >> /etc/portage/make.conf
+	fi
+
 	chmod 644 /etc/portage/make.conf \
 		|| die "Could not chmod 644 /etc/portage/make.conf"
 }
