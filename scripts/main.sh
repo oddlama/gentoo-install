@@ -400,6 +400,9 @@ EOF
 	# Install authorized_keys before dracut, which might need them for remote unlocking.
 	install_authorized_keys
 
+ 	# Add dracut use flag
+  	echo 'USE="dracut"' >> /etc/portage/make.conf
+
 	# Install required programs and kernel now, in order to
 	# prevent emerging module before an imminent kernel upgrade
 	try emerge --verbose sys-kernel/dracut sys-kernel/gentoo-kernel-bin app-arch/zstd
