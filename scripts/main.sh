@@ -208,11 +208,10 @@ function install_kernel_efi() {
 
 	# Copy kernel to EFI
 	local kernel_file
-	kernel_file="$(find "/boot" -name "vmlinuz-*" -printf '%f\n' | sort -V | tail -n 1)" \
+	kernel_file="$(find "/boot" \( -name "vmlinuz-*" -or -name 'kernel-*' \) -printf '%f\n' | sort -V | tail -n 1)" \
 		|| die "Could not list newest kernel file"
 
-	cp "/boot/$kernel_file" "/boot/efi/vmlinuz.efi" \
-		|| die "Could not copy kernel to EFI partition"
+	try cp "/boot/$kernel_file" "/boot/efi/vmlinuz.efi"
 
 	# Generate initramfs
 	generate_initramfs "/boot/efi/initramfs.img"
@@ -265,11 +264,10 @@ function install_kernel_bios() {
 
 	# Link kernel to known name
 	local kernel_file
-	kernel_file="$(find "/boot" -name "vmlinuz-*" -printf '%f\n' | sort -V | tail -n 1)" \
+	kernel_file="$(find "/boot" \( -name "vmlinuz-*" -or -name 'kernel-*' \) -printf '%f\n' | sort -V | tail -n 1)" \
 		|| die "Could not list newest kernel file"
 
-	cp "/boot/$kernel_file" "/boot/bios/vmlinuz-current" \
-		|| die "Could copy kernel to /boot/bios/vmlinuz-current"
+	try cp "/boot/$kernel_file" "/boot/bios/vmlinuz-current"
 
 	# Generate initramfs
 	generate_initramfs "/boot/bios/initramfs.img"
@@ -400,8 +398,9 @@ EOF
 	# Install authorized_keys before dracut, which might need them for remote unlocking.
 	install_authorized_keys
 
- 	# Add dracut use flag
-  	echo 'USE="dracut"' >> /etc/portage/make.conf
+	einfo "Enabling dracut USE flag on sys-kernel/installkernel"
+	echo "sys-kernel/installkernel dracut" > /etc/portage/package.use/installkernel \
+		|| die "Could not write /etc/portage/package.use/installkernel"
 
 	# Install required programs and kernel now, in order to
 	# prevent emerging module before an imminent kernel upgrade
