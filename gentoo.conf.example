@@ -294,6 +294,9 @@ ADDITIONAL_PACKAGES=()
 # only allows the use of ed25519 keys, and requires pubkey authentication)
 ENABLE_SSHD=true
 
+# Enable binary portage packages where available
+ENABLE_BINPKG=false
+
 # An ssh key to add to the authorized_keys file for the root user.
 # This variable will become the content of the authorized_keys file,
 # so you may specify one key per line (include the newlines in the variable).
