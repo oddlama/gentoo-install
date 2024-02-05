@@ -121,7 +121,7 @@ In both cases, the update procedure is as follows:
 2. `eselect kernel set <kver>`
 3. Backup old kernel and initramfs (`mv "$kernel"{,.bak}`, `mv "$initrd"{,.bak}`)
 4. Generate new initramfs for this kernel `generate_initramfs.sh <kver> "$initrd"`
-5. Copy new kernel `cp /boot/vmlinuz-<kver> "$kernel"`
+5. Copy new kernel `cp /boot/kernel-<kver> "$kernel"` (for systemd) or `cp /boot/vmlinuz-<kver> "$kernel"` (for openrc)
 
 ## Recommendations
 
