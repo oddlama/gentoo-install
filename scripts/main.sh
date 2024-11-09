@@ -60,8 +60,8 @@ function configure_base_system() {
 		if [[ $MUSL == "true" ]]; then
 			try emerge -v sys-libs/timezone-data
 			einfo "Selecting timezone"
-			echo -e "\nTZ=\"$TIMEZONE\"" >> /etc/env.d/00musl \
-				|| die "Could not write to /etc/env.d/00musl"
+			echo -e "\nTZ=\"$TIMEZONE\"" >> /etc/env.d/00local \
+				|| die "Could not write to /etc/env.d/00local"
 		else
 			einfo "Selecting timezone"
 			echo "$TIMEZONE" > /etc/timezone \
