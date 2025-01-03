@@ -437,12 +437,27 @@ function check_wanted_programs() {
 
 			return
 		fi
-	fi
+	elif type emerge &>/dev/null; then
+		elog "Detected Portage (emerge) package manager."
+		if ask "Do you want to install all missing programs automatically?"; then
+			elog "Updating Portage repository cache..."
+			emerge --sync || die "Failed to synchronize Portage repositories."
 
-	if [[ "${#missing_required[@]}" -gt 0 ]]; then
-		die "Aborted installer because of missing required programs."
+			for program in "${missing_required[@]}" "${missing_wanted[@]}"; do
+				if [[ "$program" == "ntpd" ]]; then
+					elog "Installing ntpd using emerge..."
+					emerge --ask ntp || die "Failed to install ntpd."
+				else
+					elog "You need to manually install $program."
+				fi
+			done
+		fi
 	else
-		ask "Continue without recommended programs?"
+		if [[ "${#missing_required[@]}" -gt 0 ]]; then
+			die "Aborted installer because of missing required programs."
+		else
+			ask "Continue without recommended programs?"
+		fi
 	fi
 }
 
