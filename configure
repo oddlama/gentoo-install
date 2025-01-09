@@ -1476,7 +1476,21 @@ function GENTOO_ARCH_menu()  {
 		"$GENTOO_ARCH" \
 		"${ALL_GENTOO_ARCHS[@]}"
 	then
-		GENTOO_ARCH="$dialog_out"
+		if [[ "$dialog_out" == "x86" ]]; then
+			local sub_archs=("i486" "i686")
+			if menu_radiolist \
+				"Select x86 sub-architecture" \
+				"Select the specific sub-architecture for x86." \
+				"${sub_archs[0]}" \
+				"${sub_archs[@]}"
+			then
+				GENTOO_ARCH="$dialog_out"
+			else
+				GENTOO_ARCH="${sub_archs[0]}"
+			fi
+		else
+			GENTOO_ARCH="$dialog_out"
+		fi
 		UNSAVED_CHANGES=true
 	else
 		# Return to menu
