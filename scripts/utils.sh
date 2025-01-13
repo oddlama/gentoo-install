@@ -452,6 +452,8 @@ function check_wanted_programs() {
 				fi
 			done
 		fi
+	elif type curl &>/dev/null; then
+		:
 	else
 		if [[ "${#missing_required[@]}" -gt 0 ]]; then
 			die "Aborted installer because of missing required programs."
