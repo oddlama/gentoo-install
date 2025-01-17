@@ -1486,7 +1486,7 @@ function GENTOO_ARCH_menu()  {
 			then
 				GENTOO_ARCH="$dialog_out"
 			else
-				GENTOO_ARCH="${sub_archs[0]}"
+				return 1
 			fi
 		else
 			GENTOO_ARCH="$dialog_out"
