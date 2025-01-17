@@ -7,7 +7,15 @@ source "$GENTOO_INSTALL_REPO_DIR/scripts/protection.sh" || exit 1
 
 function sync_time() {
 	einfo "Syncing time"
-	try ntpd -g -q
+	if command -v ntpd &> /dev/null; then
+		try ntpd -g -q
+	elif command -v chrony &> /dev/null; then
+		# See https://github.com/oddlama/gentoo-install/pull/122
+		try chronyd -q
+	else
+		# why am I doing this?
+		try date -s "$(curl -sI http://example.com | grep -i ^date: | cut -d' ' -f3-)"
+	fi
 
 	einfo "Current date: $(LANG=C date)"
 	einfo "Writing time to hardware clock"
