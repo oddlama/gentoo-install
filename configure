@@ -179,6 +179,7 @@ function define_disk_layout() {
 }
 
 ALL_GENTOO_ARCHS=("x86" "amd64" "arm" "arm64")
+ALL_GENTOO_SUBARCHS=("i486" "i686")
 ALL_STAGE3_VARIANTS=(
 	"openrc"                              "openrc                             | Minimal OpenRC base (recommended)"
 	"desktop-openrc"                      "openrc-desktop                     | OpenRC, desktop profile, might have blockers"
@@ -430,6 +431,7 @@ function load_default_config() {
 
 	GENTOO_MIRROR="https://mirror.eu.oneandone.net/linux/distributions/gentoo/gentoo"
 	GENTOO_ARCH="amd64"
+	GENTOO_SUBARCH=""
 
 	USE_PORTAGE_TESTING=true
 	SELECT_MIRRORS=false
@@ -891,6 +893,7 @@ MENU_ITEMS=(
 	"PORTAGE_GIT_MIRROR"
 	"GENTOO_MIRROR"
 	"GENTOO_ARCH"
+	"GENTOO_SUBARCH"
 	"USE_PORTAGE_TESTING"
 	"SELECT_MIRRORS"
 	"SELECT_MIRRORS_LARGE_FILE"
@@ -1476,21 +1479,31 @@ function GENTOO_ARCH_menu()  {
 		"$GENTOO_ARCH" \
 		"${ALL_GENTOO_ARCHS[@]}"
 	then
-		if [[ "$dialog_out" == "x86" ]]; then
-			local sub_archs=("i486" "i686")
-			if menu_radiolist \
-				"Select x86 sub-architecture" \
-				"Select the specific sub-architecture for x86." \
-				"${sub_archs[0]}" \
-				"${sub_archs[@]}"
-			then
-				GENTOO_ARCH="$dialog_out"
-			else
-				return 1
-			fi
+		GENTOO_ARCH="$dialog_out"
+		if [[ "$GENTOO_ARCH" == "x86" ]]; then
+			GENTOO_SUBARCH_menu
 		else
-			GENTOO_ARCH="$dialog_out"
+			GENTOO_SUBARCH=""
 		fi
+		UNSAVED_CHANGES=true
+	else
+		# Return to menu
+		true
+	fi
+}
+
+function GENTOO_SUBARCH_tag()   { echo "Gentoo sub-arch"; }
+function GENTOO_SUBARCH_label() { echo "($GENTOO_SUBARCH)"; }
+function GENTOO_SUBARCH_show()  { [[ "$GENTOO_ARCH" == "x86" ]]; }
+function GENTOO_SUBARCH_help()  { echo "Select gentoo's sub-architecture tag for the new system."; }
+function GENTOO_SUBARCH_menu()  {
+	if menu_radiolist \
+		"Select x86 sub-architecture" \
+		"Select the specific sub-architecture for x86." \
+		"$GENTOO_SUBARCH" \
+		"${ALL_GENTOO_SUBARCHS[@]}"
+	then
+		GENTOO_SUBARCH="$dialog_out"
 		UNSAVED_CHANGES=true
 	else
 		# Return to menu
@@ -1633,8 +1646,10 @@ PORTAGE_GIT_FULL_HISTORY=${PORTAGE_GIT_FULL_HISTORY@Q}
 PORTAGE_GIT_MIRROR=${PORTAGE_GIT_MIRROR@Q}
 GENTOO_MIRROR=${GENTOO_MIRROR@Q}
 GENTOO_ARCH=${GENTOO_ARCH@Q}
+GENTOO_SUBARCH=${GENTOO_SUBARCH@Q}
 STAGE3_VARIANT=${STAGE3_VARIANT@Q}
 STAGE3_BASENAME="stage3-\$GENTOO_ARCH-\$STAGE3_VARIANT"
+STAGE3_BASENAME_CUSTOM="stage3-\$GENTOO_SUBARCH-\$STAGE3_VARIANT"
 USE_PORTAGE_TESTING=${USE_PORTAGE_TESTING@Q}
 SELECT_MIRRORS=${SELECT_MIRRORS@Q}
 SELECT_MIRRORS_LARGE_FILE=${SELECT_MIRRORS_LARGE_FILE@Q}
