@@ -257,12 +257,16 @@ GENTOO_MIRROR="https://mirror.eu.oneandone.net/linux/distributions/gentoo/gentoo
 
 # The architecture of the target system (only tested with amd64)
 GENTOO_ARCH="amd64"
+# The sub-architecture for x86 targets (e.g., i486, i686)
+GENTOO_SUBARCH=""
 
 # The stage3 tarball variant to use. Determines whether systemd
 # or OpenRC is used based on whether "systemd" is contained in this string.
 STAGE3_VARIANT="systemd"
 # The stage3 tarball to download and bootstrap
 STAGE3_BASENAME="stage3-$GENTOO_ARCH-$STAGE3_VARIANT"
+# The stage3 tarball to download and bootstrap (using the sub-architecture)
+STAGE3_BASENAME_CUSTOM="stage3-$GENTOO_SUBARCH-$STAGE3_VARIANT"
 # Automatically set to true, if the stage3 tarball is based on systemd. In this case
 # we need to use slightly different utilities to setup the base system.
 SYSTEMD=$([[ $STAGE3_VARIANT == *systemd* ]] && echo "true" || echo "false")
