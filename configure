@@ -1484,6 +1484,8 @@ function GENTOO_ARCH_menu()  {
 			GENTOO_SUBARCH_menu
 		else
 			GENTOO_SUBARCH=""
+			# Return to menu
+			true
 		fi
 		UNSAVED_CHANGES=true
 	else
