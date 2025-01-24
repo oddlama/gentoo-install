@@ -107,9 +107,7 @@ function configure_portage() {
 	if [[ $ENABLE_BINPKG == "true" ]]; then
 		echo 'FEATURES="getbinpkg binpkg-request-signature"' >> /etc/portage/make.conf
 		getuto
-		chown -R root:root /etc/portage/gnupg
-		chmod 700 /etc/portage/gnupg
-		chmod 600 /etc/portage/gnupg/*
+		chmod 644 /etc/portage/gnupg/pubring.kbx
 	fi
 
 	chmod 644 /etc/portage/make.conf \
