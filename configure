@@ -1050,7 +1050,7 @@ function PARTITIONING_ROOT_FS_menu()  {
 
 function PARTITIONING_USE_LUKS_tag()   { echo " ├ LUKS Encryption"; }
 function PARTITIONING_USE_LUKS_label() { on_off_label "$PARTITIONING_USE_LUKS" " ├ "; }
-function PARTITIONING_USE_LUKS_show()  { [[ $PARTITIONING_SCHEME != "custom" ]] && one_of "$PARTITIONING_SCHEME" "classic_single_disk" "raid0_luks" "raid1_luks" "btrfs_centric"; }
+function PARTITIONING_USE_LUKS_show()  { [[ $PARTITIONING_SCHEME != "custom" ]] && one_of "$PARTITIONING_SCHEME" "classic_single_disk" "btrfs_centric" "raid0_luks" "raid1_luks"; }
 function PARTITIONING_USE_LUKS_help()  { echo "Determines if LUKS will be used to encrypt your root partition. You can export the desired encryption key via export GENTOO_INSTALL_ENCRYPTION_KEY='...' before installing if you don't want to be asked."; }
 function PARTITIONING_USE_LUKS_menu()  {
 	on_off_toggle "PARTITIONING_USE_LUKS"
