@@ -827,7 +827,7 @@ function download_stage3() {
 		|| die "Could not cd into '$TMP_DIR'"
 
 	local STAGE3_BASENAME_FINAL
-	if [[ "$GENTOO_ARCH" == "x86" && -n "$GENTOO_SUBARCH" ]]; then
+	if [[ ("$GENTOO_ARCH" == "amd64" && "$STAGE3_VARIANT" == *x32*) || ("$GENTOO_ARCH" == "x86" && -n "$GENTOO_SUBARCH") ]]; then
 		STAGE3_BASENAME_FINAL="$STAGE3_BASENAME_CUSTOM"
 	else
 		STAGE3_BASENAME_FINAL="$STAGE3_BASENAME"
