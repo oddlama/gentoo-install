@@ -41,7 +41,7 @@ function disk_configuration() {
 	#   root_fs=[ext4|btrfs]  Root filesystem. Defaults to ext4 if not given.
 	#create_classic_single_disk_layout swap=8GiB type=efi luks=true root_fs=ext4 /dev/sdX
 
-	# 2. create_btrfs_centric_layout
+	# 2. create_zfs_centric_layout
 	#
 	# A modern disk layout designed around ZFS. This layout is the same as the
 	# single_disk_layout, but uses ZFS as the root filesystem and optionally allows
@@ -51,12 +51,12 @@ function disk_configuration() {
 	# encryption feature to encrypt the pool.
 	#
 	# Parameters:
-	#   swap=<size>                Create a swap partition with given size, or no swap
-	#                              at all if set to false.
-	#   type=[efi|bios]            Selects the boot type. Defaults to efi if not given.
-	#   encrypt=[true|false]       Encrypt the zfs datasets. Defaults to false if not given.
-	#   compress=[false|<compression>] Compress the zfs datasets. For valid values visit man zfsprops. Defaults to false if not given.
-	#   pool_type=[standard|custom]  Select zfs pool type. Custom pools allow you to do the pool creation yourself. Defaults to standard.
+	#   swap=<size>                     Create a swap partition with given size, or no swap
+	#                                   at all if set to false.
+	#   type=[efi|bios]                 Selects the boot type. Defaults to efi if not given.
+	#   encrypt=[true|false]            Encrypt the zfs datasets. Defaults to false if not given.
+	#   compress=[false|<compression>]  Compress the zfs datasets. For valid values visit man zfsprops. Defaults to false if not given.
+	#   pool_type=[standard|custom]     Select zfs pool type. Custom pools allow you to do the pool creation yourself. Defaults to standard.
 	#create_zfs_centric_layout type=efi swap=8GiB encrypt=true compress=zstd pool_type=standard
 
 	# 3. create_raid0_luks_layout
@@ -101,12 +101,12 @@ function disk_configuration() {
 	# Also works with a single device.
 	#
 	# Parameters:
-	#   swap=<size>                Create a swap partition with given size, or no swap
-	#                              at all if set to false.
-	#   type=[efi|bios]            Selects the boot type. Defaults to efi if not given.
-	#   luks=[true|false]          Encrypt root partition and btrfs devices. Defaults
-	#                              to false if not given.
-	#   raid_type=[raid0|raid1]    Select raid type. Defaults to raid0.
+	#   swap=<size>              Create a swap partition with given size, or no swap
+	#                            at all if set to false.
+	#   type=[efi|bios]          Selects the boot type. Defaults to efi if not given.
+	#   luks=[true|false]        Encrypt root partition and btrfs devices. Defaults
+	#                            to false if not given.
+	#   raid_type=[raid0|raid1]  Select raid type. Defaults to raid0.
 	#create_btrfs_centric_layout swap=8GiB luks=false raid_type=raid0 /dev/sd{X,Y}
 	#create_btrfs_centric_layout swap=8GiB luks=true /dev/sdX
 }
