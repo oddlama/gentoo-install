@@ -389,12 +389,13 @@ function create_existing_partitions_layout() {
 # Multiple disks, up to 3 partitions on first disk (efi, optional swap, root with zfs).
 # Additional devices will be added to the zfs pool.
 # Parameters:
-#   swap=<size>                Create a swap partition with given size, or no swap at all if set to false.
-#   type=[efi|bios]            Selects the boot type. Defaults to efi if not given.
-#   encrypt=[true|false]       Encrypt zfs pool. Defaults to false if not given.
-#   pool_type=[stripe|mirror]  Select raid type. Defaults to stripe.
+#   swap=<size>                     Create a swap partition with given size, or no swap at all if set to false.
+#   type=[efi|bios]                 Selects the boot type. Defaults to efi if not given.
+#   encrypt=[true|false]            Encrypt the zfs datasets. Defaults to false if not given.
+#   compress=[false|<compression>]  Compress the zfs datasets. For valid values visit man zfsprops. Defaults to false if not given.
+#   pool_type=[standard|custom]     Select zfs pool type. Custom pools allow you to do the pool creation yourself. Defaults to standard.
 function create_zfs_centric_layout() {
-	local known_arguments=('+swap' '?type' '?pool_type' '?encrypt' '?compress')
+	local known_arguments=('+swap' '?type' '?encrypt' '?compress' '?pool_type')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
 
@@ -402,9 +403,9 @@ function create_zfs_centric_layout() {
 		|| die_trace 1 "Expected at least one positional argument (the devices)"
 	local device="${extra_arguments[0]}"
 	local size_swap="${arguments[swap]}"
-	local pool_type="${arguments[pool_type]:-stripe}"
 	local type="${arguments[type]:-efi}"
 	local encrypt="${arguments[encrypt]:-false}"
+	local pool_type="${arguments[pool_type]:-standard}"
 
 	# Create layout on first disk
 	create_gpt new_id="gpt_dev0" device="${extra_arguments[0]}"
@@ -575,7 +576,7 @@ function create_raid1_luks_layout() {
 #   luks=[true|false]          Encrypt root partition and btrfs devices. Defaults to false if not given.
 #   raid_type=[raid0|raid1]    Select raid type. Defaults to raid0.
 function create_btrfs_centric_layout() {
-	local known_arguments=('+swap' '?type' '?raid_type' '?luks')
+	local known_arguments=('+swap' '?type' '?luks' '?raid_type')
 	local extra_arguments=()
 	declare -A arguments; parse_arguments "$@"
 
@@ -583,9 +584,9 @@ function create_btrfs_centric_layout() {
 		|| die_trace 1 "Expected at least one positional argument (the devices)"
 	local device="${extra_arguments[0]}"
 	local size_swap="${arguments[swap]}"
-	local raid_type="${arguments[raid_type]:-raid0}"
 	local type="${arguments[type]:-efi}"
 	local use_luks="${arguments[luks]:-false}"
+	local raid_type="${arguments[raid_type]:-raid0}"
 
 	# Create layout on first disk
 	create_gpt new_id="gpt_dev0" device="${extra_arguments[0]}"
