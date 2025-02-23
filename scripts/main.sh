@@ -244,10 +244,6 @@ function install_kernel_efi() {
 		einfo "Assuming partition 1 for RAID-based EFI on device $efipartdev"
 	fi
 
-	einfo "DEBUG: sys_efipart = '$sys_efipart'"
-	einfo "DEBUG: efipartdev = '$efipartdev'"
-	einfo "DEBUG: efipartnum = '$efipartnum'"
-
 	# Identify the parent block device and create EFI boot entry
 	local gptdev
 	if mdadm --detail --scan "$efipartdev" | grep -qE "^ARRAY $efipartdev " && [[ "$efipartdev" =~ ^/dev/md[0-9]+$ ]]; then
