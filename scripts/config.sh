@@ -533,6 +533,7 @@ function create_raid1_luks_layout() {
 		create_partition new_id="part_root_dev${i}"    id="gpt_dev${i}" size=remaining    type=raid
 	done
 
+	create_raid new_id="part_raid_${type}" name="$type" level=1 ids="$(expand_ids "^part_${type}_dev[[:digit:]]$")"
 	[[ $size_swap != "false" ]] \
 		&& create_raid new_id=part_raid_swap name="swap" level=1 ids="$(expand_ids '^part_swap_dev[[:digit:]]$')"
 	create_raid new_id=part_raid_root name="root" level=1 ids="$(expand_ids '^part_root_dev[[:digit:]]$')"
@@ -543,15 +544,15 @@ function create_raid1_luks_layout() {
 		root_id="part_luks_root"
 	fi
 
-	format id="part_${type}_dev0" type="$type" label="$type"
+	format id="part_raid_${type}" type="$type" label="$type"
 	[[ $size_swap != "false" ]] \
 		&& format id=part_raid_swap type=swap label=swap
 	format id="$root_id" type="$root_fs" label=root
 
 	if [[ $type == "efi" ]]; then
-		DISK_ID_EFI="part_${type}_dev0"
+		DISK_ID_EFI="part_raid_${type}"
 	else
-		DISK_ID_BIOS="part_${type}_dev0"
+		DISK_ID_BIOS="part_raid_${type}"
 	fi
 	[[ $size_swap != "false" ]] \
 		&& DISK_ID_SWAP=part_raid_swap
