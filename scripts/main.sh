@@ -172,7 +172,6 @@ function generate_initramfs() {
 		--zstd \
 		--no-hostonly \
 		--ro-mnt \
-		--mdadmconf \
 		--add           "bash ${modules[*]}" \
 		"${dracut_opts[@]}" \
 		--force \
@@ -189,7 +188,6 @@ dracut \\
 	--zstd \\
 	--no-hostonly \\
 	--ro-mnt \\
-	--mdadmconf \\
 	--add           "bash ${modules[*]}" \\
 	${dracut_opts[@]@Q} \\
 	--force \\
@@ -365,14 +363,6 @@ function generate_fstab() {
 	fi
 }
 
-function generate_mdadm_config() {
-	if [[ $USED_RAID == "true" ]]; then
-		einfo "Saving RAID configuration to /etc/mdadm.conf"
-		echo -e "\n$(mdadm --examine --scan)" >> /etc/mdadm.conf \
-			|| die "Could not write to /etc/mdadm.conf"
-	fi
-}
-
 function main_install_gentoo_in_chroot() {
 	[[ $# == 0 ]] || die "Too many arguments"
 
@@ -493,9 +483,6 @@ EOF
 			try rc-update add zfs-mount boot
 		fi
 	fi
-
-	# Generate RAID configuration if we used RAID
-	generate_mdadm_config
 
 	# Install kernel and initramfs
 	maybe_exec 'before_install_kernel'
