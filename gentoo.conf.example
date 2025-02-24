@@ -62,7 +62,7 @@ function disk_configuration() {
 	# 3. create_raid0_luks_layout
 	#
 	# This layout creates the single disk layout on multiple disks and combines
-	# the swap and root partitions in separate raid0 arrays. Useful if you e.g. have
+	# the swap and root partitions in separate RAID0 arrays. Useful if you e.g. have
 	# several nvme drives and want increased speed. Only one boot partition will actually
 	# be used though.
 	#
@@ -78,9 +78,9 @@ function disk_configuration() {
 	# 4. create_raid1_luks_layout
 	#
 	# This layout creates the single disk layout on multiple disks and combines
-	# the swap and root partitions in separate raid1 arrays. Useful if you e.g. have
-	# several nvme drives and want data redundancy. Only one boot partition will actually
-	# be used though.
+	# the boot, swap, and root partitions in separate RAID1 arrays. Useful if you e.g. have
+	# several nvme drives and want data redundancy. Each drive will have the boot partition mirrored.
+	# If one drive fails, the system can still boot from another drive in the array.
 	#
 	# Parameters:
 	#   swap=<size>           Create a swap partition with given size for each disk,

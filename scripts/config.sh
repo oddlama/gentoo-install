@@ -505,7 +505,7 @@ function create_raid0_luks_layout() {
 }
 
 # Multiple disks, with raid 1 and luks
-# - efi:  partition on all disks, but only first disk used
+# - efi:  raid 1 → fs
 # - swap: raid 1 → fs
 # - root: raid 1 → luks → fs
 # Parameters:
