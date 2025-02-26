@@ -300,21 +300,22 @@ function disk_create_raid() {
 	local uuid="${DISK_ID_TO_UUID[$new_id]}"
 
 	extra_args=()
-	if [[ ${level} == 1 ]]; then
+	if [[ "$level" == 1 && "$name" == "efi" ]]; then
 		extra_args+=("--metadata=1.0")
 	else
 		extra_args+=("--metadata=1.2")
 	fi
 
+# See https://serverfault.com/questions/1163715/mdadm-value-arch12021-cannot-be-set-as-devname-reason-not-posix-compatible
 	einfo "Creating raid$level ($new_id) on $devices_desc"
 	mdadm \
 			--create "$mddevice" \
 			--verbose \
-			--homehost="$HOSTNAME" \
-			"${extra_args[@]}" \
+			--level="$level" \
 			--raid-devices="${#devices[@]}" \
 			--uuid="$uuid" \
-			--level="$level" \
+			--homehost="$HOSTNAME" \
+			"${extra_args[@]}" \
 			"${devices[@]}" \
 		|| die "Could not create raid$level array '$mddevice' ($new_id) on $devices_desc"
 }

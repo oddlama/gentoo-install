@@ -220,26 +220,56 @@ function install_kernel_efi() {
 	generate_initramfs "/boot/efi/initramfs.img"
 
 	# Create boot entry
-	einfo "Creating efi boot entry"
+	einfo "Creating EFI boot entry"
 	local efipartdev
 	efipartdev="$(resolve_device_by_id "$DISK_ID_EFI")" \
 		|| die "Could not resolve device with id=$DISK_ID_EFI"
 	efipartdev="$(realpath "$efipartdev")" \
 		|| die "Error in realpath '$efipartdev'"
+
+	# Get the sysfs path to EFI partition
 	local sys_efipart
 	sys_efipart="/sys/class/block/$(basename "$efipartdev")" \
-		|| die "Could not construct /sys path to efi partition"
+		|| die "Could not construct /sys path to EFI partition"
+
+	# Extract partition number, handling both standard and RAID cases
 	local efipartnum
-	efipartnum="$(cat "$sys_efipart/partition")" \
-		|| die "Failed to find partition number for EFI partition $efipartdev"
-	local gptdev
-	gptdev="/dev/$(basename "$(readlink -f "$sys_efipart/..")")" \
-		|| die "Failed to find parent device for EFI partition $efipartdev"
-	if [[ ! -e "$gptdev" ]] || [[ -z "$gptdev" ]]; then
-		gptdev="$(resolve_device_by_id "${DISK_ID_PART_TO_GPT_ID[$DISK_ID_EFI]}")" \
-			|| die "Could not resolve device with id=${DISK_ID_PART_TO_GPT_ID[$DISK_ID_EFI]}"
+	if [[ -e "$sys_efipart/partition" ]]; then
+		efipartnum="$(cat "$sys_efipart/partition")" \
+			|| die "Failed to find partition number for EFI partition $efipartdev"
+	else
+		efipartnum="1" # Assume partition 1 if not found, common for RAID-based EFI
+		einfo "Assuming partition 1 for RAID-based EFI on device $efipartdev"
 	fi
-	try efibootmgr --verbose --create --disk "$gptdev" --part "$efipartnum" --label "gentoo" --loader '\vmlinuz.efi' --unicode 'initrd=\initramfs.img'" $(get_cmdline)"
+
+	# Identify the parent block device and create EFI boot entry
+	local gptdev
+	if mdadm --detail --scan "$efipartdev" | grep -qE "^ARRAY $efipartdev " && [[ "$efipartdev" =~ ^/dev/md[0-9]+$ ]]; then
+		# RAID 1 case: Create EFI boot entries for each RAID member
+		local raid_members
+		raid_members=($(mdadm --detail "$efipartdev" | sed -n 's|.*active sync[^/]*\(/dev/[^ ]*\).*|\1|p' | sort))
+
+		if [[ ${#raid_members[@]} -eq 0 ]]; then
+			die "RAID setup detected, but no valid member disks found for $efipartdev"
+		fi
+
+		einfo "RAID detected. RAID members: ${raid_members[*]}"
+
+		for disk in "${raid_members[@]}"; do
+			gptdev="$disk"
+			einfo "Adding EFI boot entry for RAID member: $gptdev"
+			try efibootmgr --verbose --create --disk "$gptdev" --part "$efipartnum" --label "gentoo" --loader '\vmlinuz.efi' --unicode "initrd=\\initramfs.img $(get_cmdline)"
+		done
+	else
+		# Non-RAID case: Create a single EFI boot entry
+		gptdev="/dev/$(basename "$(readlink -f "$sys_efipart/..")")" \
+			|| die "Failed to find parent device for EFI partition $efipartdev"
+		if [[ ! -e "$gptdev" ]] || [[ -z "$gptdev" ]]; then
+			gptdev="$(resolve_device_by_id "${DISK_ID_PART_TO_GPT_ID[$DISK_ID_EFI]}")" \
+				|| die "Could not resolve device with id=${DISK_ID_PART_TO_GPT_ID[$DISK_ID_EFI]}"
+		fi
+		try efibootmgr --verbose --create --disk "$gptdev" --part "$efipartnum" --label "gentoo" --loader '\vmlinuz.efi' --unicode 'initrd=\initramfs.img'" $(get_cmdline)"
+	fi
 
 	# Create script to repeat adding efibootmgr entry
 	cat > "/boot/efi/efibootmgr_add_entry.sh" <<EOF
@@ -344,6 +374,16 @@ function main_install_gentoo_in_chroot() {
 	passwd -d root \
 		|| die "Could not change root password"
 
+	# Sync portage
+	einfo "Syncing portage tree"
+	try emerge-webrsync
+
+	# Install mdadm if we used RAID (needed for UUID resolving)
+	if [[ $USED_RAID == "true" ]]; then
+		einfo "Installing mdadm"
+		try emerge --verbose sys-fs/mdadm
+	fi
+
 	if [[ $IS_EFI == "true" ]]; then
 		# Mount efi partition
 		mount_efivars
@@ -354,10 +394,6 @@ function main_install_gentoo_in_chroot() {
 		einfo "Mounting bios partition"
 		mount_by_id "$DISK_ID_BIOS" "/boot/bios"
 	fi
-
-	# Sync portage
-	einfo "Syncing portage tree"
-	try emerge-webrsync
 
 	# Configure basic system things like timezone, locale, ...
 	maybe_exec 'before_configure_base_system'
@@ -409,13 +445,7 @@ EOF
 	# prevent emerging module before an imminent kernel upgrade
 	try emerge --verbose sys-kernel/dracut sys-kernel/gentoo-kernel-bin app-arch/zstd
 
-	# Install mdadm if we used raid (needed for uuid resolving)
-	if [[ $USED_RAID == "true" ]]; then
-		einfo "Installing mdadm"
-		try emerge --verbose sys-fs/mdadm
-	fi
-
-	# Install cryptsetup if we used luks
+	# Install cryptsetup if we used LUKS
 	if [[ $USED_LUKS == "true" ]]; then
 		einfo "Installing cryptsetup"
 		try emerge --verbose sys-fs/cryptsetup
@@ -429,7 +459,7 @@ EOF
 		try emerge --verbose --changed-use --oneshot sys-apps/systemd
 	fi
 
-	# Install btrfs-progs if we used btrfs
+	# Install btrfs-progs if we used Btrfs
 	if [[ $USED_BTRFS == "true" ]]; then
 		einfo "Installing btrfs-progs"
 		try emerge --verbose sys-fs/btrfs-progs
@@ -437,7 +467,7 @@ EOF
 
 	try emerge --verbose dev-vcs/git
 
-	# Install zfs kernel module and tools if we used zfs
+	# Install ZFS kernel module and tools if we used ZFS
 	if [[ $USED_ZFS == "true" ]]; then
 		einfo "Installing zfs"
 		try emerge --verbose sys-fs/zfs sys-fs/zfs-kmod
