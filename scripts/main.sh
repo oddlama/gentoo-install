@@ -16,6 +16,8 @@ function configure_base_system() {
 	if [[ $MUSL == "true" ]]; then
 		einfo "Installing musl-locales"
 		try emerge --verbose sys-apps/musl-locales
+		echo 'MUSL_LOCPATH="/usr/share/i18n/locales/musl"' >> /etc/env.d/00local \
+			|| die "Could not write to /etc/env.d/00local"
 	else
 		einfo "Generating locales"
 		echo "$LOCALES" > /etc/locale.gen \
@@ -57,7 +59,7 @@ function configure_base_system() {
 		if [[ $MUSL == "true" ]]; then
 			try emerge -v sys-libs/timezone-data
 			einfo "Selecting timezone"
-			echo -e "\nTZ=\"$TIMEZONE\"" >> /etc/env.d/00local \
+			echo -e "TZ=\"$TIMEZONE\"" >> /etc/env.d/00local \
 				|| die "Could not write to /etc/env.d/00local"
 		else
 			einfo "Selecting timezone"
