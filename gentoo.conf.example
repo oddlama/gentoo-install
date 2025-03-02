@@ -252,7 +252,7 @@ PORTAGE_GIT_FULL_HISTORY=false
 PORTAGE_GIT_MIRROR="https://anongit.gentoo.org/git/repo/sync/gentoo.git"
 
 # The selected gentoo mirror
-GENTOO_MIRROR="https://mirror.eu.oneandone.net/linux/distributions/gentoo/gentoo"
+GENTOO_MIRROR="https://mirror.leaseweb.com/gentoo"
 #GENTOO_MIRROR="https://distfiles.gentoo.org"
 
 # The architecture of the target system (only tested with amd64)
