@@ -52,14 +52,14 @@ function configure_base_system() {
 	else
 		# Set hostname
 		einfo "Selecting hostname"
-		sed -i "/hostname=/c\\hostname=\"$HOSTNAME\"" /etc/conf.d/hostname \
+		sed -i "/hostname=/c\\hostname=&quot;$HOSTNAME&quot;" /etc/conf.d/hostname \
 			|| die "Could not sed replace in /etc/conf.d/hostname"
 
 		# Set timezone
 		if [[ $MUSL == "true" ]]; then
 			try emerge -v sys-libs/timezone-data
 			einfo "Selecting timezone"
-			echo -e "TZ=\"$TIMEZONE\"" >> /etc/env.d/00local \
+			echo -e "TZ=&quot;$TIMEZONE&quot;" >> /etc/env.d/00local \
 				|| die "Could not write to /etc/env.d/00local"
 		else
 			einfo "Selecting timezone"
@@ -72,7 +72,7 @@ function configure_base_system() {
 
 		# Set keymap
 		einfo "Selecting keymap"
-		sed -i "/keymap=/c\\keymap=\"$KEYMAP\"" /etc/conf.d/keymaps \
+		sed -i "/keymap=/c\\keymap=&quot;$KEYMAP&quot;" /etc/conf.d/keymaps \
 			|| die "Could not sed replace in /etc/conf.d/keymaps"
 
 		# Set locale
@@ -97,7 +97,7 @@ function configure_portage() {
 		try emerge --verbose --oneshot app-portage/mirrorselect
 
 		einfo "Selecting fastest portage mirrors"
-		mirrorselect_params=("-s" "4" "-b" "10")
+		local mirrorselect_params=("-s" "4" "-b" "10")
 		[[ $SELECT_MIRRORS_LARGE_FILE == "true" ]] \
 			&& mirrorselect_params+=("-D")
 		try mirrorselect "${mirrorselect_params[@]}"
@@ -106,7 +106,7 @@ function configure_portage() {
 	if [[ $ENABLE_BINPKG == "true" ]]; then
 		echo 'FEATURES="getbinpkg binpkg-request-signature"' >> /etc/portage/make.conf
 		getuto
-		chmod 644 /etc/portage/gnupg/pubring.kbx
+		chmod 644 /etc/portage/gnupg/pubring.kbx 2>/dev/null || true
 	fi
 
 	chmod 644 /etc/portage/make.conf \
@@ -142,7 +142,7 @@ function generate_initramfs() {
 	[[ $USED_RAID == "true" ]] \
 		&& modules+=("mdraid")
 	[[ $USED_LUKS == "true" ]] \
-		&& modules+=("crypt crypt-gpg")
+		&& modules+=("crypt" "crypt-gpg")
 	[[ $USED_BTRFS == "true" ]] \
 		&& modules+=("btrfs")
 	[[ $USED_ZFS == "true" ]] \
@@ -153,10 +153,10 @@ function generate_initramfs() {
 		|| die "Could not figure out kernel version from /usr/src/linux symlink."
 	kver="${kver#linux-}"
 
-	dracut_opts=()
+	local dracut_opts=()
 	if [[ $SYSTEMD == "true" && $SYSTEMD_INITRAMFS_SSHD == "true" ]]; then
 		cd /tmp || die "Could not change into /tmp"
-		try git clone https://github.com/gsauthof/dracut-sshd
+		try git clone --depth=1 https://github.com/gsauthof/dracut-sshd
 		try cp -r dracut-sshd/46sshd /usr/lib/dracut/modules.d
 		sed -e 's/^Type=notify/Type=simple/' \
 			-e 's@^\(ExecStart=/usr/sbin/sshd\) -D@\1 -e -D@' \
@@ -166,35 +166,50 @@ function generate_initramfs() {
 		modules+=("systemd-networkd")
 	fi
 
+	# Build modules string for dracut
+	local modules_str="bash"
+	if [[ ${#modules[@]} -gt 0 ]]; then
+		modules_str="bash ${modules[*]}"
+	fi
+
 	# Generate initramfs
-	# TODO --conf          "/dev/null" \
-	# TODO --confdir       "/dev/null" \
 	try dracut \
 		--kver          "$kver" \
 		--zstd \
 		--no-hostonly \
 		--ro-mnt \
-		--add           "bash ${modules[*]}" \
+		--add           "$modules_str" \
 		"${dracut_opts[@]}" \
 		--force \
 		"$output"
 
 	# Create script to repeat initramfs generation
-	cat > "$(dirname "$output")/generate_initramfs.sh" <<EOF
+	local output_dir
+	output_dir="$(dirname "$output")"
+	
+	# Properly escape the dracut_opts array for the script
+	local dracut_opts_escaped=""
+	if [[ ${#dracut_opts[@]} -gt 0 ]]; then
+		dracut_opts_escaped=$(printf '%q ' "${dracut_opts[@]}")
+	fi
+
+	cat > "$output_dir/generate_initramfs.sh" <<EOF
 #!/bin/bash
 kver="\$1"
 output="\$2" # At setup time, this was "$output"
 [[ -n "\$kver" ]] || { echo "usage \$0 <kernel_version> <output>" >&2; exit 1; }
+[[ -n "\$output" ]] || { echo "usage \$0 <kernel_version> <output>" >&2; exit 1; }
 dracut \\
 	--kver          "\$kver" \\
 	--zstd \\
 	--no-hostonly \\
 	--ro-mnt \\
-	--add           "bash ${modules[*]}" \\
-	${dracut_opts[@]@Q} \\
+	--add           "$modules_str" \\
+	$dracut_opts_escaped\\
 	--force \\
 	"\$output"
 EOF
+	chmod +x "$output_dir/generate_initramfs.sh"
 }
 
 function get_cmdline() {
@@ -202,7 +217,10 @@ function get_cmdline() {
 	cmdline+=("${DISK_DRACUT_CMDLINE[@]}")
 
 	if [[ $USED_ZFS != "true" ]]; then
-		cmdline+=("root=UUID=$(get_blkid_uuid_for_id "$DISK_ID_ROOT")")
+		local root_uuid
+		root_uuid="$(get_blkid_uuid_for_id "$DISK_ID_ROOT")" \
+			|| die "Could not get UUID for root device"
+		cmdline+=("root=UUID=$root_uuid")
 	fi
 
 	echo -n "${cmdline[*]}"
@@ -215,6 +233,9 @@ function install_kernel_efi() {
 	local kernel_file
 	kernel_file="$(find "/boot" \( -name "vmlinuz-*" -or -name 'kernel-*' \) -printf '%f\n' | sort -V | tail -n 1)" \
 		|| die "Could not list newest kernel file"
+
+	[[ -n "$kernel_file" ]] \
+		|| die "No kernel file found in /boot"
 
 	try cp "/boot/$kernel_file" "/boot/efi/vmlinuz.efi"
 
@@ -244,12 +265,16 @@ function install_kernel_efi() {
 		einfo "Assuming partition 1 for RAID-based EFI on device $efipartdev"
 	fi
 
+	# Get the kernel command line
+	local cmdline
+	cmdline="$(get_cmdline)"
+
 	# Identify the parent block device and create EFI boot entry
 	local gptdev
-	if mdadm --detail --scan "$efipartdev" | grep -qE "^ARRAY $efipartdev " && [[ "$efipartdev" =~ ^/dev/md[0-9]+$ ]]; then
+	if mdadm --detail --scan "$efipartdev" 2>/dev/null | grep -qE "^ARRAY $efipartdev " && [[ "$efipartdev" =~ ^/dev/md[0-9]+$ ]]; then
 		# RAID 1 case: Create EFI boot entries for each RAID member
 		local raid_members
-		raid_members=($(mdadm --detail "$efipartdev" | sed -n 's|.*active sync[^/]*\(/dev/[^ ]*\).*|\1|p' | sort))
+		mapfile -t raid_members < <(mdadm --detail "$efipartdev" | sed -n 's|.*active sync[^/]*\(/dev/[^ ]*\).*|\1|p' | sort)
 
 		if [[ ${#raid_members[@]} -eq 0 ]]; then
 			die "RAID setup detected, but no valid member disks found for $efipartdev"
@@ -260,7 +285,7 @@ function install_kernel_efi() {
 		for disk in "${raid_members[@]}"; do
 			gptdev="$disk"
 			einfo "Adding EFI boot entry for RAID member: $gptdev"
-			try efibootmgr --verbose --create --disk "$gptdev" --part "$efipartnum" --label "gentoo" --loader '\vmlinuz.efi' --unicode "initrd=\\initramfs.img $(get_cmdline)"
+			try efibootmgr --verbose --create --disk "$gptdev" --part "$efipartnum" --label "gentoo" --loader '\vmlinuz.efi' --unicode "initrd=\\initramfs.img $cmdline"
 		done
 	else
 		# Non-RAID case: Create a single EFI boot entry
@@ -270,7 +295,7 @@ function install_kernel_efi() {
 			gptdev="$(resolve_device_by_id "${DISK_ID_PART_TO_GPT_ID[$DISK_ID_EFI]}")" \
 				|| die "Could not resolve device with id=${DISK_ID_PART_TO_GPT_ID[$DISK_ID_EFI]}"
 		fi
-		try efibootmgr --verbose --create --disk "$gptdev" --part "$efipartnum" --label "gentoo" --loader '\vmlinuz.efi' --unicode 'initrd=\initramfs.img'" $(get_cmdline)"
+		try efibootmgr --verbose --create --disk "$gptdev" --part "$efipartnum" --label "gentoo" --loader '\vmlinuz.efi' --unicode "initrd=\\initramfs.img $cmdline"
 	fi
 
 	# Create script to repeat adding efibootmgr entry
@@ -278,11 +303,14 @@ function install_kernel_efi() {
 #!/bin/bash
 # This is the command that was used to create the efibootmgr entry when the
 # system was installed using gentoo-install.
-efibootmgr --verbose --create --disk "$gptdev" --part "$efipartnum" --label "gentoo" --loader '\\vmlinuz.efi' --unicode 'initrd=\\initramfs.img'" $(get_cmdline)"
+efibootmgr --verbose --create --disk "$gptdev" --part "$efipartnum" --label "gentoo" --loader '\\vmlinuz.efi' --unicode 'initrd=\\initramfs.img $cmdline'
 EOF
+	chmod +x "/boot/efi/efibootmgr_add_entry.sh"
 }
 
 function generate_syslinux_cfg() {
+	local cmdline
+	cmdline="$(get_cmdline)"
 	cat <<EOF
 DEFAULT gentoo
 PROMPT 0
@@ -290,7 +318,7 @@ TIMEOUT 0
 
 LABEL gentoo
 	LINUX ../vmlinuz-current
-	APPEND initrd=../initramfs.img $(get_cmdline)
+	APPEND initrd=../initramfs.img $cmdline
 EOF
 }
 
@@ -301,6 +329,9 @@ function install_kernel_bios() {
 	local kernel_file
 	kernel_file="$(find "/boot" \( -name "vmlinuz-*" -or -name 'kernel-*' \) -printf '%f\n' | sort -V | tail -n 1)" \
 		|| die "Could not list newest kernel file"
+
+	[[ -n "$kernel_file" ]] \
+		|| die "No kernel file found in /boot"
 
 	try cp "/boot/$kernel_file" "/boot/bios/vmlinuz-current"
 
@@ -317,7 +348,7 @@ function install_kernel_bios() {
 
 	# Create syslinux.cfg
 	generate_syslinux_cfg > /boot/bios/syslinux/syslinux.cfg \
-		|| die "Could save generated syslinux.cfg"
+		|| die "Could not save generated syslinux.cfg"
 
 	# Install syslinux MBR record
 	einfo "Copying syslinux MBR record"
@@ -352,16 +383,31 @@ function generate_fstab() {
 	einfo "Generating fstab"
 	install -m0644 -o root -g root "$GENTOO_INSTALL_REPO_DIR/contrib/fstab" /etc/fstab \
 		|| die "Could not overwrite /etc/fstab"
-	if [[ $USED_ZFS != "true" && -n $DISK_ID_ROOT_TYPE ]]; then
-		add_fstab_entry "UUID=$(get_blkid_uuid_for_id "$DISK_ID_ROOT")" "/" "$DISK_ID_ROOT_TYPE" "$DISK_ID_ROOT_MOUNT_OPTS" "0 1"
+	
+	if [[ $USED_ZFS != "true" && -n ${DISK_ID_ROOT_TYPE:-} ]]; then
+		local root_uuid
+		root_uuid="$(get_blkid_uuid_for_id "$DISK_ID_ROOT")" \
+			|| die "Could not get UUID for root device"
+		add_fstab_entry "UUID=$root_uuid" "/" "$DISK_ID_ROOT_TYPE" "$DISK_ID_ROOT_MOUNT_OPTS" "0 1"
 	fi
+	
 	if [[ $IS_EFI == "true" ]]; then
-		add_fstab_entry "UUID=$(get_blkid_uuid_for_id "$DISK_ID_EFI")" "/boot/efi" "vfat" "defaults,noatime,fmask=0177,dmask=0077,noexec,nodev,nosuid,discard" "0 2"
+		local efi_uuid
+		efi_uuid="$(get_blkid_uuid_for_id "$DISK_ID_EFI")" \
+			|| die "Could not get UUID for EFI device"
+		add_fstab_entry "UUID=$efi_uuid" "/boot/efi" "vfat" "defaults,noatime,fmask=0177,dmask=0077,noexec,nodev,nosuid,discard" "0 2"
 	else
-		add_fstab_entry "UUID=$(get_blkid_uuid_for_id "$DISK_ID_BIOS")" "/boot/bios" "vfat" "defaults,noatime,fmask=0177,dmask=0077,noexec,nodev,nosuid,discard" "0 2"
+		local bios_uuid
+		bios_uuid="$(get_blkid_uuid_for_id "$DISK_ID_BIOS")" \
+			|| die "Could not get UUID for BIOS device"
+		add_fstab_entry "UUID=$bios_uuid" "/boot/bios" "vfat" "defaults,noatime,fmask=0177,dmask=0077,noexec,nodev,nosuid,discard" "0 2"
 	fi
+	
 	if [[ -v "DISK_ID_SWAP" ]]; then
-		add_fstab_entry "UUID=$(get_blkid_uuid_for_id "$DISK_ID_SWAP")" "none" "swap" "defaults,discard" "0 0"
+		local swap_uuid
+		swap_uuid="$(get_blkid_uuid_for_id "$DISK_ID_SWAP")" \
+			|| die "Could not get UUID for swap device"
+		add_fstab_entry "UUID=$swap_uuid" "none" "swap" "defaults,discard" "0 0"
 	fi
 }
 
@@ -467,8 +513,6 @@ EOF
 		try emerge --verbose sys-fs/btrfs-progs
 	fi
 
-	try emerge --verbose dev-vcs/git
-
 	# Install ZFS kernel module and tools if we used ZFS
 	if [[ $USED_ZFS == "true" ]]; then
 		einfo "Installing zfs"
@@ -504,15 +548,26 @@ EOF
 			enable_service systemd-networkd
 			enable_service systemd-resolved
 			if [[ $SYSTEMD_NETWORKD_DHCP == "true" ]]; then
-				echo -en "[Match]\nName=${SYSTEMD_NETWORKD_INTERFACE_NAME}\n\n[Network]\nDHCP=yes" > /etc/systemd/network/20-wired.network \
-					|| die "Could not write dhcp network config to '/etc/systemd/network/20-wired.network'"
+				cat > /etc/systemd/network/20-wired.network <<EOF
+[Match]
+Name=${SYSTEMD_NETWORKD_INTERFACE_NAME}
+
+[Network]
+DHCP=yes
+EOF
 			else
-				addresses=""
+				local addresses=""
+				local addr
 				for addr in "${SYSTEMD_NETWORKD_ADDRESSES[@]}"; do
 					addresses="${addresses}Address=$addr\n"
 				done
-				echo -en "[Match]\nName=${SYSTEMD_NETWORKD_INTERFACE_NAME}\n\n[Network]\n${addresses}Gateway=$SYSTEMD_NETWORKD_GATEWAY" > /etc/systemd/network/20-wired.network \
-					|| die "Could not write dhcp network config to '/etc/systemd/network/20-wired.network'"
+				cat > /etc/systemd/network/20-wired.network <<EOF
+[Match]
+Name=${SYSTEMD_NETWORKD_INTERFACE_NAME}
+
+[Network]
+${addresses}Gateway=$SYSTEMD_NETWORKD_GATEWAY
+EOF
 			fi
 			chown root:systemd-network /etc/systemd/network/20-wired.network \
 				|| die "Could not change owner of '/etc/systemd/network/20-wired.network'"
@@ -551,7 +606,7 @@ EOF
 	# with the blockers after installation ;)
 	if [[ $USE_PORTAGE_TESTING == "true" ]]; then
 		einfo "Adding ~$GENTOO_ARCH to ACCEPT_KEYWORDS"
-		echo "ACCEPT_KEYWORDS=\"~$GENTOO_ARCH\"" >> /etc/portage/make.conf \
+		echo "ACCEPT_KEYWORDS=&quot;~$GENTOO_ARCH&quot;" >> /etc/portage/make.conf \
 			|| die "Could not modify /etc/portage/make.conf"
 	fi
 

@@ -43,6 +43,10 @@ declare -gA DISK_ID_TO_UUID
 # An associative set to check for correct usage of size=remaining in gpt tables
 declare -gA DISK_GPT_HAD_SIZE_REMAINING
 
+# =============================================================================
+# Validation Helper Functions
+# =============================================================================
+
 function only_one_of() {
 	local previous=""
 	local a
@@ -59,15 +63,24 @@ function only_one_of() {
 
 function create_new_id() {
 	local id="${arguments[$1]}"
+	
+	# Validate id format
+	[[ -n "$id" ]] \
+		|| die_trace 2 "Identifier cannot be empty"
 	[[ $id == *';'* ]] \
 		&& die_trace 2 "Identifier contains invalid character ';'"
+	[[ $id =~ ^[a-zA-Z0-9_-]+$ ]] \
+		|| die_trace 2 "Identifier '$id' contains invalid characters (only alphanumeric, underscore, and hyphen allowed)"
 	[[ ! -v DISK_ID_TO_UUID[$id] ]] \
 		|| die_trace 2 "Identifier '$id' already exists"
-	DISK_ID_TO_UUID[$id]="$(load_or_generate_uuid "$(base64 -w 0 <<< "$id")")"
+	
+	DISK_ID_TO_UUID[$id]="$(load_or_generate_uuid "$(echo -n "$id" | base64 -w 0)")"
 }
 
 function verify_existing_id() {
 	local id="${arguments[$1]}"
+	[[ -n "$id" ]] \
+		|| die_trace 2 "Identifier for $1 cannot be empty"
 	[[ -v DISK_ID_TO_UUID[$id] ]] \
 		|| die_trace 2 "Identifier $1='$id' not found"
 }
@@ -76,8 +89,14 @@ function verify_existing_unique_ids() {
 	local arg="$1"
 	local ids="${arguments[$arg]}"
 
-	count_orig="$(tr ';' '\n' <<< "$ids" | grep -c '\S')"
-	count_uniq="$(tr ';' '\n' <<< "$ids" | grep '\S' | sort -u | wc -l)"
+	# Count original entries (non-empty)
+	local count_orig
+	count_orig="$(echo "$ids" | tr ';' '\n' | grep -c '[^[:space:]]')" || count_orig=0
+	
+	# Count unique entries
+	local count_uniq
+	count_uniq="$(echo "$ids" | tr ';' '\n' | grep '[^[:space:]]' | sort -u | wc -l)" || count_uniq=0
+	
 	[[ $count_orig -gt 0 ]] \
 		|| die_trace 2 "$arg=... must contain at least one entry"
 	[[ $count_orig -eq $count_uniq ]] \
@@ -87,6 +106,7 @@ function verify_existing_unique_ids() {
 	# Splitting is intentional here
 	# shellcheck disable=SC2086
 	for id in ${ids//';'/ }; do
+		[[ -z "$id" ]] && continue
 		[[ -v DISK_ID_TO_UUID[$id] ]] \
 			|| die_trace 2 "$arg=... contains unknown identifier '$id'"
 	done
@@ -106,6 +126,17 @@ function verify_option() {
 	die_trace 2 "Invalid option $opt='$arg', must be one of ($*)"
 }
 
+function verify_size_format() {
+	local size="$1"
+	[[ "$size" == "remaining" ]] && return 0
+	[[ "$size" =~ ^[0-9]+[KMGTP]?i?[Bb]?$ ]] \
+		|| die_trace 2 "Invalid size format: '$size' (expected format like '1GiB', '500M', or 'remaining')"
+}
+
+# =============================================================================
+# Disk Configuration Functions
+# =============================================================================
+
 # Named arguments:
 # new_id:  Id for the existing device
 # device:  The block device
@@ -117,6 +148,11 @@ function register_existing() {
 	create_new_id new_id
 	local new_id="${arguments[new_id]}"
 	local device="${arguments[device]}"
+	
+	# Validate device exists
+	[[ -e "$device" ]] \
+		|| ewarn "Device '$device' does not exist yet (this may be expected for some configurations)"
+	
 	create_resolve_entry_device "$new_id" "$device"
 	DISK_ACTIONS+=("action=existing" "$@" ";")
 }
@@ -152,6 +188,7 @@ function create_partition() {
 	create_new_id new_id
 	verify_existing_id id
 	verify_option type bios efi swap raid luks linux
+	verify_size_format "${arguments[size]}"
 
 	[[ -v "DISK_GPT_HAD_SIZE_REMAINING[${arguments[id]}]" ]] \
 		&& die_trace 1 "Cannot add another partition to table (${arguments[id]}) after size=remaining was used"
@@ -170,7 +207,7 @@ function create_partition() {
 # new_id:  Id for the new raid
 # level:   Raid level
 # name:    Raid name (/dev/md/<name>)
-# ids:     Comma separated list of all member ids
+# ids:     Semicolon separated list of all member ids
 function create_raid() {
 	USED_RAID=true
 
@@ -181,6 +218,11 @@ function create_raid() {
 	create_new_id new_id
 	verify_option level 0 1 5 6
 	verify_existing_unique_ids ids
+	
+	# Validate raid name
+	local name="${arguments[name]}"
+	[[ "$name" =~ ^[a-zA-Z0-9_-]+$ ]] \
+		|| die_trace 1 "Invalid RAID name '$name' (only alphanumeric, underscore, and hyphen allowed)"
 
 	local new_id="${arguments[new_id]}"
 	local uuid="${DISK_ID_TO_UUID[$new_id]}"
@@ -191,6 +233,7 @@ function create_raid() {
 
 # Named arguments:
 # new_id:  Id for the new luks
+# name:    Name for the luks device
 # id:      The operand device id
 function create_luks() {
 	USED_LUKS=true
@@ -205,8 +248,12 @@ function create_luks() {
 	[[ -v arguments[id] ]] \
 		&& verify_existing_id id
 
-	local new_id="${arguments[new_id]}"
+	# Validate luks name
 	local name="${arguments[name]}"
+	[[ "$name" =~ ^[a-zA-Z0-9_-]+$ ]] \
+		|| die_trace 1 "Invalid LUKS name '$name' (only alphanumeric, underscore, and hyphen allowed)"
+
+	local new_id="${arguments[new_id]}"
 	local uuid="${DISK_ID_TO_UUID[$new_id]}"
 	create_resolve_entry "$new_id" luks "$name"
 	DISK_DRACUT_CMDLINE+=("rd.luks.uuid=$uuid")
@@ -214,7 +261,7 @@ function create_luks() {
 }
 
 # Named arguments:
-# new_id:  Id for the new luks
+# new_id:  Id for the new dummy device
 # device:  The device
 function create_dummy() {
 	local known_arguments=('+new_id' '+device')
@@ -225,6 +272,7 @@ function create_dummy() {
 
 	local new_id="${arguments[new_id]}"
 	local device="${arguments[device]}"
+	# shellcheck disable=SC2034
 	local uuid="${DISK_ID_TO_UUID[$new_id]}"
 	create_resolve_entry_device "$new_id" "$device"
 	DISK_ACTIONS+=("action=create_dummy" "$@" ";")
@@ -232,8 +280,8 @@ function create_dummy() {
 
 # Named arguments:
 # id:     Id of the device / partition created earlier
-# type:   One of (bios, efi, swap, ext4)
-# label:  The label for the formatted disk
+# type:   One of (bios, efi, swap, ext4, btrfs)
+# label:  The label for the formatted disk (optional)
 function format() {
 	local known_arguments=('+id' '+type' '?label')
 	local extra_arguments=()
@@ -247,13 +295,24 @@ function format() {
 		USED_BTRFS=true
 	fi
 
+	# Validate label if provided
+	if [[ -v arguments[label] ]]; then
+		local label="${arguments[label]}"
+		# FAT32 labels are limited to 11 characters
+		if [[ "$type" == "bios" || "$type" == "efi" ]]; then
+			[[ ${#label} -le 11 ]] \
+				|| die_trace 1 "FAT32 label '$label' exceeds 11 character limit"
+		fi
+	fi
+
 	DISK_ACTIONS+=("action=format" "$@" ";")
 }
 
 # Named arguments:
 # ids:       List of ids for devices / partitions created earlier. Must contain at least 1 element.
-# pool_type: The zfs pool type
-# encrypt:   Whether or not to encrypt the pool
+# pool_type: The zfs pool type (optional)
+# encrypt:   Whether or not to encrypt the pool (optional)
+# compress:  Compression algorithm (optional)
 function format_zfs() {
 	USED_ZFS=true
 
@@ -263,13 +322,24 @@ function format_zfs() {
 
 	verify_existing_unique_ids ids
 
+	# Validate encrypt option
+	if [[ -v arguments[encrypt] ]]; then
+		verify_option encrypt true false
+	fi
+	
+	# Validate pool_type option
+	if [[ -v arguments[pool_type] ]]; then
+		verify_option pool_type standard custom
+	fi
+
 	USED_ENCRYPTION=${arguments[encrypt]:-false}
 	DISK_ACTIONS+=("action=format_zfs" "$@" ";")
 }
 
 # Named arguments:
-# ids:     List of ids for devices / partitions created earlier. Must contain at least 1 element.
-# label:   The label for the formatted disk
+# ids:       List of ids for devices / partitions created earlier. Must contain at least 1 element.
+# label:     The label for the formatted disk (optional)
+# raid_type: The btrfs raid type (optional)
 function format_btrfs() {
 	USED_BTRFS=true
 
@@ -278,18 +348,31 @@ function format_btrfs() {
 	declare -A arguments; parse_arguments "$@"
 
 	verify_existing_unique_ids ids
+	
+	# Validate raid_type if provided
+	if [[ -v arguments[raid_type] ]]; then
+		verify_option raid_type single raid0 raid1 raid5 raid6 raid10
+	fi
 
 	DISK_ACTIONS+=("action=format_btrfs" "$@" ";")
 }
 
-# Returns a comma separated list of all registered ids matching the given regex.
+# Returns a semicolon separated list of all registered ids matching the given regex.
 function expand_ids() {
 	local regex="$1"
+	local result=""
+	local id
 	for id in "${!DISK_ID_TO_UUID[@]}"; do
-		[[ $id =~ $regex ]] \
-			&& echo -n "$id;"
+		if [[ $id =~ $regex ]]; then
+			result+="$id;"
+		fi
 	done
+	echo -n "$result"
 }
+
+# =============================================================================
+# Disk Layout Presets
+# =============================================================================
 
 # Single disk, 3 partitions (efi, swap, root)
 # Parameters:
@@ -309,6 +392,14 @@ function create_classic_single_disk_layout() {
 	local type="${arguments[type]:-efi}"
 	local use_luks="${arguments[luks]:-false}"
 	local root_fs="${arguments[root_fs]:-ext4}"
+
+	# Validate options
+	[[ "$type" == "efi" || "$type" == "bios" ]] \
+		|| die_trace 1 "Invalid type '$type', must be 'efi' or 'bios'"
+	[[ "$use_luks" == "true" || "$use_luks" == "false" ]] \
+		|| die_trace 1 "Invalid luks option '$use_luks', must be 'true' or 'false'"
+	[[ "$root_fs" == "ext4" || "$root_fs" == "btrfs" ]] \
+		|| die_trace 1 "Invalid root_fs '$root_fs', must be 'ext4' or 'btrfs'"
 
 	create_gpt new_id=gpt device="$device"
 	create_partition new_id="part_$type" id=gpt size=1GiB       type="$type"
@@ -343,12 +434,14 @@ function create_classic_single_disk_layout() {
 		DISK_ID_ROOT_TYPE="ext4"
 		DISK_ID_ROOT_MOUNT_OPTS="defaults,noatime,errors=remount-ro,discard"
 	else
-		die "Unsupported root filesystem type"
+		die "Unsupported root filesystem type: $root_fs"
 	fi
 }
 
 function create_single_disk_layout() {
-	die "'create_single_disk_layout' is deprecated, please use 'create_classic_single_disk_layout' instead. It is fully option-compatible to the old version."
+	ewarn "'create_single_disk_layout' is deprecated, please use 'create_classic_single_disk_layout' instead."
+	ewarn "It is fully option-compatible to the old version."
+	create_classic_single_disk_layout "$@"
 }
 
 # Skip partitioning, and use existing pre-formatted partitions. These must be trivially mountable.
@@ -369,6 +462,10 @@ function create_existing_partitions_layout() {
 	local swap_device="${arguments[swap]}"
 	local boot_device="${arguments[boot]}"
 	local type="${arguments[type]:-efi}"
+
+	# Validate type
+	[[ "$type" == "efi" || "$type" == "bios" ]] \
+		|| die_trace 1 "Invalid type '$type', must be 'efi' or 'bios'"
 
 	register_existing new_id="part_$type" device="$boot_device"
 	[[ $swap_device != "false" ]] \
@@ -401,11 +498,16 @@ function create_zfs_centric_layout() {
 
 	[[ ${#extra_arguments[@]} -gt 0 ]] \
 		|| die_trace 1 "Expected at least one positional argument (the devices)"
-	local device="${extra_arguments[0]}"
 	local size_swap="${arguments[swap]}"
 	local type="${arguments[type]:-efi}"
 	local encrypt="${arguments[encrypt]:-false}"
 	local pool_type="${arguments[pool_type]:-standard}"
+
+	# Validate options
+	[[ "$type" == "efi" || "$type" == "bios" ]] \
+		|| die_trace 1 "Invalid type '$type', must be 'efi' or 'bios'"
+	[[ "$encrypt" == "true" || "$encrypt" == "false" ]] \
+		|| die_trace 1 "Invalid encrypt option '$encrypt', must be 'true' or 'false'"
 
 	# Create layout on first disk
 	create_gpt new_id="gpt_dev0" device="${extra_arguments[0]}"
@@ -417,6 +519,7 @@ function create_zfs_centric_layout() {
 	local root_id="part_root_dev0"
 	local root_ids="part_root_dev0;"
 	local dev_id
+	local i
 	for i in "${!extra_arguments[@]}"; do
 		[[ $i != 0 ]] || continue
 		dev_id="root_dev$i"
@@ -461,6 +564,15 @@ function create_raid0_luks_layout() {
 	local use_luks="${arguments[luks]:-true}"
 	local root_fs="${arguments[root_fs]:-ext4}"
 
+	# Validate options
+	[[ "$type" == "efi" || "$type" == "bios" ]] \
+		|| die_trace 1 "Invalid type '$type', must be 'efi' or 'bios'"
+	[[ "$use_luks" == "true" || "$use_luks" == "false" ]] \
+		|| die_trace 1 "Invalid luks option '$use_luks', must be 'true' or 'false'"
+	[[ "$root_fs" == "ext4" || "$root_fs" == "btrfs" ]] \
+		|| die_trace 1 "Invalid root_fs '$root_fs', must be 'ext4' or 'btrfs'"
+
+	local i
 	for i in "${!extra_arguments[@]}"; do
 		create_gpt new_id="gpt_dev${i}" device="${extra_arguments[$i]}"
 		create_partition new_id="part_${type}_dev${i}" id="gpt_dev${i}" size=1GiB       type="$type"
@@ -470,8 +582,8 @@ function create_raid0_luks_layout() {
 	done
 
 	[[ $size_swap != "false" ]] \
-		&& create_raid new_id=part_raid_swap name="swap" level=0 ids="$(expand_ids '^part_swap_dev[[:digit:]]$')"
-	create_raid new_id=part_raid_root name="root" level=0 ids="$(expand_ids '^part_root_dev[[:digit:]]$')"
+		&& create_raid new_id=part_raid_swap name="swap" level=0 ids="$(expand_ids '^part_swap_dev[[:digit:]]+$')"
+	create_raid new_id=part_raid_root name="root" level=0 ids="$(expand_ids '^part_root_dev[[:digit:]]+$')"
 
 	local root_id="part_raid_root"
 	if [[ "$use_luks" == "true" ]]; then
@@ -500,7 +612,7 @@ function create_raid0_luks_layout() {
 		DISK_ID_ROOT_TYPE="ext4"
 		DISK_ID_ROOT_MOUNT_OPTS="defaults,noatime,errors=remount-ro,discard"
 	else
-		die "Unsupported root filesystem type"
+		die "Unsupported root filesystem type: $root_fs"
 	fi
 }
 
@@ -525,6 +637,15 @@ function create_raid1_luks_layout() {
 	local use_luks="${arguments[luks]:-true}"
 	local root_fs="${arguments[root_fs]:-ext4}"
 
+	# Validate options
+	[[ "$type" == "efi" || "$type" == "bios" ]] \
+		|| die_trace 1 "Invalid type '$type', must be 'efi' or 'bios'"
+	[[ "$use_luks" == "true" || "$use_luks" == "false" ]] \
+		|| die_trace 1 "Invalid luks option '$use_luks', must be 'true' or 'false'"
+	[[ "$root_fs" == "ext4" || "$root_fs" == "btrfs" ]] \
+		|| die_trace 1 "Invalid root_fs '$root_fs', must be 'ext4' or 'btrfs'"
+
+	local i
 	for i in "${!extra_arguments[@]}"; do
 		create_gpt new_id="gpt_dev${i}" device="${extra_arguments[$i]}"
 		create_partition new_id="part_${type}_dev${i}" id="gpt_dev${i}" size=1GiB       type="$type"
@@ -533,10 +654,10 @@ function create_raid1_luks_layout() {
 		create_partition new_id="part_root_dev${i}"    id="gpt_dev${i}" size=remaining    type=raid
 	done
 
-	create_raid new_id="part_raid_${type}" name="$type" level=1 ids="$(expand_ids "^part_${type}_dev[[:digit:]]$")"
+	create_raid new_id="part_raid_${type}" name="$type" level=1 ids="$(expand_ids "^part_${type}_dev[[:digit:]]+$")"
 	[[ $size_swap != "false" ]] \
-		&& create_raid new_id=part_raid_swap name="swap" level=1 ids="$(expand_ids '^part_swap_dev[[:digit:]]$')"
-	create_raid new_id=part_raid_root name="root" level=1 ids="$(expand_ids '^part_root_dev[[:digit:]]$')"
+		&& create_raid new_id=part_raid_swap name="swap" level=1 ids="$(expand_ids '^part_swap_dev[[:digit:]]+$')"
+	create_raid new_id=part_raid_root name="root" level=1 ids="$(expand_ids '^part_root_dev[[:digit:]]+$')"
 
 	local root_id="part_raid_root"
 	if [[ "$use_luks" == "true" ]]; then
@@ -565,7 +686,7 @@ function create_raid1_luks_layout() {
 		DISK_ID_ROOT_TYPE="ext4"
 		DISK_ID_ROOT_MOUNT_OPTS="defaults,noatime,errors=remount-ro,discard"
 	else
-		die "Unsupported root filesystem type"
+		die "Unsupported root filesystem type: $root_fs"
 	fi
 }
 
@@ -583,11 +704,18 @@ function create_btrfs_centric_layout() {
 
 	[[ ${#extra_arguments[@]} -gt 0 ]] \
 		|| die_trace 1 "Expected at least one positional argument (the devices)"
-	local device="${extra_arguments[0]}"
 	local size_swap="${arguments[swap]}"
 	local type="${arguments[type]:-efi}"
 	local use_luks="${arguments[luks]:-false}"
 	local raid_type="${arguments[raid_type]:-raid0}"
+
+	# Validate options
+	[[ "$type" == "efi" || "$type" == "bios" ]] \
+		|| die_trace 1 "Invalid type '$type', must be 'efi' or 'bios'"
+	[[ "$use_luks" == "true" || "$use_luks" == "false" ]] \
+		|| die_trace 1 "Invalid luks option '$use_luks', must be 'true' or 'false'"
+	[[ "$raid_type" =~ ^(single|raid0|raid1|raid5|raid6|raid10)$ ]] \
+		|| die_trace 1 "Invalid raid_type '$raid_type', must be one of: single, raid0, raid1, raid5, raid6, raid10"
 
 	# Create layout on first disk
 	create_gpt new_id="gpt_dev0" device="${extra_arguments[0]}"
@@ -598,6 +726,7 @@ function create_btrfs_centric_layout() {
 
 	local root_id
 	local root_ids=""
+	local i
 	if [[ "$use_luks" == "true" ]]; then
 		create_luks new_id=luks_dev0 name="luks_root_0" id=part_root_dev0
 		root_id="luks_dev0"
@@ -637,5 +766,7 @@ function create_btrfs_centric_layout() {
 }
 
 function create_btrfs_raid_layout() {
-	die "'create_btrfs_raid_layout' is deprecated, please use 'create_btrfs_centric_layout' instead. It is fully option-compatible to the old version."
+	ewarn "'create_btrfs_raid_layout' is deprecated, please use 'create_btrfs_centric_layout' instead."
+	ewarn "It is fully option-compatible to the old version."
+	create_btrfs_centric_layout "$@"
 }

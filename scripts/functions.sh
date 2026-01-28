@@ -5,40 +5,92 @@ source "$GENTOO_INSTALL_REPO_DIR/scripts/protection.sh" || exit 1
 ################################################
 # Functions
 
+# =============================================================================
+# Time Synchronization
+# =============================================================================
+
 function sync_time() {
 	einfo "Syncing time"
+	
+	local sync_success=false
+	
+	# Try ntpd first
 	if command -v ntpd &> /dev/null; then
-		try ntpd -g -q
-	elif command -v chrony &> /dev/null; then
+		if ntpd -g -q 2>/dev/null; then
+			sync_success=true
+		else
+			ewarn "ntpd sync failed, trying alternatives..."
+		fi
+	fi
+	
+	# Try chronyd if ntpd failed or not available
+	if [[ "$sync_success" == "false" ]] && command -v chronyd &> /dev/null; then
 		# See https://github.com/oddlama/gentoo-install/pull/122
-		try chronyd -q
-	else
-		# why am I doing this?
-		try date -s "$(curl -sI http://example.com | grep -i ^date: | cut -d' ' -f3-)"
+		if chronyd -q 'server pool.ntp.org iburst' 2>/dev/null; then
+			sync_success=true
+		else
+			ewarn "chronyd sync failed, trying alternatives..."
+		fi
+	fi
+	
+	# Try sntp if available
+	if [[ "$sync_success" == "false" ]] && command -v sntp &> /dev/null; then
+		if sntp -S pool.ntp.org 2>/dev/null; then
+			sync_success=true
+		else
+			ewarn "sntp sync failed, trying alternatives..."
+		fi
+	fi
+	
+	# Fallback to HTTP date header (less accurate but works without NTP)
+	if [[ "$sync_success" == "false" ]]; then
+		ewarn "No NTP client available, falling back to HTTP date sync (less accurate)"
+		local http_date
+		# Try multiple servers for reliability
+		for server in "http://worldtimeapi.org/api/ip" "http://google.com" "http://example.com"; do
+			http_date=$(curl -sI --max-time 10 "$server" 2>/dev/null | grep -i '^date:' | cut -d' ' -f2-)
+			if [[ -n "$http_date" ]]; then
+				if date -s "$http_date" &>/dev/null; then
+					sync_success=true
+					break
+				fi
+			fi
+		done
+	fi
+	
+	if [[ "$sync_success" == "false" ]]; then
+		ewarn "Could not sync time automatically. Please ensure system time is correct."
+		if ! ask "Continue with current system time?"; then
+			die "Time synchronization required"
+		fi
 	fi
 
 	einfo "Current date: $(LANG=C date)"
 	einfo "Writing time to hardware clock"
 	hwclock --systohc --utc \
-		|| die "Could not save time to hardware clock"
+		|| ewarn "Could not save time to hardware clock (this may be expected in some environments)"
 }
+
+# =============================================================================
+# Configuration Validation
+# =============================================================================
 
 function check_config() {
 	[[ $KEYMAP =~ ^[0-9A-Za-z-]*$ ]] \
-		|| die "KEYMAP contains invalid characters"
+		|| die "KEYMAP contains invalid characters: '$KEYMAP'"
 
 	if [[ "$SYSTEMD" == "true" ]]; then
 		[[ "$STAGE3_BASENAME" == *systemd* ]] \
-			|| die "Using systemd requires a systemd stage3 archive!"
+			|| die "Using systemd requires a systemd stage3 archive! Current: $STAGE3_BASENAME"
 	else
 		[[ "$STAGE3_BASENAME" != *systemd* ]] \
-			|| die "Using OpenRC requires a non-systemd stage3 archive!"
+			|| die "Using OpenRC requires a non-systemd stage3 archive! Current: $STAGE3_BASENAME"
 	fi
 
 	# Check hostname per RFC1123
 	local hostname_regex='^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])\.)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9\-]*[A-Za-z0-9])$'
 	[[ $HOSTNAME =~ $hostname_regex ]] \
-		|| die "'$HOSTNAME' is not a valid hostname"
+		|| die "'$HOSTNAME' is not a valid hostname (must comply with RFC1123)"
 
 	[[ -v "DISK_ID_ROOT" && -n $DISK_ID_ROOT ]] \
 		|| die "You must assign DISK_ID_ROOT"
@@ -46,13 +98,13 @@ function check_config() {
 		|| die "You must assign DISK_ID_EFI or DISK_ID_BIOS"
 
 	[[ -v "DISK_ID_BIOS" ]] && [[ ! -v "DISK_ID_TO_UUID[$DISK_ID_BIOS]" ]] \
-		&& die "Missing uuid for DISK_ID_BIOS, have you made sure it is used?"
+		&& die "Missing uuid for DISK_ID_BIOS='$DISK_ID_BIOS', have you made sure it is used?"
 	[[ -v "DISK_ID_EFI" ]] && [[ ! -v "DISK_ID_TO_UUID[$DISK_ID_EFI]" ]] \
-		&& die "Missing uuid for DISK_ID_EFI, have you made sure it is used?"
+		&& die "Missing uuid for DISK_ID_EFI='$DISK_ID_EFI', have you made sure it is used?"
 	[[ -v "DISK_ID_SWAP" ]] && [[ ! -v "DISK_ID_TO_UUID[$DISK_ID_SWAP]" ]] \
-		&& die "Missing uuid for DISK_ID_SWAP, have you made sure it is used?"
+		&& die "Missing uuid for DISK_ID_SWAP='$DISK_ID_SWAP', have you made sure it is used?"
 	[[ -v "DISK_ID_ROOT" ]] && [[ ! -v "DISK_ID_TO_UUID[$DISK_ID_ROOT]" ]] \
-		&& die "Missing uuid for DISK_ID_ROOT, have you made sure it is used?"
+		&& die "Missing uuid for DISK_ID_ROOT='$DISK_ID_ROOT', have you made sure it is used?"
 
 	if [[ -v "DISK_ID_EFI" ]]; then
 		IS_EFI=true
@@ -80,7 +132,7 @@ function prepare_installation_environment() {
 		gpg
 		hwclock
 		lsblk
-		ntpd
+		"?ntpd"
 		partprobe
 		python3
 		"?rhash"
@@ -144,6 +196,10 @@ function check_encryption_key() {
 		|| die "Your encryption key must be at least 8 characters long."
 }
 
+# =============================================================================
+# Summary Display Functions
+# =============================================================================
+
 function add_summary_entry() {
 	local parent="$1"
 	local id="$2"
@@ -153,12 +209,12 @@ function add_summary_entry() {
 
 	local ptr
 	case "$id" in
-		"${DISK_ID_BIOS-__unused__}")  ptr="[1;32m← bios[m" ;;
-		"${DISK_ID_EFI-__unused__}")   ptr="[1;32m← efi[m"  ;;
-		"${DISK_ID_SWAP-__unused__}")  ptr="[1;34m← swap[m" ;;
-		"${DISK_ID_ROOT-__unused__}")  ptr="[1;33m← root[m" ;;
+		"${DISK_ID_BIOS-__unused__}")  ptr="\033[1;32m← bios\033[m" ;;
+		"${DISK_ID_EFI-__unused__}")   ptr="\033[1;32m← efi\033[m"  ;;
+		"${DISK_ID_SWAP-__unused__}")  ptr="\033[1;34m← swap\033[m" ;;
+		"${DISK_ID_ROOT-__unused__}")  ptr="\033[1;33m← root\033[m" ;;
 		# \x1f characters compensate for printf byte count and unicode character count mismatch due to '←'
-		*)                             ptr="[1;32m[m$(echo -e "\x1f\x1f")" ;;
+		*)                             ptr="\033[1;32m\033[m$(echo -e "\x1f\x1f")" ;;
 	esac
 
 	summary_tree[$parent]+=";$id"
@@ -169,12 +225,17 @@ function add_summary_entry() {
 }
 
 function summary_color_args() {
+	local arg
 	for arg in "$@"; do
 		if [[ -v "arguments[$arg]" ]]; then
-			printf '%-28s ' "[1;34m$arg[2m=[m${arguments[$arg]}"
+			printf '%-28s ' "\033[1;34m$arg\033[2m=\033[m${arguments[$arg]}"
 		fi
 	done
 }
+
+# =============================================================================
+# Disk Action Functions
+# =============================================================================
 
 function disk_existing() {
 	local new_id="${arguments[new_id]}"
@@ -198,7 +259,8 @@ function disk_create_gpt() {
 	local device
 	local device_desc=""
 	if [[ -v arguments[id] ]]; then
-		device="$(resolve_device_by_id "${arguments[id]}")"
+		local id="${arguments[id]}"
+		device="$(resolve_device_by_id "$id")"
 		device_desc="$device ($id)"
 	else
 		device="${arguments[device]}"
@@ -208,11 +270,19 @@ function disk_create_gpt() {
 	local ptuuid="${DISK_ID_TO_UUID[$new_id]}"
 
 	einfo "Creating new gpt partition table ($new_id) on $device_desc"
+	
+	# Ensure device exists
+	[[ -b "$device" ]] \
+		|| die "Device '$device' is not a block device"
+	
 	wipefs --quiet --all --force "$device" \
 		|| die "Could not erase previous file system signatures from '$device'"
 	sgdisk -Z -U "$ptuuid" "$device" >/dev/null \
 		|| die "Could not create new gpt partition table ($new_id) on '$device'"
-	partprobe "$device"
+	partprobe "$device" 2>/dev/null || true
+	
+	# Wait for partition table to be recognized
+	sleep 1
 }
 
 function disk_create_partition() {
@@ -225,6 +295,7 @@ function disk_create_partition() {
 		return 0
 	fi
 
+	local arg_size
 	if [[ $size == "remaining" ]]; then
 		arg_size=0
 	else
@@ -237,7 +308,7 @@ function disk_create_partition() {
 	local partuuid="${DISK_ID_TO_UUID[$new_id]}"
 	local extra_args=""
 	case "$type" in
-		'bios')  type='ef02' extra_args='--attributes=0:set:2';;
+		'bios')  type='ef02'; extra_args='--attributes=0:set:2';;
 		'efi')   type='ef00' ;;
 		'swap')  type='8200' ;;
 		'raid')  type='fd00' ;;
@@ -250,18 +321,34 @@ function disk_create_partition() {
 	# shellcheck disable=SC2086
 	sgdisk -n "0:0:$arg_size" -t "0:$type" -u "0:$partuuid" $extra_args "$device" >/dev/null \
 		|| die "Could not create new gpt partition ($new_id) on '$device' ($id)"
-	partprobe "$device"
+	partprobe "$device" 2>/dev/null || true
 
-	# On some system, we need to wait a bit for the partition to show up.
+	# Wait for partition to appear with improved retry logic
 	local new_device
 	new_device="$(resolve_device_by_id "$new_id")" \
 		|| die "Could not resolve new device with id=$new_id"
-	for i in {1..10}; do
-		[[ -e "$new_device" ]] && break
-		[[ "$i" -eq 1 ]] && printf "Waiting for partition (%s) to appear..." "$new_device"
-		printf " %s" "$((10 - i + 1))"
+	
+	local max_wait=30
+	local i
+	for i in $(seq 1 $max_wait); do
+		if [[ -e "$new_device" ]]; then
+			edebug "Partition $new_device appeared after $i seconds"
+			break
+		fi
+		
+		if [[ "$i" -eq 1 ]]; then
+			einfo "Waiting for partition ($new_device) to appear..."
+		fi
+		
+		# Try to trigger udev
+		udevadm settle --timeout=1 2>/dev/null || true
+		partprobe "$device" 2>/dev/null || true
+		
 		sleep 1
-		[[ "$i" -eq 10 ]] && echo
+		
+		if [[ "$i" -eq $max_wait ]]; then
+			die "Partition $new_device did not appear after ${max_wait}s"
+		fi
 	done
 }
 
@@ -275,6 +362,7 @@ function disk_create_raid() {
 		# Splitting is intentional here
 		# shellcheck disable=SC2086
 		for id in ${ids//';'/ }; do
+			[[ -z "$id" ]] && continue
 			add_summary_entry "$id" "_$new_id" "raid$level" "" "$(summary_color_args name)"
 		done
 
@@ -289,6 +377,7 @@ function disk_create_raid() {
 	# Splitting is intentional here
 	# shellcheck disable=SC2086
 	for id in ${ids//';'/ }; do
+		[[ -z "$id" ]] && continue
 		dev="$(resolve_device_by_id "$id")" \
 			|| die "Could not resolve device with id=$id"
 		devices+=("$dev")
@@ -299,14 +388,14 @@ function disk_create_raid() {
 	local mddevice="/dev/md/$name"
 	local uuid="${DISK_ID_TO_UUID[$new_id]}"
 
-	extra_args=()
+	local extra_args=()
 	if [[ "$level" == 1 && "$name" == "efi" ]]; then
 		extra_args+=("--metadata=1.0")
 	else
 		extra_args+=("--metadata=1.2")
 	fi
 
-# See https://serverfault.com/questions/1163715/mdadm-value-arch12021-cannot-be-set-as-devname-reason-not-posix-compatible
+	# See https://serverfault.com/questions/1163715/mdadm-value-arch12021-cannot-be-set-as-devname-reason-not-posix-compatible
 	einfo "Creating raid$level ($new_id) on $devices_desc"
 	mdadm \
 			--create "$mddevice" \
@@ -318,6 +407,9 @@ function disk_create_raid() {
 			"${extra_args[@]}" \
 			"${devices[@]}" \
 		|| die "Could not create raid$level array '$mddevice' ($new_id) on $devices_desc"
+	
+	# Wait for array to be ready
+	sleep 2
 }
 
 function disk_create_luks() {
@@ -334,8 +426,9 @@ function disk_create_luks() {
 
 	local device
 	local device_desc=""
+	local id="${arguments[id]:-}"
 	if [[ -v arguments[id] ]]; then
-		device="$(resolve_device_by_id "${arguments[id]}")"
+		device="$(resolve_device_by_id "$id")"
 		device_desc="$device ($id)"
 	else
 		device="${arguments[device]}"
@@ -345,6 +438,11 @@ function disk_create_luks() {
 	local uuid="${DISK_ID_TO_UUID[$new_id]}"
 
 	einfo "Creating luks ($new_id) on $device_desc"
+	
+	# Verify encryption key is set
+	[[ -n "${GENTOO_INSTALL_ENCRYPTION_KEY:-}" ]] \
+		|| die "GENTOO_INSTALL_ENCRYPTION_KEY is not set"
+	
 	cryptsetup luksFormat \
 			--type luks2 \
 			--uuid "$uuid" \
@@ -357,9 +455,10 @@ function disk_create_luks() {
 			--batch-mode \
 			"$device" \
 		|| die "Could not create luks on $device_desc"
+	
 	mkdir -p "$LUKS_HEADER_BACKUP_DIR" \
 		|| die "Could not create luks header backup dir '$LUKS_HEADER_BACKUP_DIR'"
-	local header_file="$LUKS_HEADER_BACKUP_DIR/luks-header-$id-${uuid,,}.img"
+	local header_file="$LUKS_HEADER_BACKUP_DIR/luks-header-${new_id}-${uuid,,}.img"
 	[[ ! -e $header_file ]] \
 		|| rm "$header_file" \
 		|| die "Could not remove old luks header backup file '$header_file'"
@@ -384,22 +483,24 @@ function disk_create_dummy() {
 function init_btrfs() {
 	local device="$1"
 	local desc="$2"
-	mkdir -p /btrfs \
-		|| die "Could not create /btrfs directory"
-	mount "$device" /btrfs \
-		|| die "Could not mount $desc to /btrfs"
-	btrfs subvolume create /btrfs/root \
+	
+	local mount_point="/btrfs"
+	mkdir -p "$mount_point" \
+		|| die "Could not create $mount_point directory"
+	mount "$device" "$mount_point" \
+		|| die "Could not mount $desc to $mount_point"
+	btrfs subvolume create "$mount_point/root" \
 		|| die "Could not create btrfs subvolume /root on $desc"
-	btrfs subvolume set-default /btrfs/root \
+	btrfs subvolume set-default "$mount_point/root" \
 		|| die "Could not set default btrfs subvolume to /root on $desc"
-	umount /btrfs \
+	umount "$mount_point" \
 		|| die "Could not unmount btrfs on $desc"
 }
 
 function disk_format() {
 	local id="${arguments[id]}"
 	local type="${arguments[type]}"
-	local label="${arguments[label]}"
+	local label="${arguments[label]:-}"
 	if [[ ${disk_action_summarize_only-false} == "true" ]]; then
 		add_summary_entry "${arguments[id]}" "__fs__${arguments[id]}" "${arguments[type]}" "(fs)" "$(summary_color_args label)"
 		return 0
@@ -415,7 +516,7 @@ function disk_format() {
 
 	case "$type" in
 		'bios'|'efi')
-			if [[ -v "arguments[label]" ]]; then
+			if [[ -n "$label" ]]; then
 				mkfs.fat -F 32 -n "$label" "$device" \
 					|| die "Could not format device '$device' ($id)"
 			else
@@ -424,7 +525,7 @@ function disk_format() {
 			fi
 			;;
 		'swap')
-			if [[ -v "arguments[label]" ]]; then
+			if [[ -n "$label" ]]; then
 				mkswap -L "$label" "$device" \
 					|| die "Could not format device '$device' ($id)"
 			else
@@ -433,10 +534,10 @@ function disk_format() {
 			fi
 
 			# Try to swapoff in case the system enabled swap automatically
-			swapoff "$device" &>/dev/null
+			swapoff "$device" &>/dev/null || true
 			;;
 		'ext4')
-			if [[ -v "arguments[label]" ]]; then
+			if [[ -n "$label" ]]; then
 				mkfs.ext4 -q -L "$label" "$device" \
 					|| die "Could not format device '$device' ($id)"
 			else
@@ -445,7 +546,7 @@ function disk_format() {
 			fi
 			;;
 		'btrfs')
-			if [[ -v "arguments[label]" ]]; then
+			if [[ -n "$label" ]]; then
 				mkfs.btrfs -q -L "$label" "$device" \
 					|| die "Could not format device '$device' ($id)"
 			else
@@ -455,7 +556,7 @@ function disk_format() {
 
 			init_btrfs "$device" "'$device' ($id)"
 			;;
-		*) die "Unknown filesystem type" ;;
+		*) die "Unknown filesystem type: $type" ;;
 	esac
 }
 
@@ -467,7 +568,7 @@ function disk_format() {
 function format_zfs_standard() {
 	local encrypt="$1"
 	local compress="$2"
-	local device_desc="$3"
+	local devices_desc="$3"
 	shift 3
 	local devices=("$@")
 	local extra_args=()
@@ -516,14 +617,15 @@ function format_zfs_standard() {
 
 function disk_format_zfs() {
 	local ids="${arguments[ids]}"
-	local pool_type="${arguments[pool_type]}"
-	local encrypt="${arguments[encrypt]-false}"
-	local compress="${arguments[compress]-false}"
+	local pool_type="${arguments[pool_type]:-standard}"
+	local encrypt="${arguments[encrypt]:-false}"
+	local compress="${arguments[compress]:-false}"
 	if [[ ${disk_action_summarize_only-false} == "true" ]]; then
 		local id
 		# Splitting is intentional here
 		# shellcheck disable=SC2086
 		for id in ${ids//';'/ }; do
+			[[ -z "$id" ]] && continue
 			add_summary_entry "$id" "__fs__$id" "zfs" "(fs)" "$(summary_color_args label)"
 		done
 		return 0
@@ -536,6 +638,7 @@ function disk_format_zfs() {
 	# Splitting is intentional here
 	# shellcheck disable=SC2086
 	for id in ${ids//';'/ }; do
+		[[ -z "$id" ]] && continue
 		dev="$(resolve_device_by_id "$id")" \
 			|| die "Could not resolve device with id=$id"
 		devices+=("$dev")
@@ -555,13 +658,14 @@ function disk_format_zfs() {
 
 function disk_format_btrfs() {
 	local ids="${arguments[ids]}"
-	local label="${arguments[label]}"
-	local raid_type="${arguments[raid_type]}"
+	local label="${arguments[label]:-}"
+	local raid_type="${arguments[raid_type]:-}"
 	if [[ ${disk_action_summarize_only-false} == "true" ]]; then
 		local id
 		# Splitting is intentional here
 		# shellcheck disable=SC2086
 		for id in ${ids//';'/ }; do
+			[[ -z "$id" ]] && continue
 			add_summary_entry "$id" "__fs__$id" "btrfs" "(fs)" "$(summary_color_args label)"
 		done
 		return 0
@@ -574,6 +678,7 @@ function disk_format_btrfs() {
 	# Splitting is intentional here
 	# shellcheck disable=SC2086
 	for id in ${ids//';'/ }; do
+		[[ -z "$id" ]] && continue
 		dev="$(resolve_device_by_id "$id")" \
 			|| die "Could not resolve device with id=$id"
 		devices+=("$dev")
@@ -585,12 +690,13 @@ function disk_format_btrfs() {
 		|| die "Could not erase previous file system signatures from $devices_desc"
 
 	# Collect extra arguments
-	extra_args=()
-	if [[ "${#devices}" -gt 1 ]] && [[ -v "arguments[raid_type]" ]]; then
+	local extra_args=()
+	# Fixed: Use ${#devices[@]} instead of ${#devices} for array length
+	if [[ "${#devices[@]}" -gt 1 ]] && [[ -n "$raid_type" ]]; then
 		extra_args+=("-d" "$raid_type")
 	fi
 
-	if [[ -v "arguments[label]" ]]; then
+	if [[ -n "$label" ]]; then
 		extra_args+=("-L" "$label")
 	fi
 
@@ -614,9 +720,13 @@ function apply_disk_action() {
 		'format')            disk_format           ;;
 		'format_zfs')        disk_format_zfs       ;;
 		'format_btrfs')      disk_format_btrfs     ;;
-		*) echo "Ignoring invalid action: ${arguments[action]}" ;;
+		*) ewarn "Ignoring invalid action: ${arguments[action]}" ;;
 	esac
 }
+
+# =============================================================================
+# Summary Tree Display
+# =============================================================================
 
 function print_summary_tree_entry() {
 	local indent_chars=""
@@ -645,12 +755,12 @@ function print_summary_tree_entry() {
 	local hint="${summary_hint[$root]}"
 	local desc="${summary_desc[$root]}"
 	local ptr="${summary_ptr[$root]}"
-	local id_name="[2m[m"
+	local id_name="\033[2m\033[m"
 	if [[ $root != __* ]]; then
 		if [[ $root == _* ]]; then
-			id_name="[2m${root:1}[m"
+			id_name="\033[2m${root:1}\033[m"
 		else
-			id_name="[2m${root}[m"
+			id_name="\033[2m${root}\033[m"
 		fi
 	fi
 
@@ -660,7 +770,7 @@ function print_summary_tree_entry() {
 	fi
 
 	elog "$indent_chars$(printf "%-${align}s %-47s %s" \
-		"$name [2m$hint[m" \
+		"$name \033[2m$hint\033[m" \
 		"$id_name $ptr" \
 		"$desc")"
 }
@@ -684,12 +794,14 @@ function print_summary_tree() {
 
 	if [[ $has_children == "true" ]]; then
 		local count
-		count="$(tr ';' '\n' <<< "$children" | grep -c '\S')" \
+		count="$(echo "$children" | tr ';' '\n' | grep -c '[^[:space:]]')" \
 			|| count=0
 		local idx=0
+		local id
 		# Splitting is intentional here
 		# shellcheck disable=SC2086
 		for id in ${children//';'/ }; do
+			[[ -z "$id" ]] && continue
 			idx="$((idx + 1))"
 			[[ $idx == "$count" ]] \
 				&& summary_depth_continues[$depth]=false
@@ -715,7 +827,7 @@ function apply_disk_actions() {
 }
 
 function summarize_disk_actions() {
-	elog "[1mCurrent lsblk output:[m"
+	elog "\033[1mCurrent lsblk output:\033[m"
 	for_line_in <(lsblk \
 		|| die "Error in lsblk") elog
 
@@ -730,7 +842,7 @@ function summarize_disk_actions() {
 
 	local depth=-1
 	elog
-	elog "[1mConfigured disk layout:[m"
+	elog "\033[1mConfigured disk layout:\033[m"
 	elog ────────────────────────────────────────────────────────────────────────────────
 	elog "$(printf '%-26s %-28s %s' NODE ID OPTIONS)"
 	elog ────────────────────────────────────────────────────────────────────────────────
@@ -752,7 +864,7 @@ function apply_disk_configuration() {
 		ewarn "Otherwise, automatic partitioning may fail."
 	fi
 	ask "Do you really want to apply this disk configuration?" \
-		|| die "Aborted"
+		|| die "Aborted by user"
 	countdown "Applying in " 5
 
 	maybe_exec 'before_disk_configuration'
@@ -761,12 +873,16 @@ function apply_disk_configuration() {
 	apply_disk_actions
 
 	einfo "Disk configuration was applied successfully"
-	elog "[1mNew lsblk output:[m"
+	elog "\033[1mNew lsblk output:\033[m"
 	for_line_in <(lsblk \
 		|| die "Error in lsblk") elog
 
 	maybe_exec 'after_disk_configuration'
 }
+
+# =============================================================================
+# Mount Functions
+# =============================================================================
 
 function mount_efivars() {
 	# Skip if already mounted
@@ -823,6 +939,10 @@ function bind_repo_dir() {
 		|| die "Could not bind mount '$GENTOO_INSTALL_REPO_DIR_ORIGINAL' to '$GENTOO_INSTALL_REPO_BIND'"
 }
 
+# =============================================================================
+# Stage3 Download and Extraction
+# =============================================================================
+
 function download_stage3() {
 	cd "$TMP_DIR" \
 		|| die "Could not cd into '$TMP_DIR'"
@@ -842,7 +962,7 @@ function download_stage3() {
 	# Decode urlencoded strings
 	CURRENT_STAGE3=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.unquote(sys.stdin.read()))' <<< "$CURRENT_STAGE3")
 	# Parse output for correct filename
-	CURRENT_STAGE3="$(grep -o "\"${STAGE3_BASENAME_FINAL}-[0-9A-Z]*.tar.xz\"" <<< "$CURRENT_STAGE3" \
+	CURRENT_STAGE3="$(grep -o "&quot;${STAGE3_BASENAME_FINAL}-[0-9A-Z]*.tar.xz&quot;" <<< "$CURRENT_STAGE3" \
 		| sort -u | head -1)" \
 		|| die "Could not parse list of tarballs"
 	# Strip quotes
@@ -876,6 +996,7 @@ function download_stage3() {
 		# Check hashes
 		einfo "Verifying tarball integrity"
 		# Replace any absolute paths in the digest file with just the stage3 basename, so it will be found by rhash
+		local digest_line
 		digest_line=$(grep 'tar.xz$' "${CURRENT_STAGE3}.DIGESTS" | sed -e 's/  .*stage3-/  stage3-/')
 		if type rhash &>/dev/null; then
 			rhash -P --check <(echo "# SHA512"; echo "$digest_line") \
@@ -906,9 +1027,9 @@ function extract_stage3() {
 	cd "$ROOT_MOUNTPOINT" \
 		|| die "Could not move to '$ROOT_MOUNTPOINT'"
 	# Ensure the directory is empty
-	find . -mindepth 1 -maxdepth 1 -not -name 'lost+found' \
-		| grep -q . \
-		&& die "root directory '$ROOT_MOUNTPOINT' is not empty"
+	if find . -mindepth 1 -maxdepth 1 -not -name 'lost+found' | grep -q .; then
+		die "root directory '$ROOT_MOUNTPOINT' is not empty"
+	fi
 
 	# Extract tarball
 	einfo "Extracting stage3 tarball"
@@ -928,15 +1049,21 @@ function gentoo_umount() {
 	fi
 }
 
+# =============================================================================
+# Chroot Functions
+# =============================================================================
+
 function init_bash() {
+	# shellcheck disable=SC1091
 	source /etc/profile
 	umask 0077
-	export PS1='(chroot) \[[0;31m\]\u\[[1;31m\]@\h \[[1;34m\]\w \[[m\]\$ \[[m\]'
+	export PS1='(chroot) \[\033[0;31m\]\u\[\033[1;31m\]@\h \[\033[1;34m\]\w \[\033[m\]\$ \[\033[m\]'
 }; export -f init_bash
 
 function env_update() {
 	env-update \
 		|| die "Error in env-update"
+	# shellcheck disable=SC1091
 	source /etc/profile \
 		|| die "Could not source /etc/profile"
 	umask 0077
@@ -1007,9 +1134,12 @@ function gentoo_chroot() {
 }
 
 function enable_service() {
+	local service="$1"
+	[[ -n "$service" ]] || die "Service name is empty"
+	
 	if [[ $SYSTEMD == "true" ]]; then
-		try systemctl enable "$1"
+		try systemctl enable "$service"
 	else
-		try rc-update add "$1" default
+		try rc-update add "$service" default
 	fi
 }
