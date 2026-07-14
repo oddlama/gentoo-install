@@ -444,6 +444,15 @@ function disk_format() {
 					|| die "Could not format device '$device' ($id)"
 			fi
 			;;
+		'f2fs')
+			if [[ -v "arguments[label]" ]]; then
+				mkfs.f2fs -q -l "$label" "$device" \
+					|| die "Could not format device '$device' ($id)"
+			else
+				mkfs.f2fs -q "$device" \
+					|| die "Could not format device '$device' ($id)"
+			fi
+			;;
 		'btrfs')
 			if [[ -v "arguments[label]" ]]; then
 				mkfs.btrfs -q -L "$label" "$device" \

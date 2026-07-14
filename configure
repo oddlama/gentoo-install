@@ -1,5 +1,5 @@
 #!/bin/bash
-set -uo pipefail
+set -o pipefail
 
 
 ################################################
@@ -51,9 +51,504 @@ DEFAULT_BOOT_TYPE=$([[ $HAS_EFI_SUPPORT == true ]] && echo -n "efi" || echo -n "
 EFI_UNSUPPORTED_MESSAGE_SHORT="Missing EFI support on this system!"
 EFI_UNSUPPORTED_MESSAGE="Apparently, your system does NOT support efi. Double-check before proceeding!"
 
-# Wrap dialog in two functions to prevent it from cluttering stderr.
 function dialog_wrapper() { dialog_out=$(command dialog --colors "$@" 3>&2 2>&1 1>&3 3>&-); }
 function dialog() { dialog_wrapper "$@" 2>&1; }
+
+
+################################################
+# Sovereign Edition — Hardware Auto-Detection
+
+function sovereign_detect_hardware() {
+	# --- CPU ---
+	DETECTED_CPU_MODEL=$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2 | xargs 2>/dev/null || echo "Unknown")
+	DETECTED_CPU_CORES=$(nproc --all 2>/dev/null || echo 4)
+	DETECTED_MARCH=$(gcc -Q --help=target -march=native 2>/dev/null \
+		| grep -m1 '\-march=' | awk '{print $2}' | tr -d '[:space:]') || DETECTED_MARCH="native"
+	[[ -z "$DETECTED_MARCH" || "$DETECTED_MARCH" == "(null)" ]] && DETECTED_MARCH="native"
+
+	# CPU_FLAGS via cpuid2cpuflags ou fallback /proc/cpuinfo
+	if command -v cpuid2cpuflags &>/dev/null; then
+		DETECTED_CPU_FLAGS=$(cpuid2cpuflags 2>/dev/null | cut -d: -f2 | xargs)
+	else
+		local proc_flags
+		proc_flags=$(grep -m1 'flags' /proc/cpuinfo | cut -d: -f2 2>/dev/null || echo "")
+		DETECTED_CPU_FLAGS=""
+		for f in aes avx avx2 avx512f f16c fma mmx pclmulqdq popcnt rdrand sse sse2 sse3 sse4_1 sse4_2 ssse3; do
+			echo "$proc_flags" | grep -qw "$f" && DETECTED_CPU_FLAGS+="$f "
+		done
+		DETECTED_CPU_FLAGS=$(echo "$DETECTED_CPU_FLAGS" | xargs)
+	fi
+
+	# --- RAM e MAKEOPTS ---
+	local ram_mb
+	ram_mb=$(grep MemTotal /proc/meminfo | awk '{print int($2/1024)}' 2>/dev/null || echo 4096)
+	local jobs_by_ram=$(( ram_mb / 2000 ))
+	[[ $jobs_by_ram -lt 1 ]] && jobs_by_ram=1
+	local jobs=$(( DETECTED_CPU_CORES < jobs_by_ram ? DETECTED_CPU_CORES : jobs_by_ram ))
+	local load_avg
+	load_avg=$(echo "scale=1; $DETECTED_CPU_CORES * 0.9" | bc 2>/dev/null || echo "$DETECTED_CPU_CORES")
+	DETECTED_MAKEOPTS="-j${jobs} -l${load_avg}"
+	DETECTED_RAM_MB="$ram_mb"
+
+	# --- GPU / VIDEO_CARDS ---
+	local gpu_info
+	gpu_info=$(lspci 2>/dev/null | grep -Ei '(VGA|3D|Display)' || echo "")
+	DETECTED_VIDEO_CARDS=""
+	DETECTED_GPU_LABEL="Nenhuma detectada (vesa)"
+
+	if echo "$gpu_info" | grep -qi "nvidia"; then
+		DETECTED_VIDEO_CARDS+="nvidia "
+		DETECTED_GPU_LABEL="NVIDIA (proprietário)"
+	fi
+	if echo "$gpu_info" | grep -qi "amd\|radeon\|amdgpu"; then
+		DETECTED_VIDEO_CARDS+="amdgpu radeonsi "
+		DETECTED_GPU_LABEL="AMD (amdgpu + Vulkan)"
+	fi
+	if echo "$gpu_info" | grep -qi "intel"; then
+		DETECTED_VIDEO_CARDS+="intel i965 "
+		DETECTED_GPU_LABEL="Intel (i915/i965)"
+	fi
+	if echo "$gpu_info" | grep -qi "nvidia" && echo "$gpu_info" | grep -qi "intel"; then
+		DETECTED_GPU_LABEL="Híbrido Intel+NVIDIA"
+	fi
+	DETECTED_VIDEO_CARDS=$(echo "$DETECTED_VIDEO_CARDS" | xargs)
+	[[ -z "$DETECTED_VIDEO_CARDS" ]] && DETECTED_VIDEO_CARDS="vesa"
+
+	# --- Disco / Filesystem recomendado ---
+	local nvme_dev
+	nvme_dev=$(ls /dev/nvme*n1 2>/dev/null | head -1 || echo "")
+	local sata_dev
+	sata_dev=$(ls /dev/sd[a-z] 2>/dev/null | head -1 || echo "")
+
+	if [[ -n "$nvme_dev" ]]; then
+		DETECTED_DISK="$nvme_dev"
+		DETECTED_FS="f2fs"
+		DETECTED_DISK_LABEL="NVMe → F2FS recomendado"
+	elif [[ -n "$sata_dev" ]]; then
+		DETECTED_DISK="$sata_dev"
+		DETECTED_FS="ext4"
+		DETECTED_DISK_LABEL="SSD/HDD SATA → ext4 recomendado"
+	else
+		DETECTED_DISK="/dev/sdX"
+		DETECTED_FS="ext4"
+		DETECTED_DISK_LABEL="Disco não detectado — configure manualmente"
+	fi
+}
+
+function sovereign_detect_mirror() {
+	# Tabela de mirrors por país
+	SOVEREIGN_MIRROR_LIST=(
+		"BR|Brasil — UNICAMP|http://www.las.ic.unicamp.br/pub/gentoo/"
+		"BR|Brasil — UFPR|http://gentoo.c3sl.ufpr.br/"
+		"AR|Argentina — UNC|http://mirrors.unc.edu.ar/gentoo/"
+		"US|EUA — OSU OSL|https://gentoo.osuosl.org/"
+		"US|EUA — Airnet|https://mirror.airnet.com/gentoo/"
+		"DE|Alemanha — RWTH|https://ftp.halifax.rwth-aachen.de/gentoo/"
+		"NL|Holanda — LeaseWeb|https://mirror.leaseweb.com/gentoo/"
+		"FR|Franca — Iriseden|https://gentoo.iriseden.eu/"
+		"JP|Japao — IIJ|https://ftp.iij.ad.jp/pub/linux/gentoo/"
+		"CN|China — TUNA|https://mirrors.tuna.tsinghua.edu.cn/gentoo/"
+		"AU|Australia — Internode|https://mirror.internode.on.net/pub/gentoo/"
+		"ZA|Africa do Sul — Multicast|https://mirror.multicast.co.za/gentoo/"
+	)
+
+	# Detecta país pelo IP (timeout 3s)
+	DETECTED_COUNTRY=""
+	if command -v curl &>/dev/null; then
+		DETECTED_COUNTRY=$(curl -s --max-time 3 "https://ipinfo.io/country" 2>/dev/null | tr -d '[:space:]' || echo "")
+	fi
+	[[ -z "$DETECTED_COUNTRY" ]] && DETECTED_COUNTRY="??"
+
+	# Mirror padrão (fallback)
+	DETECTED_GENTOO_MIRROR="https://mirror.leaseweb.com/gentoo/"
+	DETECTED_MIRROR_LABEL="Holanda — LeaseWeb (padrao)"
+
+	# Seleciona mirror pelo país detectado
+	for entry in "${SOVEREIGN_MIRROR_LIST[@]}"; do
+		local code url label
+		code=$(echo "$entry" | cut -d'|' -f1)
+		label=$(echo "$entry" | cut -d'|' -f2)
+		url=$(echo "$entry" | cut -d'|' -f3)
+		if [[ "$code" == "$DETECTED_COUNTRY" ]]; then
+			DETECTED_GENTOO_MIRROR="$url"
+			DETECTED_MIRROR_LABEL="$label"
+			break
+		fi
+	done
+}
+
+function sovereign_select_mirror() {
+	# Monta lista radiolist com todos os mirrors
+	local items=()
+	for entry in "${SOVEREIGN_MIRROR_LIST[@]}"; do
+		local label url state
+		label=$(echo "$entry" | cut -d'|' -f2)
+		url=$(echo "$entry" | cut -d'|' -f3)
+		if [[ "$url" == "$DETECTED_GENTOO_MIRROR" ]]; then
+			state="on"
+			label="$label  <- detectado automaticamente"
+		else
+			state="off"
+		fi
+		items+=("$url" "$label" "$state")
+	done
+
+	local result
+	result=$(command dialog --colors \
+		--title "Sovereign Edition — Mirror Gentoo" \
+		--ok-label "Usar este mirror" \
+		--cancel-label "Manter detectado" \
+		--radiolist \
+"Pais detectado: ${DETECTED_COUNTRY} | Mirror pre-selecionado: ${DETECTED_MIRROR_LABEL}
+
+Confirme ou escolha outro mirror mais proximo de voce.
+Use Space para selecionar, Enter para confirmar." \
+		20 72 10 \
+		"${items[@]}" \
+		3>&1 1>&2 2>&3) || true
+
+	[[ -n "$result" ]] && DETECTED_GENTOO_MIRROR="$result"
+
+	# Atualiza o label com o mirror final escolhido
+	for entry in "${SOVEREIGN_MIRROR_LIST[@]}"; do
+		local label url
+		label=$(echo "$entry" | cut -d'|' -f2)
+		url=$(echo "$entry" | cut -d'|' -f3)
+		[[ "$url" == "$DETECTED_GENTOO_MIRROR" ]] && DETECTED_MIRROR_LABEL="$label" && break
+	done
+}
+
+function sovereign_show_detection_summary() {
+	local ram_warn=""
+	[[ "$DETECTED_RAM_MB" -lt 8000 ]] && ram_warn="\n\Z1⚠ Menos de 8GB de RAM! Crie um swapfile antes de compilar pacotes grandes.\Zn"
+
+	dialog --colors \
+		--title "\ZbSovereign Edition — Hardware Detectado\ZB" \
+		--msgbox \
+"\Zb\Z2Deteccao automatica concluida!\ZB\Zn Todos os valores abaixo foram pre-configurados para \Zbesta maquina\ZB.
+
+\Zb CPU:\Zn        $DETECTED_CPU_MODEL
+\Zb -march:\Zn     $DETECTED_MARCH
+\Zb CPU_FLAGS:\Zn  $DETECTED_CPU_FLAGS
+\Zb MAKEOPTS:\Zn   $DETECTED_MAKEOPTS
+
+\Zb GPU:\Zn        $DETECTED_GPU_LABEL
+\Zb VIDEO_CARDS:\Zn \"$DETECTED_VIDEO_CARDS\"
+
+\Zb Disco:\Zn      $DETECTED_DISK ($DETECTED_DISK_LABEL)
+\Zb Root FS:\Zn    $DETECTED_FS
+
+\Zb Pais IP:\Zn    $DETECTED_COUNTRY
+\Zb Mirror:\Zn     $DETECTED_MIRROR_LABEL
+${ram_warn}
+\ZbPressione OK — a proxima tela permite escolher o mirror.\ZB" \
+		26 76
+}
+
+function sovereign_lang_init() {
+	# Primeira coisa: escolha do idioma
+	local result
+	result=$(command dialog \
+		--title "Language / Idioma" \
+		--ok-label "OK" \
+		--radiolist \
+"Select the interface language.
+Selecione o idioma da interface.
+
+Use Space to select, Enter to confirm.
+Use Espaco para selecionar, Enter para confirmar." \
+		12 60 2 \
+		"en" "English" "off" \
+		"pt" "Portugues (Brasil)" "on" \
+		3>&1 1>&2 2>&3) || true
+
+	SOVEREIGN_LANG="${result:-pt}"
+}
+
+function sovereign_select_profile() {
+	if [[ "$SOVEREIGN_LANG" == "pt" ]]; then
+		local title="Sovereign Edition — Perfil de Instalacao"
+		local desc="Qual tipo de sistema voce quer instalar?
+
+Use Espaco para selecionar, Enter para confirmar."
+		local lbl_minimal="Gentoo Minimal"
+		local lbl_minimal_desc="Apenas sistema base. Sem desktop. Voce configura tudo depois."
+		local lbl_jakoolit="Gentoo + Hyprland (JaKooLit)  <- RECOMENDADO"
+		local lbl_jakoolit_desc="Base + Hyprland + Waybar + Rofi + dotfiles JaKooLit."
+		local lbl_custom="Personalizado"
+		local lbl_custom_desc="Voce digita os pacotes adicionais manualmente."
+		local ok_label="Confirmar"
+	else
+		local title="Sovereign Edition — Installation Profile"
+		local desc="What kind of system do you want to install?
+
+Use Space to select, Enter to confirm."
+		local lbl_minimal="Gentoo Minimal"
+		local lbl_minimal_desc="Base system only. No desktop. You configure everything later."
+		local lbl_jakoolit="Gentoo + Hyprland (JaKooLit)  <- RECOMMENDED"
+		local lbl_jakoolit_desc="Base + Hyprland + Waybar + Rofi + JaKooLit dotfiles."
+		local lbl_custom="Custom"
+		local lbl_custom_desc="You type the additional packages manually."
+		local ok_label="Confirm"
+	fi
+
+	local result
+	result=$(command dialog --colors \
+		--title "\Zb${title}\ZB" \
+		--ok-label "$ok_label" \
+		--cancel-label "Skip" \
+		--radiolist "$desc" \
+		16 72 3 \
+		"minimal"  "$lbl_minimal — $lbl_minimal_desc"  "off" \
+		"jakoolit" "$lbl_jakoolit — $lbl_jakoolit_desc" "on" \
+		"custom"   "$lbl_custom — $lbl_custom_desc"    "off" \
+		3>&1 1>&2 2>&3) || result="jakoolit"
+
+	SOVEREIGN_PROFILE="${result:-jakoolit}"
+
+	case "$SOVEREIGN_PROFILE" in
+		"minimal")
+			ADDITIONAL_PACKAGES=()
+			;;
+		"jakoolit")
+			# Delega a instalacao 100% para o script Sovereign_JaKooLit_Gentoo.sh
+			# que sera chamado automaticamente pelo main.sh no final da instalacao base.
+			ADDITIONAL_PACKAGES=()
+			# JaKooLit exige systemd — forca caso ainda esteja em openrc
+			[[ "$STAGE3_VARIANT" == *openrc* ]] && STAGE3_VARIANT="systemd"
+			;;
+		"custom")
+			# Abre inputbox para o usuario digitar manualmente (comportamento original)
+			local custom_input
+			if command dialog \
+				--title "$title" \
+				--inputbox "Digite os pacotes adicionais separados por espaco:\n(ex: app-editors/neovim sys-apps/ripgrep)" \
+				10 72 "" \
+				3>&1 1>&2 2>&3; then
+				custom_input=$(command dialog \
+					--title "$title" \
+					--inputbox "Digite os pacotes adicionais separados por espaco:\n(ex: app-editors/neovim sys-apps/ripgrep)" \
+					10 72 "" \
+					3>&1 1>&2 2>&3 2>/dev/null) || true
+				ADDITIONAL_PACKAGES=($custom_input)
+			fi
+			;;
+	esac
+}
+
+function sovereign_select_zram() {
+	if [[ "$SOVEREIGN_LANG" == "pt" ]]; then
+		local title="Sovereign Edition — zRAM (Swap em RAM)"
+		local desc="zRAM cria um swap comprimido dentro da propria RAM.
+E muito mais rapido que swap em disco (10GB/s vs 500MB/s).
+Funciona junto com o swap em disco — um complementa o outro.
+
+Algoritmo: zstd (melhor compressao, menor latencia)
+Use Espaco para selecionar, Enter para confirmar."
+		local lbl_half="50% da RAM como zram  <- RECOMENDADO"
+		local lbl_half_desc="Com 16GB RAM = 8GB zram (~20-24GB virtuais)"
+		local lbl_quarter="25% da RAM como zram  (conservador)"
+		local lbl_quarter_desc="Com 16GB RAM = 4GB zram (~18-20GB virtuais)"
+		local lbl_none="Sem zram"
+		local lbl_none_desc="Usa apenas o swap em disco"
+		local ok_label="Confirmar"
+	else
+		local title="Sovereign Edition — zRAM (RAM-based Swap)"
+		local desc="zRAM creates a compressed swap device inside your own RAM.
+Much faster than disk swap (10GB/s vs 500MB/s).
+Works alongside disk swap — they complement each other.
+
+Algorithm: zstd (best compression, lowest latency)
+Use Space to select, Enter to confirm."
+		local lbl_half="50% of RAM as zram  <- RECOMMENDED"
+		local lbl_half_desc="With 16GB RAM = 8GB zram (~20-24GB virtual)"
+		local lbl_quarter="25% of RAM as zram  (conservative)"
+		local lbl_quarter_desc="With 16GB RAM = 4GB zram (~18-20GB virtual)"
+		local lbl_none="No zram"
+		local lbl_none_desc="Use disk swap only"
+		local ok_label="Confirm"
+	fi
+
+	local result
+	result=$(command dialog --colors \
+		--title "\Zb${title}\ZB" \
+		--ok-label "$ok_label" \
+		--cancel-label "Skip" \
+		--radiolist "$desc" \
+		18 72 3 \
+		"half"    "$lbl_half — $lbl_half_desc"       "on" \
+		"quarter" "$lbl_quarter — $lbl_quarter_desc" "off" \
+		"none"    "$lbl_none — $lbl_none_desc"       "off" \
+		3>&1 1>&2 2>&3) || result="half"
+
+	case "${result:-half}" in
+		"half")
+			SOVEREIGN_ZRAM=true
+			SOVEREIGN_ZRAM_SIZE="ram / 2"
+			# Adiciona zram-generator aos pacotes se ainda nao estiver
+			local has_zram=false
+			for pkg in "${ADDITIONAL_PACKAGES[@]}"; do
+				[[ "$pkg" == "sys-apps/zram-generator" ]] && has_zram=true
+			done
+			[[ "$has_zram" == false ]] && ADDITIONAL_PACKAGES+=("sys-apps/zram-generator")
+			;;
+		"quarter")
+			SOVEREIGN_ZRAM=true
+			SOVEREIGN_ZRAM_SIZE="ram / 4"
+			local has_zram=false
+			for pkg in "${ADDITIONAL_PACKAGES[@]}"; do
+				[[ "$pkg" == "sys-apps/zram-generator" ]] && has_zram=true
+			done
+			[[ "$has_zram" == false ]] && ADDITIONAL_PACKAGES+=("sys-apps/zram-generator")
+			;;
+		"none")
+			SOVEREIGN_ZRAM=false
+			SOVEREIGN_ZRAM_SIZE=""
+			;;
+	esac
+}
+
+function sovereign_apply_translations() {
+
+	# Redefine APENAS as strings visíveis (tag/label/help) do menu TUI original.
+	# NÃO toca em nenhuma lógica, variável ou estrutura do projeto original.
+	[[ "$SOVEREIGN_LANG" != "pt" ]] && return 0
+
+	# --- Particionamento ---
+	function PARTITIONING_SCHEME_tag()  { echo "Esquema de particionamento"; }
+	function PARTITIONING_SCHEME_help() { echo "Selecione o esquema de particionamento desejado. 'Classic single disk' é o mais simples e recomendado para a maioria. ZFS e Btrfs oferecem snapshots e RAID. 'Custom' é para usuários avançados."; }
+
+	function PARTITIONING_BOOT_TYPE_tag()  { echo "Tipo de boot"; }
+	function PARTITIONING_BOOT_TYPE_help() { echo "EFI é recomendado para qualquer sistema fabricado após 2012. BIOS (Legacy) é para hardware mais antigo ou VMs sem suporte UEFI."; }
+
+	function PARTITIONING_BOOT_DEVICE_tag()  { echo "Dispositivo de boot (EFI)"; }
+	function PARTITIONING_BOOT_DEVICE_help() { echo "Dispositivo usado para a partição de boot/EFI. Em sistemas EFI, esta é a partição EFI. Deve estar previamente formatada como FAT32."; }
+
+	function PARTITIONING_USE_SWAP_tag()  { echo "Usar swap"; }
+	function PARTITIONING_USE_SWAP_help() { echo "Ativar partição de swap para memória virtual. Recomendado: ativar com pelo menos 8GB para suportar compilações pesadas (Firefox, LLVM) sem travar."; }
+
+	function PARTITIONING_SWAP_tag()  { echo "Tamanho do swap"; }
+	function PARTITIONING_SWAP_help() { echo "Tamanho da partição de swap (ex: 8GiB). Recomendado: igual à sua RAM. Com 8GB de RAM → 8GiB de swap. Importante para evitar travamentos durante compilações."; }
+
+	function PARTITIONING_SWAP_DEVICE_tag()  { echo "Dispositivo de swap"; }
+	function PARTITIONING_SWAP_DEVICE_help() { echo "Dispositivo a ser usado como swap. Normalmente é uma partição do mesmo disco de instalação."; }
+
+	function PARTITIONING_ROOT_FS_tag()  { echo "Sistema de arquivos raiz"; }
+	function PARTITIONING_ROOT_FS_help() { echo "Sistema de arquivos da partição raiz:\n  f2fs  → Ideal para NVMe/SSD (mais rápido, maior vida útil)\n  ext4  → Estável e universal (HDs e SSDs SATA)\n  btrfs → Suporte a snapshots e compressão\n  ZFS   → Avançado: RAID, snapshots, compressão"; }
+
+	function PARTITIONING_USE_LUKS_tag()  { echo "Criptografia LUKS"; }
+	function PARTITIONING_USE_LUKS_help() { echo "Ativar criptografia LUKS na partição raiz. Todos os dados serão criptografados — uma senha será pedida a cada boot. Protege seus dados em caso de roubo ou perda do dispositivo."; }
+
+	function PARTITIONING_DEVICE_tag()  { echo "Disco de destino"; }
+	function PARTITIONING_DEVICE_help() { echo "Disco onde o Gentoo será instalado. ATENÇÃO: TODOS OS DADOS DESTE DISCO SERÃO APAGADOS! Verifique o dispositivo correto antes de continuar (ex: /dev/nvme0n1 ou /dev/sda)."; }
+
+	function PARTITIONING_DEVICES_tag()  { echo "Discos de destino (RAID/ZFS multi-disco)"; }
+	function PARTITIONING_DEVICES_help() { echo "Lista de dispositivos de bloco para layouts com múltiplos discos (RAID0, RAID1, ZFS pool). Informe um por linha."; }
+
+	function PARTITIONING_ZFS_POOL_TYPE_tag()  { echo "Tipo de pool ZFS"; }
+	function PARTITIONING_ZFS_POOL_TYPE_help() { echo "'standard' cria um pool ZFS padrão com compressão ZSTD em todos os discos fornecidos. 'custom' exige que você escreva sua própria função de criação de pool no arquivo de configuração — apenas para usuários avançados."; }
+
+	function PARTITIONING_ZFS_USE_ENCRYPTION_tag()  { echo "Criptografia ZFS nativa"; }
+	function PARTITIONING_ZFS_USE_ENCRYPTION_help()  { echo "Ativa criptografia nativa do ZFS na partição raiz. Você pode exportar a chave via 'export GENTOO_INSTALL_ENCRYPTION_KEY=...' antes de instalar para não ser perguntado durante a instalação."; }
+
+	function PARTITIONING_ZFS_USE_COMPRESSION_tag() { echo "Compressao ZFS"; }
+	function PARTITIONING_ZFS_USE_COMPRESSION_help() { echo "Ativa compressão transparente nos datasets ZFS. Geralmente melhora a performance e economiza espaço com impacto mínimo na CPU."; }
+
+	function PARTITIONING_ZFS_COMPRESSION_tag()     { echo "Algoritmo de compressao ZFS"; }
+	function PARTITIONING_ZFS_COMPRESSION_help()     { echo "Algoritmo de compressão usado nos datasets ZFS. 'on' usa o padrão do ZFS (lz4). Para controle granular de nível (gzip-N, zstd-N) use um pool customizado."; }
+
+	function PARTITIONING_BTRFS_RAID_TYPE_tag()     { echo "Tipo de RAID Btrfs"; }
+	function PARTITIONING_BTRFS_RAID_TYPE_help()     { echo "Define o tipo do pool Btrfs. 'single' para disco único, 'raid0' para velocidade (sem redundância), 'raid1' para espelhamento (com redundância)."; }
+
+	# --- Sistema ---
+	function HOSTNAME_tag()  { echo "Nome do host (hostname)"; }
+	function HOSTNAME_help() { echo "Define o nome de identificação do sistema na rede. Use apenas letras minúsculas, números e hífens (ex: meu-gentoo, desktop-jesus)."; }
+
+	function TIMEZONE_tag()  { echo "Fuso horario"; }
+	function TIMEZONE_help() { echo "Fuso horário do sistema. Brasil: America/Sao_Paulo. Você pode digitar o nome diretamente (ex: America/Fortaleza, America/Manaus) ou pressionar espaço para listar todos."; }
+
+	function KEYMAP_tag()  { echo "Layout do teclado (console)"; }
+	function KEYMAP_help() { echo "Layout do teclado para o console (TTY). Teclado ABNT2 (padrão brasileiro): br-abnt2. Teclado US ANSI: us. Este layout é usado fora do ambiente gráfico."; }
+
+	function KEYMAP_INITRAMFS_OTHER_tag()  { echo "Layout diferente no initramfs"; }
+	function KEYMAP_INITRAMFS_OTHER_help() { echo "Ativar se quiser um layout de teclado diferente durante o boot (initramfs). Útil quando você usa LUKS e o layout padrão não funciona para digitar a senha."; }
+
+	function KEYMAP_INITRAMFS_tag()  { echo "Layout do teclado no initramfs"; }
+	function KEYMAP_INITRAMFS_help() { echo "Layout do teclado usado durante o boot inicial (initramfs). Importante se você usa criptografia LUKS e precisa digitar a senha corretamente no boot."; }
+
+	function LOCALES_tag()  { echo "Locales a gerar"; }
+	function LOCALES_help() { echo "Lista de locales a gerar no sistema. Para português brasileiro adicione: pt_BR.UTF-8 UTF-8. Para inglês universal (seguro): C.UTF-8 UTF-8. Separe múltiplos locales com espaço."; }
+
+	function LOCALE_tag()  { echo "Locale padrao do sistema"; }
+	function LOCALE_help() { echo "Locale padrão usado pelo sistema e pelos programas. 'pt_BR.UTF-8' para português brasileiro completo. 'C.UTF-8' para neutro/inglês sem caracteres especiais."; }
+
+	# --- Rede ---
+	function SYSTEMD_NETWORKD_tag()  { echo "Rede automatica (systemd-networkd)"; }
+	function SYSTEMD_NETWORKD_help() { echo "Configura a rede automaticamente via systemd-networkd. Recomendado para a maioria dos sistemas. Desative apenas se quiser configurar a rede manualmente depois da instalação."; }
+
+	function SYSTEMD_NETWORKD_DHCP_tag()  { echo "Obter IP automaticamente (DHCP)"; }
+	function SYSTEMD_NETWORKD_DHCP_help() { echo "Usar DHCP para obter endereço IP automaticamente do roteador. Desative para configurar IP fixo (estático) — informe o IP, máscara e gateway manualmente."; }
+
+	function SYSTEMD_NETWORKD_INTERFACE_NAME_tag()  { echo "Nome da interface de rede"; }
+	function SYSTEMD_NETWORKD_INTERFACE_NAME_help()  { echo "Nome da interface de rede a configurar. 'en*' configura todas as interfaces com fio automaticamente (recomendado). Para especificar uma interface: eth0, enp3s0, etc."; }
+
+	function SYSTEMD_NETWORKD_ADDRESSES_tag()  { echo "Enderecos IP fixos"; }
+	function SYSTEMD_NETWORKD_ADDRESSES_help()  { echo "Lista de endereços IP com máscara CIDR a atribuir à interface (ex: 192.168.1.100/24). Separe múltiplos endereços com espaço. Usado apenas quando DHCP está desativado."; }
+
+	function SYSTEMD_NETWORKD_GATEWAY_tag()    { echo "Gateway padrao (roteador)"; }
+	function SYSTEMD_NETWORKD_GATEWAY_help()    { echo "Endereço IP do gateway padrão da rede (normalmente o IP do seu roteador). Ex: 192.168.1.1. Usado apenas quando DHCP está desativado."; }
+
+	function SYSTEMD_INITRAMFS_SSHD_tag()      { echo "SSH durante o boot (initramfs)"; }
+	function SYSTEMD_INITRAMFS_SSHD_help()     { echo "Inicia um servidor SSH durante o boot no initramfs. Útil para desbloquear remotamente uma partição LUKS criptografada sem acesso físico ao sistema."; }
+
+	# --- Portage e instalacao ---
+	function STAGE3_VARIANT_tag()  { echo "Variante do Stage3 (init system)"; }
+	function STAGE3_VARIANT_help() { echo "Seleciona o tarball base Gentoo a usar. Define o init system:\n  systemd → Recomendado. Necessário para Hyprland/JaKooLit.\n  openrc  → Mais leve, tradicional Gentoo.\n  musl    → Libc alternativa (experimental).\n  hardened → Segurança máxima (experimental).\nAtenção: variantes não testadas podem gerar conflitos no emerge."; }
+
+	function PORTAGE_SYNC_TYPE_tag()  { echo "Metodo de sincronizacao do Portage"; }
+	function PORTAGE_SYNC_TYPE_help() { echo "Como o Portage (gerenciador de pacotes do Gentoo) sincroniza a árvore de ebuilds:\n  git   → Mais rápido para atualizações incrementais (recomendado).\n  rsync → Método clássico e estável."; }
+
+	function PORTAGE_GIT_FULL_HISTORY_tag()  { echo "Historico git completo do Portage"; }
+	function PORTAGE_GIT_FULL_HISTORY_help()  { echo "Baixa o histórico git completo da árvore do Portage. Ocupa 1-2GB extras de disco sem benefício prático para a maioria dos usuários. Mantenha desativado, a menos que você precise de histórico antigo."; }
+
+	function PORTAGE_GIT_MIRROR_tag()  { echo "Mirror git do Portage"; }
+	function PORTAGE_GIT_MIRROR_help()  { echo "Endpoint git usado para sincronizar a árvore do Portage. Normalmente não precisa ser alterado. Mude apenas se o mirror padrão estiver lento ou inacessível na sua região."; }
+
+	function GENTOO_MIRROR_tag()  { echo "Mirror de download do Gentoo"; }
+	function GENTOO_MIRROR_help() { echo "URL do servidor de onde o stage3 e os pacotes binários serão baixados. Selecione o mais próximo de você para maior velocidade. O mirror detectado automaticamente já é o ideal para sua região."; }
+
+	function GENTOO_ARCH_tag()    { echo "Arquitetura alvo"; }
+	function GENTOO_ARCH_help()    { echo "Tag de arquitetura do Gentoo para o novo sistema. Para a maioria dos PCs modernos: amd64 (64-bit). Não altere a menos que esteja instalando em ARM ou x86 32-bit."; }
+
+	function GENTOO_SUBARCH_tag() { echo "Sub-arquitetura (subarch)"; }
+	function GENTOO_SUBARCH_help() { echo "Sub-arquitetura do Gentoo para o novo sistema. Deixe vazio para usar o padrão genérico. Usado principalmente para arquiteturas especiais (ARM, MIPS, RISC-V)."; }
+
+	function USE_PORTAGE_TESTING_tag()  { echo "Aceitar pacotes de teste (~amd64)"; }
+	function USE_PORTAGE_TESTING_help() { echo "Permite instalar pacotes marcados como 'testing' (~amd64). Dá acesso a versões mais recentes de software. Recomendado para hardware moderno e para o Hyprland, que evolui rapidamente."; }
+
+	function SELECT_MIRRORS_tag()           { echo "Selecionar mirrors automaticamente (mirrorselect)"; }
+	function SELECT_MIRRORS_help()          { echo "Usa a ferramenta 'mirrorselect' para fazer benchmark e encontrar os mirrors de download mais rápidos para sua localização. Pode demorar 1-2 minutos mas melhora significativamente a velocidade de download."; }
+
+	function SELECT_MIRRORS_LARGE_FILE_tag() { echo "Testar mirrors com arquivo grande (~10MB)"; }
+	function SELECT_MIRRORS_LARGE_FILE_help() { echo "Faz o benchmark dos mirrors usando um arquivo de ~10MB em vez de pequenos pacotes. Dá um resultado mais preciso da velocidade real de download, mas demora um pouco mais."; }
+
+	# --- Opcoes finais ---
+	function ENABLE_SSHD_tag()  { echo "Instalar e ativar servidor SSH"; }
+	function ENABLE_SSHD_help() { echo "Instala e ativa o servidor SSH com configuração segura:\n  - Apenas autenticação por chave (sem senha)\n  - Somente chaves ed25519\n  - Root pode logar (necessário para configuração inicial)\nRecomendado para acesso remoto após a instalação."; }
+
+	function ENABLE_BINPKG_tag()  { echo "Usar pacotes pre-compilados (binpkg)"; }
+	function ENABLE_BINPKG_help() { echo "Quando disponível, baixa pacotes já compilados dos servidores oficiais do Gentoo em vez de compilar do zero. Reduz drasticamente o tempo de instalação. Se não houver binário disponível, compila normalmente."; }
+
+	function KERNEL_TYPE_tag()  { echo "Tipo de kernel Linux"; }
+	function KERNEL_TYPE_help() { echo "Define qual pacote de kernel será instalado:\n  bin    → gentoo-kernel-bin: kernel pré-compilado. Rápido (~2 min), funciona na maioria dos hardwares. Recomendado para primeiro boot.\n  source → gentoo-kernel: compila o kernel localmente (~20-40 min). Mesma config do binário, mas otimizado para seu hardware."; }
+
+	function ROOT_SSH_AUTHORIZED_KEYS_tag()  { echo "Chaves SSH autorizadas para o root"; }
+	function ROOT_SSH_AUTHORIZED_KEYS_help() { echo "Cole aqui as chaves públicas SSH (conteúdo do arquivo ~/.ssh/id_ed25519.pub) que terão acesso root ao sistema após a instalação. Uma por linha. Necessário se ENABLE_SSHD estiver ativado."; }
+
+	function ADDITIONAL_PACKAGES_tag()  { echo "Pacotes adicionais a instalar"; }
+	function ADDITIONAL_PACKAGES_help() { echo "Lista de pacotes extras a instalar no final da instalação via emerge. Já pré-preenchido pelo perfil selecionado (JaKooLit, Minimal ou Personalizado). Mantenha ao mínimo — pacotes complexos podem gerar conflitos de USE flags."; }
+}
+
 
 
 ################################################
@@ -213,7 +708,7 @@ PARTITIONING_BOOT_TYPES=(
 	"efi" "efi$([[ $HAS_EFI_SUPPORT == true ]] && echo -n "" || echo -n " (!! $EFI_UNSUPPORTED_MESSAGE_SHORT !!)")"
 	"bios" "bios"
 )
-PARTITIONING_ROOT_FS_TYPES=("ext4" "btrfs")
+PARTITIONING_ROOT_FS_TYPES=("ext4" "btrfs" "f2fs")
 PARTITIONING_BTRFS_RAID_TYPES=("raid0" "raid1")
 PARTITIONING_ZFS_POOL_TYPES=("standard" "custom")
 PARTITIONING_ZFS_COMPRESSIONS=("on" "gzip" "lz4" "lzjb" "zle" "zstd" "zstd-fast")
@@ -418,9 +913,9 @@ function load_default_config() {
 	SYSTEMD_NETWORKD_GATEWAY="192.168.1.1"
 	SYSTEMD_INITRAMFS_SSHD=false
 
+	# --- Sovereign: usa disco e FS detectados pelo hardware_detect ---
 	function disk_configuration() {
-		#create_zfs_centric_layout swap=8GiB type="$DEFAULT_BOOT_TYPE" encrypt=true compress=zstd pool_type=standard /dev/sdX
-		create_classic_single_disk_layout swap=8GiB type="$DEFAULT_BOOT_TYPE" luks=true root_fs=ext4 /dev/sdX
+		create_classic_single_disk_layout swap=8GiB type="$DEFAULT_BOOT_TYPE" luks=false root_fs="${DETECTED_FS:-ext4}" "${DETECTED_DISK:-/dev/sdX}"
 	}
 
 	STAGE3_VARIANT="systemd"
@@ -436,23 +931,58 @@ function load_default_config() {
 	SELECT_MIRRORS=false
 	SELECT_MIRRORS_LARGE_FILE=false
 
+	# --- Sovereign: MAKEOPTS e VIDEO_CARDS detectados automaticamente ---
 	ADDITIONAL_PACKAGES=()
 	ENABLE_SSHD=true
 	ENABLE_BINPKG=false
 	KERNEL_TYPE=bin
 	ROOT_SSH_AUTHORIZED_KEYS=""
 
-	# All settings are unsaved.
+	# Variáveis extras do Sovereign Edition (gravadas no gentoo.conf)
+	SOVEREIGN_MAKEOPTS="${DETECTED_MAKEOPTS:--j4 -l4}"
+	SOVEREIGN_VIDEO_CARDS="${DETECTED_VIDEO_CARDS:-vesa}"
+	SOVEREIGN_CFLAGS="-march=${DETECTED_MARCH:-native} -O2 -pipe"
+	SOVEREIGN_CPU_FLAGS="${DETECTED_CPU_FLAGS:-}"
+
+	# Mirror detectado/selecionado automaticamente
+	GENTOO_MIRROR="${DETECTED_GENTOO_MIRROR:-https://mirror.leaseweb.com/gentoo/}"
+
+	# zram — swap comprimido em RAM (configurado pelo sovereign_select_zram)
+	SOVEREIGN_ZRAM=false
+	SOVEREIGN_ZRAM_SIZE="ram / 2"
+
 	UNSAVED_CHANGES=true
 }
 
 SAVE_AS_FILENAME="$RELA_CONFIG_FILE"
+
+# --- Sovereign Edition: fluxo de inicializacao ---
+# 1. Idioma (primeira coisa — define SOVEREIGN_LANG)
+sovereign_lang_init
+
+# 2. Hardware + mirror (silencioso)
+sovereign_detect_hardware
+sovereign_detect_mirror
+
 if [[ -e "$CONFIG_FILE" ]]; then
 	load_config "$CONFIG_FILE"
 else
 	load_default_config
+	# 3. Resumo de hardware detectado
+	sovereign_show_detection_summary
+	# 4. Selecao de mirror com opcao de mudar
+	sovereign_select_mirror
+	# 5. Perfil: Minimal / JaKooLit / Personalizado
+	sovereign_select_profile
+	# 6. zRAM — swap comprimido em RAM
+	sovereign_select_zram
 fi
+
+# 6. Aplica traducoes PT (redefine strings do menu TUI se SOVEREIGN_LANG=pt)
+sovereign_apply_translations
+
 process_config
+
 
 
 ################################################
@@ -1686,6 +2216,20 @@ ENABLE_SSHD=${ENABLE_SSHD@Q}
 ENABLE_BINPKG=${ENABLE_BINPKG@Q}
 KERNEL_TYPE=${KERNEL_TYPE@Q}
 ROOT_SSH_AUTHORIZED_KEYS=${ROOT_SSH_AUTHORIZED_KEYS@Q}
+
+
+################################################
+# Sovereign Edition — Hardware Optimizations
+# Gerado automaticamente pelo hardware_detect
+# NAO edite manualmente — rode ./configure novamente
+
+SOVEREIGN_MAKEOPTS=${SOVEREIGN_MAKEOPTS@Q}
+SOVEREIGN_VIDEO_CARDS=${SOVEREIGN_VIDEO_CARDS@Q}
+SOVEREIGN_CFLAGS=${SOVEREIGN_CFLAGS@Q}
+SOVEREIGN_CPU_FLAGS=${SOVEREIGN_CPU_FLAGS@Q}
+SOVEREIGN_ZRAM=${SOVEREIGN_ZRAM@Q}
+SOVEREIGN_ZRAM_SIZE=${SOVEREIGN_ZRAM_SIZE@Q}
+SOVEREIGN_PROFILE=${SOVEREIGN_PROFILE@Q}
 
 
 ################################################

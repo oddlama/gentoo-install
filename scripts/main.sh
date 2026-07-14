@@ -92,6 +92,41 @@ function configure_portage() {
 	touch_or_die 0644 "/etc/portage/package.keywords/zz-autounmask"
 	touch_or_die 0644 "/etc/portage/package.license"
 
+	# --- Sovereign Edition: aplica otimizacoes de hardware no make.conf ---
+	# Estas variaveis sao detectadas automaticamente pelo hardware_detect
+	# e salvas no gentoo.conf pelo ./configure antes da instalacao.
+	if [[ -n "${SOVEREIGN_CFLAGS:-}" ]]; then
+		einfo "Sovereign: aplicando CFLAGS nativos: ${SOVEREIGN_CFLAGS}"
+		# Remove entradas antigas para evitar duplicatas
+		sed -i '/^CFLAGS=/d;/^CXXFLAGS=/d;/^FCFLAGS=/d;/^FFLAGS=/d' /etc/portage/make.conf
+		cat >> /etc/portage/make.conf <<EOF
+
+# Sovereign Edition — Compilacao nativa para este hardware
+CFLAGS="${SOVEREIGN_CFLAGS}"
+CXXFLAGS="\${CFLAGS}"
+FCFLAGS="\${CFLAGS}"
+FFLAGS="\${CFLAGS}"
+EOF
+	fi
+
+	if [[ -n "${SOVEREIGN_CPU_FLAGS:-}" ]]; then
+		einfo "Sovereign: aplicando CPU_FLAGS_X86: ${SOVEREIGN_CPU_FLAGS}"
+		sed -i '/^CPU_FLAGS_X86=/d' /etc/portage/make.conf
+		echo "CPU_FLAGS_X86=\"${SOVEREIGN_CPU_FLAGS}\"" >> /etc/portage/make.conf
+	fi
+
+	if [[ -n "${SOVEREIGN_MAKEOPTS:-}" ]]; then
+		einfo "Sovereign: aplicando MAKEOPTS: ${SOVEREIGN_MAKEOPTS}"
+		sed -i '/^MAKEOPTS=/d' /etc/portage/make.conf
+		echo "MAKEOPTS=\"${SOVEREIGN_MAKEOPTS}\"" >> /etc/portage/make.conf
+	fi
+
+	if [[ -n "${SOVEREIGN_VIDEO_CARDS:-}" ]]; then
+		einfo "Sovereign: aplicando VIDEO_CARDS: ${SOVEREIGN_VIDEO_CARDS}"
+		sed -i '/^VIDEO_CARDS=/d' /etc/portage/make.conf
+		echo "VIDEO_CARDS=\"${SOVEREIGN_VIDEO_CARDS}\"" >> /etc/portage/make.conf
+	fi
+
 	if [[ $SELECT_MIRRORS == "true" ]]; then
 		einfo "Temporarily installing mirrorselect"
 		try emerge --verbose --oneshot app-portage/mirrorselect
@@ -112,6 +147,7 @@ function configure_portage() {
 	chmod 644 /etc/portage/make.conf \
 		|| die "Could not chmod 644 /etc/portage/make.conf"
 }
+
 
 function enable_sshd() {
 	einfo "Installing and enabling sshd"
@@ -145,6 +181,8 @@ function generate_initramfs() {
 		&& modules+=("crypt crypt-gpg")
 	[[ $USED_BTRFS == "true" ]] \
 		&& modules+=("btrfs")
+	[[ $USED_F2FS == "true" ]] \
+		&& dracut_opts+=("--filesystems" "f2fs")
 	[[ $USED_ZFS == "true" ]] \
 		&& modules+=("zfs")
 
@@ -473,6 +511,12 @@ EOF
 		try emerge --verbose sys-fs/btrfs-progs
 	fi
 
+	# Install f2fs-tools if we used F2FS
+	if [[ $USED_F2FS == "true" ]]; then
+		einfo "Installing f2fs-tools"
+		try emerge --verbose sys-fs/f2fs-tools
+	fi
+
 	try emerge --verbose dev-vcs/git
 
 	# Install ZFS kernel module and tools if we used ZFS
@@ -544,6 +588,38 @@ EOF
 		try emerge --verbose --autounmask-continue=y -- "${ADDITIONAL_PACKAGES[@]}"
 	fi
 
+	# --- Sovereign Edition: configurar zRAM se solicitado ---
+	if [[ "${SOVEREIGN_ZRAM:-false}" == "true" && -n "${SOVEREIGN_ZRAM_SIZE:-}" ]]; then
+		einfo "Configurando zRAM (swap comprimido em RAM)"
+		mkdir -p /etc/systemd
+		cat > /etc/systemd/zram-generator.conf <<EOF
+# Gerado automaticamente pela Sovereign Edition
+# zRAM — swap comprimido dentro da propria RAM
+# Algoritmo zstd: melhor relacao compressao/latencia
+[zram0]
+zram-size = ${SOVEREIGN_ZRAM_SIZE}
+compression-algorithm = zstd
+EOF
+		einfo "zram-generator.conf criado: zram-size = ${SOVEREIGN_ZRAM_SIZE} | algoritmo = zstd"
+
+		# Prioridade do zram sobre o swap em disco (menor valor = maior prioridade)
+		# zram recebe prioridade 100, swap em disco fica em prioridade padrao (0)
+		mkdir -p /etc/sysctl.d
+		cat > /etc/sysctl.d/99-zram-swappiness.conf <<EOF
+# Sovereign Edition — zRAM tuning
+# vm.swappiness=180: favorece o zram agressivamente antes do swap em disco
+# Intervalo: 0-200. >100 permite swap proativo de paginas ativas.
+vm.swappiness = 180
+# vm.watermark_boost_factor: reduz pressao de memoria em rajadas
+vm.watermark_boost_factor = 0
+# vm.watermark_scale_factor: escala dos watermarks de memoria
+vm.watermark_scale_factor = 125
+# vm.page-cluster: envia 1 pagina por vez pro zram (otimizado para swap comprimido)
+vm.page-cluster = 0
+EOF
+		einfo "Tuning de kernel para zRAM aplicado em /etc/sysctl.d/99-zram-swappiness.conf"
+	fi
+
 	if ask "Do you want to assign a root password now?"; then
 		try passwd root
 		einfo "Root password assigned"
@@ -559,6 +635,18 @@ EOF
 		einfo "Adding ~$GENTOO_ARCH to ACCEPT_KEYWORDS"
 		echo "ACCEPT_KEYWORDS=\"~$GENTOO_ARCH\"" >> /etc/portage/make.conf \
 			|| die "Could not modify /etc/portage/make.conf"
+	fi
+
+	# --- Sovereign Edition: Pós-Instalação Automática ---
+	if [[ "${SOVEREIGN_PROFILE:-}" == "jakoolit" ]]; then
+		einfo "Perfil JaKooLit detectado. Iniciando pós-instalação automática (Hyprland + Dotfiles)..."
+		if [[ -f "$GENTOO_INSTALL_REPO_BIND/Sovereign_JaKooLit_Gentoo.sh" ]]; then
+			try bash "$GENTOO_INSTALL_REPO_BIND/Sovereign_JaKooLit_Gentoo.sh"
+			einfo "Pós-instalação JaKooLit concluída com sucesso!"
+		else
+			ewarn "Script Sovereign_JaKooLit_Gentoo.sh não encontrado."
+			ewarn "Você terá que executá-lo manualmente depois."
+		fi
 	fi
 
 	maybe_exec 'after_install'

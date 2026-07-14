@@ -25,6 +25,7 @@ USED_LUKS=false
 USED_ZFS=false
 # Flag to track usage of btrfs
 USED_BTRFS=false
+USED_F2FS=false
 # Flag to track usage of encryption
 USED_ENCRYPTION=false
 # Flag to track whether partitioning or formatting is forbidden
@@ -240,11 +241,14 @@ function format() {
 	declare -A arguments; parse_arguments "$@"
 
 	verify_existing_id id
-	verify_option type bios efi swap ext4 btrfs
+	verify_option type bios efi swap ext4 btrfs f2fs
 
 	local type="${arguments[type]}"
 	if [[ "$type" == "btrfs" ]]; then
 		USED_BTRFS=true
+	fi
+	if [[ "$type" == "f2fs" ]]; then
+		USED_F2FS=true
 	fi
 
 	DISK_ACTIONS+=("action=format" "$@" ";")
@@ -342,6 +346,9 @@ function create_classic_single_disk_layout() {
 	elif [[ $root_fs == "ext4" ]]; then
 		DISK_ID_ROOT_TYPE="ext4"
 		DISK_ID_ROOT_MOUNT_OPTS="defaults,noatime,errors=remount-ro,discard"
+	elif [[ $root_fs == "f2fs" ]]; then
+		DISK_ID_ROOT_TYPE="f2fs"
+		DISK_ID_ROOT_MOUNT_OPTS="defaults,noatime,discard,compress_algorithm=lz4,compress_chksum,atgc,gc_merge,lazytime"
 	else
 		die "Unsupported root filesystem type"
 	fi
@@ -499,6 +506,9 @@ function create_raid0_luks_layout() {
 	elif [[ $root_fs == "ext4" ]]; then
 		DISK_ID_ROOT_TYPE="ext4"
 		DISK_ID_ROOT_MOUNT_OPTS="defaults,noatime,errors=remount-ro,discard"
+	elif [[ $root_fs == "f2fs" ]]; then
+		DISK_ID_ROOT_TYPE="f2fs"
+		DISK_ID_ROOT_MOUNT_OPTS="defaults,noatime,discard,compress_algorithm=lz4,compress_chksum,atgc,gc_merge,lazytime"
 	else
 		die "Unsupported root filesystem type"
 	fi
@@ -564,6 +574,9 @@ function create_raid1_luks_layout() {
 	elif [[ $root_fs == "ext4" ]]; then
 		DISK_ID_ROOT_TYPE="ext4"
 		DISK_ID_ROOT_MOUNT_OPTS="defaults,noatime,errors=remount-ro,discard"
+	elif [[ $root_fs == "f2fs" ]]; then
+		DISK_ID_ROOT_TYPE="f2fs"
+		DISK_ID_ROOT_MOUNT_OPTS="defaults,noatime,discard,compress_algorithm=lz4,compress_chksum,atgc,gc_merge,lazytime"
 	else
 		die "Unsupported root filesystem type"
 	fi

@@ -1,221 +1,126 @@
-## About gentoo-install
+# gentoo-install — Sovereign Edition
 
-This project aspires to be your favourite way to install gentoo.
-It aims to provide a smooth installation experience, both for beginners and experts.
-You may configure it by using a menuconfig-inspired interface or simply via a config file.
+> **Fork de [oddlama/gentoo-install](https://github.com/oddlama/gentoo-install)**  
+> Refatorado e blindado por [ViniciusPHDU20](https://github.com/ViniciusPHDU20)
 
-It supports the most common disk layouts, different file systems like ext4, ZFS and btrfs as well
-as additional layers such as LUKS or mdraid. It also supports both EFI (recommended) and BIOS boot,
-and can be used with systemd or OpenRC as the init system. SSH can also be configured to allow using an automation framework
-like [Ansible](https://github.com/ansible/ansible) or [Fora](https://github.com/oddlama/fora) to automate beyond system installation.
+A **Sovereign Edition** transforma a experiência bruta de instalação do Gentoo Linux. Ao invés de lutar contra o `make.conf` e horas de configurações manuais, este instalador analisa seu hardware, define as otimizações perfeitas e oferece uma interface gráfica (TUI) 100% traduzida para o Português para você "forjar o seu próprio sistema limpo".
 
-[Usage](#usage) |
-[Overview](#overview) |
-[Updating the Kernel](#updating-the-kernel) |
-[Recommendations](#recommendations) |
-[FAQ](#troubleshooting-and-faq)
+Além da base sólida, ele inclui um script de pós-instalação cirúrgico para implantar o **Hyprland** usando os *dotfiles* premium do **JaKooLit**.
 
-![](contrib/screenshot_configure.png)
+---
 
-This installer might appeal to you if
+## ✨ Features Exclusivas da Sovereign Edition
 
-- you want to try gentoo without initially investing a lot of time, or fully committing to it yet.
-- you already are a gentoo expert but want an automatic and repeatable best-practices installation.
+| Recurso | Descrição Técnica |
+|---------|-------------------|
+| **Auto-Detecção de Hardware** | O motor `hardware_detect.sh` lê seu processador, memória e GPU para definir automaticamente `CFLAGS` (`-march=native`), `MAKEOPTS` e `VIDEO_CARDS`. Tudo é injetado no `make.conf` antes do primeiro pacote ser compilado. |
+| **Interface 100% Traduzida** | Todos os 30 menus da TUI de configuração possuem descrições detalhadas em **Português**, explicando de forma didática o que é F2FS, LUKS, ZFS, UEFI, e Swap. |
+| **zRAM Nativo (Swap em RAM)** | Integração transparente com `zram-generator`. Protege contra travamentos (OOM) em compilações pesadas criando um swap ultrarrápido comprimido via `zstd`, com *tuning* de kernel agressivo via `sysctl`. |
+| **Sovereign Profiles** | Escolha entre o perfil **Minimal** (apenas a base do sistema) ou **JaKooLit** (força o Systemd e prepara as dependências Wayland/Core). |
+| **F2FS para NVMe** | Suporte nativo ao F2FS. Se detectado um SSD NVMe, o instalador sugere este sistema de arquivos projetado especificamente para memória flash. |
+| **Pós-Instalação Automática** | Script `Sovereign_JaKooLit_Gentoo.sh` pronto para uso que converte a base instalada em um ambiente Hyprland deslumbrante e otimizado. |
 
-Of course, we do encourage everyone to install gentoo manually. You will learn a lot if you
-haven't done so already.
+---
 
-## Usage
+## 🏗️ Arquitetura do Projeto
 
-First, boot into a live environment of your choice. I recommend using an [Arch Linux](https://www.archlinux.org/download/) live ISO,
-as the installer will then be able to automatically download required programs or setup ZFS support on the fly.
-Afterwards, proceed with the following steps:
+```text
+gentoo-install/                 ← Este repositório
+├─ configure                    ← Motor TUI principal (gera o gentoo.conf)
+├─ install                      ← Instalador base do Gentoo (lê o gentoo.conf)
+├─ hardware_detect.sh           ← Módulo de injeção de flags e scan de hardware
+├─ gentoo.conf.example          ← Template referencial de configuração
+├─ scripts/                     ← Utilitários internos de chroot e compilação
+└─ Sovereign_JaKooLit_Gentoo.sh ← Pós-instalação (Hyprland + Dotfiles)
+```
+
+---
+
+## 🚀 Como Usar
+
+### 1. Boot em um Live Environment
+
+Recomenda-se o **Arch Linux ISO** por já conter ferramentas modernas e conexão fácil via `iwctl`.
 
 ```bash
-pacman -Sy git  # (Archlinux) Install git in live environment, then clone:
-git clone "https://github.com/oddlama/gentoo-install"
+pacman -Sy git
+git clone https://github.com/ViniciusPHDU20/gentoo-install
 cd gentoo-install
-./configure     # configure to your liking, save as gentoo.conf
-./install       # begin installation
 ```
 
-Every option is explained in detail in `gentoo.conf.example` and in the help menus of the TUI configurator.
-When installing, you will be asked to review the partitioning before anything critical is done.
-
-The installer should be able to run without any user supervision after partitioning, but depending
-on the current state of the gentoo repository, you might need to intervene in case a package fails
-to emerge. The critical commands will ask you what to do in case of a failure. If you encounter a
-problem you cannot solve, you might want to consider getting in contact with some experienced people
-on [IRC](https://www.gentoo.org/get-involved/irc-channels/) or [Discord](https://discord.com/invite/gentoolinux).
-
-If you need to enter an installed system in a chroot to fix something (e.g. after rebooting your live system),
-you can always clone the installer, mount your main drive under `/mnt` and use `./install --chroot /mnt` to
-just chroot into your system.
-
-## Overview
-
-The installer performs the following main steps (in roughly this order),
-with some parts depending on the chosen configuration:
-
-1. Partition disks (highly dependent on configuration)
-2. Download and extract stage3 tarball (with cryptographic verification)
-   \[Continues in chroot from here\]
-3. Setup portage (initial rsync/git sync, run mirrorselect, create zz-autounmask files)
-4. Base system configuration (hostname, timezone, keymap, locales)
-5. Install required packages (git, kernel, ...)
-6. Make system bootable (generate fstab, build initramfs, create efibootmgr/syslinux boot entry)
-7. Ensure minimal working system (automatic wired networking, install eix, set root password)
-   - (Optional) Install sshd with secure config (no password logins)
-   - (Optional) Install additional packages provided in config
-
-The goal of the installer is just to setup a minimal gentoo system following best-practices.
-Anything beyond that is considered out-of-scope (with the exception of configuring sshd).
-Here are some things that you might want to consider doing after the system installation is finished:
-
-1. Read the news with `eselect news read`.
-2. Compile a custom kernel and remove `gentoo-kernel-bin` (or `gentoo-kernel` if you used `KERNEL_TYPE=source`)
-3. Adjust `/etc/portage/make.conf`
-   - Set `CFLAGS` to `<march_native_flags> -O2 -pipe` for native builds by using the `resolve-march-native` tool
-   - Set `CPU_FLAGS_X86` using the `cpuid2cpuflags` tool
-4. Use a safe umask like `umask 077`
-
-### (Optional) sshd
-
-The script can provide a fully configured ssh daemon with reasonably good security settings.
-It will by default only allow ed25519 keys, restrict key exchange
-algorithms to a reasonable subset, disable any password based authentication,
-and only allow root to login.
-
-You can provide keys that will be written to root's `.ssh/authorized_keys` file. This will allow
-you to directly continue your setup with your favourite infrastructure management software.
-
-### (Optional) Additional packages
-
-You can add any amount of additional packages to be installed on the target system.
-These will simply be passed to a final `emerge` call before the script is done,
-where autounmasking will also be done automatically. It is recommended to keep
-this to a minimum, because of the quite "interactive" nature of gentoo package management ;)
-
-## Updating the kernel
-
-By default, the installed system uses gentoo's binary kernel distribution (`sys-kernel/gentoo-kernel-bin`)
-together with an initramfs generated by dracut. This ensures that the installed system works on all common hardware configurations.
-Alternatively, you can set `KERNEL_TYPE=source` to build the kernel from source using `sys-kernel/gentoo-kernel`
-(same distribution config, compiled locally).
-Feel free to replace this with a custom-built kernel (and possibly remove/adjust the initramfs) when the system is booted.
-
-The installer will provide the convenience script `generate_initramfs.sh` in `/boot/efi/`
-or `/boot/bios` which may be used to generate a new initramfs for the given kernel version.
-Depending on whether your system uses EFI or BIOS boot, you will also find your kernel and initramfs in different locations:
+### 2. Configuração (Sovereign TUI)
 
 ```bash
-# EFI
-kernel="/boot/efi/vmlinuz.efi"
-initrd="/boot/efi/initramfs.img"
-# BIOS
-kernel="/boot/bios/vmlinuz-current"
-initrd="/boot/bios/initramfs.img"
+./configure
+```
+- Escolha **Português**.
+- Veja o **Resumo do Hardware** (o sistema detectará sua GPU e CPU).
+- No menu de perfis, escolha **JaKooLit** (ou Minimal).
+- Configure seu ZRAM (Recomendado 50%).
+- Passe pelos menus (partição, locale, rede) e salve ao final. O arquivo gerado será o `gentoo.conf`.
+
+### 3. Instalação da Base
+
+```bash
+./install
+```
+O script fará o particionamento, download do `stage3`, aplicará as flags no `make.conf` e compilará o núcleo do Gentoo (incluindo o Kernel). Não requer supervisão.
+
+Ao finalizar, você verá a mensagem de sucesso. **Dê reboot e logue como root no seu novo Gentoo.**
+
+### 4. Pós-Instalação: O Ambiente Hyprland
+
+Com o sistema base bootado, garantido e conectado à internet, entre na pasta do repositório novamente (agora dentro do seu Gentoo instalado) e execute:
+
+```bash
+cd gentoo-install
+bash Sovereign_JaKooLit_Gentoo.sh
 ```
 
-In both cases, the update procedure is as follows:
+**O que o script faz:**
+1. Ativa os repositórios `guru` e `wayland-desktop`.
+2. Habilita pacotes de testes (`~amd64`) cirurgicamente apenas para os componentes visuais.
+3. Compila o Waybar, Hyprland, Rofi, SWWW, Kitty, entre outros.
+4. Habilita o Flatpak e baixa os softwares fechados (Steam, Discord, Wine).
+5. Clona o repositório oficial do JaKooLit, injeta patchs de correção e aplica na sua `~/.config`.
 
-1. Emerge new kernel
-2. `eselect kernel set <kver>`
-3. Backup old kernel and initramfs (`mv "$kernel"{,.bak}`, `mv "$initrd"{,.bak}`)
-4. Generate new initramfs for this kernel `generate_initramfs.sh <kver> "$initrd"`
-5. Copy new kernel `cp /boot/kernel-<kver> "$kernel"` (for systemd) or `cp /boot/vmlinuz-<kver> "$kernel"` (for openrc)
+---
 
-## Recommendations
+## 🧠 Detalhes Técnicos Adicionais
 
-This project started out as a way of documenting a best-practices installation for myself.
-As the project grew larger, I've added more configuration options to suit legacy needs.
-Below I've outlined several decisions I've made for this project, or decisions you
-have during configuration. If you intend on setting up a modern system, you might want
-to check them out. Please keep in mind that those are all based on my personal opinions and
-experience. Your mileage may vary.
+### F2FS em NVMe
+Seu SSD NVMe sofre menos desgaste (*write amplification*) e entrega maior *throughput* com F2FS do que com ext4/btrfs.
+*Nota:* Garanta que o pacote `f2fs-tools` esteja instalado no Live USB antes de iniciar (`pacman -S f2fs-tools`).
 
-#### EFI vs BIOS
+### ZRAM vs Swap em Disco
+A Sovereign Edition não substitui o swap em disco, ela o **complementa**.
+O `swappiness` é configurado para `180`, o que significa que o kernel tentará ao máximo manter os arquivos inativos compactados na RAM via ZRAM (velocidades de ~10GB/s). Só quando a RAM física acabar é que ele paginará para o SSD/HD.
 
-Use EFI. BIOS is old and deprecated for a long time now.
-Only certain VPS hosters may require you to use BIOS still (time to write to them about that!)
+---
 
-#### EFIstub booting
+## 🆘 Troubleshooting
 
-Don't install a bootloader when this script is done, except you absolutely need one.
-The kernel can directly be booted by EFI without need for a bootloader.
-By default, this script will use efibootmgr to add a bootentry directly to your "mainboard's bootselect" (typically F12).
-Nowadays, there's just no reason to use GRUB, syslinux, or similar bootloaders by default.
-They only add additional time to your boot, and even dualbooting Windows works just fine without one.
-Only if you require frequent editing of kernel parameters, or want kernel autodiscovery from attached media
-you might want to consider using one of these. For the average (advanced) user this isn't necessary.
-
-If you want to add more boot options or want to learn about efibootmgr, refer to [this page on the gentoo wiki](https://wiki.gentoo.org/wiki/Efibootmgr).
-
-#### Modern file systems
-
-I recommend using a modern file system like ZFS, both on desktops and servers.
-It provides transparent block-level compression, instant snapshots and full-disk encryption.
-Generally, encrypting your root fs doesn't cost you anything and protects your data in case you lose your device.
-
-#### Systemd vs OpenRC
-
-I will not entertain the religious eternal debate here. Both are fine init systems, and
-I've been using both *a lot*. If you cannot decide, here are some objective facts:
-
-- OpenRC is a service manager. Setting up all the other services is a lot of work, but you will learn a lot.
-- Systemd is an OS-level software suite. It brings an insane amount of features with a steep learning curve.
-
-Here's a non-exhaustive list of things you will ~do manually~ learn when using OpenRC,
-that are already provided for in systemd: udev, dhcp, acpi events (power/sleep button),
-cron jobs, reliable syslog, logrotate, process sandboxing, persistent backlight setting, persistent audio mute-status, user-owned login sessions, ...
-
-Make of this what you will, both have their own quirks. Choose your poison.
-
-#### Miscellaneous
-
-- Use the newer iwd for WiFi instead of wpa_supplicant
-- (If systemd) Use timers instead of cron jobs
-
-## Troubleshooting and FAQ
-
-After the initial sanity check, the script should be able to finish unattendedly.
-But given the unpredictability of future gentoo versions, you might still run into issues
-once in a while.
-
-The script checks every command for success, so if anything fails during installation,
-you will be given a proper message of what went wrong. Inside the chroot,
-most commands will be executed in a checked loop, and allow you to interactively
-fix problems with a shell, to retry, or to skip the command. You can report
-issues specific to this script on the issue tracker. To seek help
-regarding gentoo in general, visit the official [IRC](https://www.gentoo.org/get-involved/irc-channels/)
-or [Discord](https://discord.com/invite/gentoolinux).
-
-If you experience any issues after rebooting and need to fix something inside the chroot,
-you can use the installer to chroot into an existing system. Run `./install --help` for more infos.
-
-#### Q: ZFS cannot be installed in the chroot due to an unsupported kernel version
-
-**A:** The newest stable ZFS module may require a kernel version that is newer than what is provided on gentoo stable.
-If you encounter this problem, you might be able to fix the problem by switching to testing by dropping to a shell temporarily:
-
-```
-# Press S<Enter> when asked about what to do next.
-# This opens an emergency shell in the chroot.
-echo 'ACCEPT_KEYWORDS="~amd64"' >> /etc/portage/make.conf # Enable testing for your architecture.
-emerge -v gentoo-kernel-bin                               # Update kernel to newest version (or gentoo-kernel if KERNEL_TYPE=source)
-exit # Ctrl-D
-# Now select 'retry' when asked about what to do next.
+### `cc1plus: out of memory` (Compilação Morta)
+Se a compilação do Firefox ou do Node.js parar abruptamente com este erro, sua máquina ficou sem memória (inclusive o ZRAM esgotou).
+**Solução:** Crie um swapfile de disco gigantesco temporariamente:
+```bash
+fallocate -l 16G /swapfile
+chmod 600 /swapfile
+mkswap /swapfile
+swapon /swapfile
+emerge --resume
 ```
 
-#### Q: I get errors after partitioning about blkid not being able to find a UUID
+---
 
-**A:** Be sure that all devices are unmounted and not in use before starting the script.
-Use `wipefs -a <DEVICE>` on your partitions or fully wipe the disk before use.
-The new partitions probably align with previously existing partitions that had
-filesystems on them. Some filesystems signatures like those of ZFS can coexist with
-other signatures and may cause blkid to find ambiguous information.
+## 📚 Referências
 
-## References
+- [Gentoo AMD64 Handbook](https://wiki.gentoo.org/wiki/Handbook:AMD64)
+- [JaKooLit Hyprland Dotfiles](https://github.com/JaKooLit/Arch-Hyprland)
+- [Projeto upstream (Base) — oddlama/gentoo-install](https://github.com/oddlama/gentoo-install)
 
-* [Gentoo AMD64 Handbook](https://wiki.gentoo.org/wiki/Handbook:AMD64)
-* [Sakaki's EFI Install Guide](https://wiki.gentoo.org/wiki/Sakaki%27s_EFI_Install_Guide)
+---
+
+## Licença
+
+Este fork mantém a licença original do projeto upstream. Veja [LICENSE](LICENSE).
