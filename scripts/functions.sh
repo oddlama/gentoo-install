@@ -999,6 +999,11 @@ function gentoo_chroot() {
 
 	# Execute command
 	einfo "Chrooting..."
+	if [ -f "$chroot_dir/etc/profile.d/debuginfod.sh" ]; then
+		mv \
+			"$chroot_dir/etc/profile.d/debuginfod.sh" \
+			"$chroot_dir/etc/profile.d/debuginfod.sh.disabled"
+	fi
 	EXECUTED_IN_CHROOT=true \
 		TMP_DIR="$TMP_DIR" \
 		CACHED_LSBLK_OUTPUT="$CACHED_LSBLK_OUTPUT" \
