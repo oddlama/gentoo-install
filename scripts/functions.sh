@@ -937,8 +937,10 @@ function init_bash() {
 function env_update() {
 	env-update \
 		|| die "Error in env-update"
+	set +u
 	source /etc/profile \
 		|| die "Could not source /etc/profile"
+	set -u
 	umask 0077
 }
 
