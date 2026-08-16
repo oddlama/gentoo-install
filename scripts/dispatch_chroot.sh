@@ -4,8 +4,14 @@ set -uo pipefail
 [[ $EXECUTED_IN_CHROOT != "true" ]] \
 	&& { echo "This script must not be executed directly!" >&2; exit 1; }
 
+# temporarily disable nounset
+set +u
+
 # Source the systems profile
 source /etc/profile
+
+# enable nounset
+set -u
 
 # Set safe umask
 umask 0077
